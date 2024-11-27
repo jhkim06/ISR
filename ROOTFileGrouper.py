@@ -17,6 +17,9 @@ class ROOTFileGrouper:
     def set_hist_path_prefix(self, hist_path):
         self.hist_path_prefix = hist_path
 
+    def get_hist_path_prefix(self):
+        return self.hist_path_prefix
+
     def get_tobject(self, name):
 
         file_path = self.file_dict[list(self.file_dict.keys())[0]]  # just first item in the dictionary

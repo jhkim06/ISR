@@ -54,6 +54,8 @@ class Analyzer:
         data_bg_subtracted = self.get_bg_subtracted_data(hist_name, bin_width_norm=bin_width_norm)
         signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
 
+        # comparison plot
+        # plotter.add(
         plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
         plotter.create_subplots(2, 1, figsize=figsize,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])

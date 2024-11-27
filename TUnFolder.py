@@ -1,6 +1,9 @@
 import ROOT
 import ctypes
 from types import MappingProxyType
+from Hist import Hist
+import numpy as np
+from Plotter import Plotter
 
 
 REG_MODE = MappingProxyType(
@@ -131,11 +134,57 @@ class TUnFolder:
                                                  use_axis_binning)
         return unfolded_hist
 
-    def get_chi2(self):
+    def get_chi2(self, folded=True, projection_mode="*[*]", use_axis_binning=True, draw_plot=False):
+        if folded:
+            data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
+                                                     ctypes.c_char_p(0),
+                                                     ctypes.c_char_p(0),
+                                                     projection_mode,
+                                                     use_axis_binning)
+            expectation_hist = self.get_mc_reco_from_response_matrix()
+        else:
+            data_hist = self.get_unfolded_hist(projection_mode, use_axis_binning)
+            expectation_hist = self.get_mc_truth_from_response_matrix()
+
+        data_hist.Scale(1, "width")
+        expectation_hist.Scale(1, "width")
+
+        data_values = Hist(data_hist).to_numpy()[0]
+        expectation_values = Hist(expectation_hist).to_numpy()[0]
+        data_errors = Hist(data_hist).to_numpy()[2]
+
+        chi2 = np.sum(np.square((data_values - expectation_values) / data_errors))  # TODO handle non-diagonal errors?
+        # draw comparison plot
+        if draw_plot:
+            self.draw_comparison(data_hist, expectation_hist, str(chi2))
+        return chi2
+
+    def bottom_line_test(self):
         pass
 
     def get_condition_number(self):
         pass
+
+    def draw_comparison(self, data, expectation, text):
+
+        plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
+        plotter.create_subplots(2, 1, figsize=(8,8),
+                                left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+        # measurement
+        plotter.add_hist(data, **{"histtype": 'errorbar', "color": 'black', 'label': 'Data'})
+        # expectations
+        plotter.add_hist(expectation, **{"histtype": 'errorbar', "color": 'red', 'mfc': 'none',
+                                         "label": 'Simulation'})
+
+        plotter.add_ratio_hist(nominator_index=0,
+                               denominator_index=1,  # add all simulation except data
+                               location=(1, 0), color='black', histtype='errorbar')
+        plotter.draw_hist()
+        plotter.show_legend(location=(0, 0))
+        plotter.adjust_y_scale()
+        plotter.add_text(text=text, location=(0,0), **{"loc": "upper left",})  # Note: required to after setting legend
+        plotter.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
+        plotter.save_fig("comparison_test")
 
     def get_mc_truth_from_response_matrix(self):
         return self.response_matrix.ProjectionX("histMCTruth", 0, -1, "e")

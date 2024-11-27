@@ -157,10 +157,14 @@ class ISRAnalyzer(Analyzer):
         # FIXME return TUnFolder object
         return result
 
+    def get_mean_pt(self):
+        pass
+
     # TODO use postfix for systematic later
     def get_unfolded_mean_pt_1d(self, input_hist_name_prefix, matrix_name_prefix,
                                 fake_hist_name_prefix='', bg_hist_name_prefix='',
                                 do_acceptance_correction=False, pt_hist_full_phase_name_prefix=''):
+        # Use mass_bin as postfix
         pt_data = []
         for mass_bin in self.mass_bins:
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
@@ -175,7 +179,6 @@ class ISRAnalyzer(Analyzer):
             result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                         do_acceptance_correction=do_acceptance_correction,
                                         hist_full_phase_name=pt_hist_full_phase_name_prefix + mass_bin_postfix)
-
             pt_data.append(result.get_mean())
         return pt_data
 
