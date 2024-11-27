@@ -1,4 +1,5 @@
 from Plotter import Plotter
+from TUnFolder import TUnFolder
 
 
 labels = {
@@ -25,6 +26,18 @@ class Analyzer:
     def set_base_hist_path(self, hist_path):
         self.data[1].set_hist_path_prefix(hist_path)
         self.signal[1].set_hist_path_prefix(hist_path)
+
+    def do_unfold(self, data_hist, response_matrix, fake_hist, backgrounds,
+                  unfolded_bin=None, folded_bin=None):
+
+        # draw folded histograms
+        unfold = TUnFolder(response_matrix,
+                           data_hist,
+                           fake_hist,
+                           bg_hists=backgrounds, unfolded_bin=unfolded_bin, folded_bin=folded_bin)
+        unfold.unfold()
+
+        return unfold
 
     def draw_measurement_signal_comparison_plot(self, hist_name,
                                                 figsize=(8,8),
