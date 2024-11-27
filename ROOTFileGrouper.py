@@ -19,7 +19,7 @@ class ROOTFileGrouper:
 
     def get_tobject(self, name):
 
-        file_path = self.file_dict[list(self.file_dict.keys())[0]]
+        file_path = self.file_dict[list(self.file_dict.keys())[0]]  # just first item in the dictionary
         file = ROOT.TFile.Open(file_path, 'r')
         tobject = file.Get(name)
         file.Close()

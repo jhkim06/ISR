@@ -36,19 +36,16 @@ class ISRAnalyzer(Analyzer):
 
         # 2D
 
-    def get_hists_for_unfolding(self, hist_name_prefix, matrix_name_prefix, fake_hist_name_prefix,
-                                bin_postfix=''):
+    def get_hist_names_for_unfolding(self, input_hist_name_prefix, matrix_name_prefix,
+                                     fake_hist_name_prefix, bg_name_prefix,
+                                     bin_postfix=''):
         # input, matrix, bg, fake
-        hist_name = hist_name_prefix + bin_postfix
+        input_hist_name = input_hist_name_prefix + bin_postfix
         matrix_name = matrix_name_prefix + bin_postfix
         fake_hist_name = fake_hist_name_prefix + bin_postfix
+        bg_hist_name = bg_name_prefix + bin_postfix
 
-        data_hist = self.get_data_hist(hist_name)
-        response_matrix = self.get_signal_hist(matrix_name)
-        fake_hist = self.get_signal_hist(fake_hist_name)
-        background_hists = self.get_background_hist(hist_name)
-
-        return data_hist, response_matrix, fake_hist, background_hists
+        return input_hist_name, matrix_name, fake_hist_name, bg_hist_name
 
     # basic plots
     def draw_isr_measurement_expectation_plot(self, hist_name_prefix, bin_postfix='', text="",
@@ -140,11 +137,11 @@ class ISRAnalyzer(Analyzer):
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
         return self.signal[1].get_tobject(unfolded_bin_name), self.signal[1].get_tobject(folded_bin_name)
 
-    def do_isr_unfold(self, data_hist, response_matrix, fake_hist, backgrounds,
+    def do_isr_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                       unfolded_bin=None, folded_bin=None,
                       do_acceptance_correction=False, hist_full_phase_name=''):
 
-        unfold_result = self.do_unfold(data_hist, response_matrix, fake_hist, backgrounds,
+        unfold_result = self.do_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                        unfolded_bin, folded_bin)
 
         if do_acceptance_correction:
@@ -160,36 +157,36 @@ class ISRAnalyzer(Analyzer):
         # FIXME return TUnFolder object
         return result
 
-    def get_unfolded_mean_pt_1d(self, pt_hist_name_prefix, pt_matrix_name_prefix,
-                                pt_fake_hist_name_prefix='',
+    # TODO use postfix for systematic later
+    def get_unfolded_mean_pt_1d(self, input_hist_name_prefix, matrix_name_prefix,
+                                fake_hist_name_prefix='', bg_hist_name_prefix='',
                                 do_acceptance_correction=False, pt_hist_full_phase_name_prefix=''):
         pt_data = []
         for mass_bin in self.mass_bins:
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
             # FIXME ISRAnalyzer knows the name of histogram to unfold, but Analyzer don't. But Analyzer
             # contains histograms for the analysis
-            data_hist, response_matrix, fake_hist, backgrounds = self.get_hists_for_unfolding(pt_hist_name_prefix,
-                                                                                              pt_matrix_name_prefix,
-                                                                                              pt_fake_hist_name_prefix,
-                                                                                              mass_bin_postfix)
-            result = self.do_isr_unfold(data_hist, response_matrix, fake_hist, backgrounds,
+            input_hist_name, matrix_name, fake_hist_name, bg_hist_name = self.get_hist_names_for_unfolding(input_hist_name_prefix,
+                                                                                             matrix_name_prefix,
+                                                                                             fake_hist_name_prefix,
+                                                                                             bg_hist_name_prefix,
+                                                                                             mass_bin_postfix)
+            # do_unfold(input_hist_name, matrix_name, fake_hist_name)
+            result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                         do_acceptance_correction=do_acceptance_correction,
-                                        hist_full_phase_name=pt_hist_full_phase_name_prefix+mass_bin_postfix)
+                                        hist_full_phase_name=pt_hist_full_phase_name_prefix + mass_bin_postfix)
 
             pt_data.append(result.get_mean())
         return pt_data
 
-    def get_unfolded_mean_pt_2d(self, pt_hist_name, pt_matrix_name,
-                                folded_bin_name, unfolded_bin_name,
-                                pt_fake_hist_name='',
+    def get_unfolded_mean_pt_2d(self, input_hist_name, matrix_name,
+                                fake_hist_name='', bg_hist_name='',
+                                folded_bin_name='', unfolded_bin_name='',
                                 do_acceptance_correction=False, pt_hist_full_phase_name=''):
 
-        data_hist, response_matrix, fake_hist, backgrounds = self.get_hists_for_unfolding(pt_hist_name,
-                                                                                          pt_matrix_name,
-                                                                                          pt_fake_hist_name)
         # get bin map
-        unfolded_bin, folded_bin = self.get_unfold_bin_maps(unfolded_bin_name, folded_bin_name)
-        result = self.do_isr_unfold(data_hist, response_matrix, fake_hist, backgrounds,
+        unfolded_bin, folded_bin = self.get_unfold_bin_maps(unfolded_bin_name, folded_bin_name)  # path to bin map
+        result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                     unfolded_bin=unfolded_bin, folded_bin=folded_bin,
                                     do_acceptance_correction=do_acceptance_correction,
                                     hist_full_phase_name=pt_hist_full_phase_name)
@@ -198,20 +195,24 @@ class ISRAnalyzer(Analyzer):
         for index, _ in enumerate(self.mass_bins):
             axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
             temp_result = Hist(unfolded_bin.ExtractHistogram("",
-                                                             result.raw_root_hist, 0, True, axis_steering))
+                                                             result.raw_root_hist,
+                                                             0,
+                                                             True,
+                                                             axis_steering))
             pt_data.append(temp_result.get_mean())
         return pt_data
 
-    def get_unfolded_mean_mass(self, mass_hist_name_prefix, mass_matrix_name_prefix,
-                               mass_fake_hist_name_prefix='',
+    def get_unfolded_mean_mass(self, input_hist_name_prefix, matrix_name_prefix,
+                               fake_hist_name_prefix='', bg_hist_name_prefix='',
                                do_acceptance_correction=False, mass_hist_full_phase_name_prefix=''):
 
         bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
-        data_hist, response_matrix, fake_hist, backgrounds = self.get_hists_for_unfolding(mass_hist_name_prefix,
-                                                                                          mass_matrix_name_prefix,
-                                                                                          mass_fake_hist_name_prefix,
-                                                                                          bin_postfix)
-        result = self.do_isr_unfold(data_hist, response_matrix, fake_hist, backgrounds,
+        input_hist_name, matrix_name, fake_hist_name, bg_hist_name = self.get_hist_names_for_unfolding(input_hist_name_prefix,
+                                                                                               matrix_name_prefix,
+                                                                                               fake_hist_name_prefix,
+                                                                                               bg_hist_name_prefix,
+                                                                                               bin_postfix)
+        result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                     do_acceptance_correction=do_acceptance_correction,
                                     hist_full_phase_name=mass_hist_full_phase_name_prefix+bin_postfix)
 

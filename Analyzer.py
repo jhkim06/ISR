@@ -27,8 +27,13 @@ class Analyzer:
         self.data[1].set_hist_path_prefix(hist_path)
         self.signal[1].set_hist_path_prefix(hist_path)
 
-    def do_unfold(self, data_hist, response_matrix, fake_hist, backgrounds,
+    def do_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                   unfolded_bin=None, folded_bin=None):
+
+        data_hist = self.get_data_hist(input_hist_name)
+        response_matrix = self.get_signal_hist(matrix_name)
+        fake_hist = self.get_signal_hist(fake_hist_name)
+        backgrounds = self.get_background_hist(bg_hist_name)
 
         # draw folded histograms
         unfold = TUnFolder(response_matrix,
