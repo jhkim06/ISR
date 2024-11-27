@@ -27,13 +27,21 @@ class Analyzer:
         self.data[1].set_hist_path_prefix(hist_path)
         self.signal[1].set_hist_path_prefix(hist_path)
 
+    def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
+        return self.signal[1].get_tobject(unfolded_bin_name), self.signal[1].get_tobject(folded_bin_name)
+
     def do_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                  unfolded_bin=None, folded_bin=None):
+                  unfolded_bin_name=None, folded_bin_name=None):
 
         data_hist = self.get_data_hist(input_hist_name)
         response_matrix = self.get_signal_hist(matrix_name)
         fake_hist = self.get_signal_hist(fake_hist_name)
         backgrounds = self.get_background_hist(bg_hist_name)
+
+        unfolded_bin = None
+        folded_bin = None
+        if unfolded_bin_name and folded_bin_name:
+            unfolded_bin, folded_bin = self.get_unfold_bin_maps(unfolded_bin_name, folded_bin_name)
 
         # draw folded histograms
         unfold = TUnFolder(response_matrix,
@@ -41,6 +49,7 @@ class Analyzer:
                            fake_hist,
                            bg_hists=backgrounds, unfolded_bin=unfolded_bin, folded_bin=folded_bin)
         unfold.unfold()
+        # bottom line test?
 
         return unfold
 
@@ -55,7 +64,6 @@ class Analyzer:
         signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
 
         # comparison plot
-        # plotter.add(
         plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
         plotter.create_subplots(2, 1, figsize=figsize,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])

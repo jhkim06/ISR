@@ -127,67 +127,122 @@ class TUnFolder:
 
     def get_unfolded_hist(self, projection_mode="*[*]", use_axis_binning=True):
 
-        unfolded_hist = self.tunfolder.GetOutput("default",
+        unfolded_hist = self.tunfolder.GetOutput("unfolded_hist",
                                                  ctypes.c_char_p(0),
                                                  ctypes.c_char_p(0),
-                                                 projection_mode,
+                                                 ctypes.c_char_p(0),
                                                  use_axis_binning)
+
+        if projection_mode != "*[*]":
+            unfolded_hist = self.unfolded_bin.ExtractHistogram("unfolded_hist_extracted",
+                                                             unfolded_hist,
+                                                             0,  # error matrix
+                                                             use_axis_binning,
+                                                             projection_mode)
         return unfolded_hist
 
-    def get_chi2(self, folded=True, projection_mode="*[*]", use_axis_binning=True, draw_plot=False):
+    def get_input_hist(self, projection_mode="*[*]", use_axis_binning=True):
+        # seems parameter axis steering not passed properly so use ExtractHistogram()
+        data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
+                                            ctypes.c_char_p(0),
+                                            ctypes.c_char_p(0),
+                                            ctypes.c_char_p(0),
+                                            use_axis_binning)
+
+        if projection_mode != "*[*]":
+            data_hist = self.folded_bin.ExtractHistogram("unfold_input_extracted",
+                                                         data_hist,
+                                                         0,  # error matrix
+                                                         use_axis_binning,
+                                                         projection_mode)
+        return data_hist
+
+    def get_chi2(self, folded=True, projection_mode="*[*]", use_axis_binning=True):
         if folded:
-            data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
-                                                     ctypes.c_char_p(0),
-                                                     ctypes.c_char_p(0),
-                                                     projection_mode,
-                                                     use_axis_binning)
-            expectation_hist = self.get_mc_reco_from_response_matrix()
+            data_hist = self.get_input_hist(projection_mode, use_axis_binning)
+            expectation_hist = self.get_mc_reco_from_response_matrix(projection_mode, use_axis_binning)
         else:
             data_hist = self.get_unfolded_hist(projection_mode, use_axis_binning)
-            expectation_hist = self.get_mc_truth_from_response_matrix()
+            expectation_hist = self.get_mc_truth_from_response_matrix(projection_mode, use_axis_binning)
 
-        data_hist.Scale(1, "width")
-        expectation_hist.Scale(1, "width")
+        # histogram width doesnt matter
+        # data_hist.Scale(1, "width")
+        # expectation_hist.Scale(1, "width")
 
         data_values = Hist(data_hist).to_numpy()[0]
         expectation_values = Hist(expectation_hist).to_numpy()[0]
         data_errors = Hist(data_hist).to_numpy()[2]
 
-        chi2 = np.sum(np.square((data_values - expectation_values) / data_errors))  # TODO handle non-diagonal errors?
+        chi2 = np.sum(np.square((data_values - expectation_values) / data_errors))  # TODO maybe need to handle non-diagonal errors
         # draw comparison plot
-        if draw_plot:
-            self.draw_comparison(data_hist, expectation_hist, str(chi2))
         return chi2
 
-    def bottom_line_test(self):
-        pass
+    def bottom_line_test(self, projection_mode="*[*]", use_axis_binning=True):
+        # required chi2_folded > chi2_unfolded
+        # case1: 1D, case2: 2D
+        # projection_mode ex) dipt[O];dimass[OUC1]
+        folded_chi2 = self.get_chi2(folded=True, projection_mode=projection_mode, use_axis_binning=use_axis_binning)
+        unfolded_chi2 = self.get_chi2(folded=False, projection_mode=projection_mode, use_axis_binning=use_axis_binning)
+        return folded_chi2 > unfolded_chi2
 
     def get_condition_number(self):
-        pass
+        h_prob_matrix = self.tunfolder.GetProbabilityMatrix("hProb")
+        n_bin_x = h_prob_matrix.GetNbinsX()
+        n_bin_y = h_prob_matrix.GetNbinsY()
 
-    def draw_comparison(self, data, expectation, text):
+        matrix = ROOT.TMatrixD(n_bin_y, n_bin_x)
+        for i in range(n_bin_x):
+            for j in range(n_bin_y):
+                matrix[j][i] = h_prob_matrix.GetBinContent(i + 1, j + 1)
+
+        decomp = ROOT.TDecompSVD(matrix)
+        print("Matrix condition: " + str(decomp.Condition()))
+        return decomp.Condition()
+
+
+    def draw_bottom_line_test(self, data, expectation, text):
 
         plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
         plotter.create_subplots(2, 1, figsize=(8,8),
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
         # measurement
+        # plotter.add_comparison()
         plotter.add_hist(data, **{"histtype": 'errorbar', "color": 'black', 'label': 'Data'})
         # expectations
         plotter.add_hist(expectation, **{"histtype": 'errorbar', "color": 'red', 'mfc': 'none',
-                                         "label": 'Simulation'})
+                                      "label": 'Simulation'})
 
         plotter.add_ratio_hist(nominator_index=0,
                                denominator_index=1,  # add all simulation except data
                                location=(1, 0), color='black', histtype='errorbar')
+        # plotter.cosmetic()
+
         plotter.draw_hist()
         plotter.show_legend(location=(0, 0))
+        plotter.get_axis(location=(0, 0)).set_xticklabels([])
         plotter.adjust_y_scale()
         plotter.add_text(text=text, location=(0,0), **{"loc": "upper left",})  # Note: required to after setting legend
         plotter.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
         plotter.save_fig("comparison_test")
 
-    def get_mc_truth_from_response_matrix(self):
-        return self.response_matrix.ProjectionX("histMCTruth", 0, -1, "e")
+    def get_mc_truth_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
+        projected_hist = self.response_matrix.ProjectionX("histMCTruth", 0, -1, "e")
 
-    def get_mc_reco_from_response_matrix(self):
-        return self.response_matrix.ProjectionY("histMCReco", 0, -1, "e")
+        if projection_mode != "*[*]":
+            projected_hist = self.unfolded_bin.ExtractHistogram("truth_extracted",
+                                                                projected_hist,
+                                                                0,  # error matrix
+                                                                use_axis_binning,
+                                                                projection_mode)
+        return projected_hist
+
+    def get_mc_reco_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
+        projected_hist = self.response_matrix.ProjectionY("histMCReco", 0, -1, "e")
+
+        if projection_mode != "*[*]":
+            projected_hist = self.folded_bin.ExtractHistogram("reco_extracted",
+                                                                projected_hist,
+                                                                0,  # error matrix
+                                                                use_axis_binning,
+                                                                projection_mode)
+        return projected_hist

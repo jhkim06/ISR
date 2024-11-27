@@ -134,15 +134,13 @@ class ISRAnalyzer(Analyzer):
                                                   r'$p_{T},M bin index$',
                                                   fake_hist=fake_hist)
 
-    def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
-        return self.signal[1].get_tobject(unfolded_bin_name), self.signal[1].get_tobject(folded_bin_name)
 
     def do_isr_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                      unfolded_bin=None, folded_bin=None,
+                      unfolded_bin_name=None, folded_bin_name=None,
                       do_acceptance_correction=False, hist_full_phase_name=''):
 
         unfold_result = self.do_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                                       unfolded_bin, folded_bin)
+                                       unfolded_bin_name, folded_bin_name)
 
         if do_acceptance_correction:
             mc_hist_full_phase = self.get_signal_hist(hist_full_phase_name)
@@ -188,9 +186,9 @@ class ISRAnalyzer(Analyzer):
                                 do_acceptance_correction=False, pt_hist_full_phase_name=''):
 
         # get bin map
-        unfolded_bin, folded_bin = self.get_unfold_bin_maps(unfolded_bin_name, folded_bin_name)  # path to bin map
+        unfolded_bin, _ = self.get_unfold_bin_maps(unfolded_bin_name, folded_bin_name)  # path to bin map
         result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                                    unfolded_bin=unfolded_bin, folded_bin=folded_bin,
+                                    unfolded_bin_name=unfolded_bin_name, folded_bin_name=folded_bin_name,
                                     do_acceptance_correction=do_acceptance_correction,
                                     hist_full_phase_name=pt_hist_full_phase_name)
 
