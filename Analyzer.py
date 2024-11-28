@@ -31,7 +31,7 @@ class Analyzer:
         return self.signal[1].get_tobject(unfolded_bin_name), self.signal[1].get_tobject(folded_bin_name)
 
     def do_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                  unfolded_bin_name=None, folded_bin_name=None):
+                  unfolded_bin_name=None, folded_bin_name=None, variable_name=''):
 
         data_hist = self.get_data_hist(input_hist_name)
         response_matrix = self.get_signal_hist(matrix_name)
@@ -47,9 +47,9 @@ class Analyzer:
         unfold = TUnFolder(response_matrix,
                            data_hist,
                            fake_hist,
-                           bg_hists=backgrounds, unfolded_bin=unfolded_bin, folded_bin=folded_bin)
+                           bg_hists=backgrounds, unfolded_bin=unfolded_bin, folded_bin=folded_bin,
+                           year=self.year, variable_name=variable_name)
         unfold.unfold()
-        # bottom line test?
 
         return unfold
 
@@ -68,6 +68,7 @@ class Analyzer:
         plotter.create_subplots(2, 1, figsize=figsize,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
         # measurement
+        plotter.set_experiment_label(**{"year": self.year})
         plotter.add_hist(data_bg_subtracted, **{"histtype": 'errorbar', "color": 'black',
                                                 'label': 'Data'})
         # expectations
@@ -84,7 +85,7 @@ class Analyzer:
                                denominator_index=1,  # add all simulation except data
                                location=(1, 0), color='black', histtype='errorbar')
         plotter.draw_hist()
-        self.comparison_plot_cosmetics(plotter, x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
+        plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
         plotter.adjust_y_scale()
         plotter.add_text(text=text, location=(0,0), **{"loc": "upper left",})  # Note: required to after setting legend
         plotter.save_fig(hist_name + "_bg_subtracted" + self.year)
@@ -103,6 +104,7 @@ class Analyzer:
         plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
         plotter.create_subplots(2, 1,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+        plotter.set_experiment_label(**{"year": self.year})
         # measurement
         plotter.add_hist(data_hist, **{"histtype": 'errorbar', "color": 'black',
                                        'label': 'Data'})
@@ -117,34 +119,11 @@ class Analyzer:
                                location=(1, 0), color='black', histtype='errorbar')
         # just to show x bin widths
         plotter.draw_hist()
-        self.comparison_plot_cosmetics(plotter, x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
+        plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
         # plotter.get_axis(location=(0, 0)).set_ylim(ymin=1e-2)
         plotter.adjust_y_scale()
         plotter.add_text(text=text, location=(0,0), **{"loc": "upper left",})  # Note: required to after setting legend
         plotter.save_fig(hist_name + "_" + self.year)
-
-    def comparison_plot_cosmetics(self, plotter, x_variable_name, y_log_scale=False, x_log_scale=False,
-                                  bin_width_norm=False):
-
-        if x_log_scale:
-            plotter.get_axis(location=(0, 0)).set_yscale("log")
-        if x_log_scale:
-            # FIXME loop over all axis
-            plotter.get_axis(location=(0, 0)).set_xscale("log")
-            plotter.get_axis(location=(1, 0)).set_xscale("log")
-
-        plotter.set_experiment_label(**{"year": self.year})
-        plotter.get_axis(location=(0, 0)).set_xticklabels([])
-        if bin_width_norm:
-            plotter.get_axis(location=(0, 0)).set_ylabel("Events/GeV")
-        else:
-            plotter.get_axis(location=(0, 0)).set_ylabel("Events/bin")
-        plotter.show_legend(location=(0, 0))
-
-        plotter.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
-        plotter.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
-        plotter.get_axis(location=(1, 0)).set_ylabel("Data/MC")
-        plotter.get_axis(location=(1, 0)).set_xlabel(x_variable_name + " [GeV]")
 
     def get_data_hist(self, hist_name, hist_path='', bin_width_norm=False):
         return self.data[1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)

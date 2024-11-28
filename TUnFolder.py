@@ -41,7 +41,13 @@ class TUnFolder:
                  unfold_method=None, n_iterative=100,
 
                  iterative=False,
-                 efficiency_correction=True):
+                 efficiency_correction=True,
+                 year='', channel='', variable_name=''
+                 ):
+
+        self.year = year
+        self.channel = channel
+        self.variable_name = variable_name
 
         # default setup
         self.response_matrix = response_matrix
@@ -165,9 +171,9 @@ class TUnFolder:
             data_hist = self.get_unfolded_hist(projection_mode, use_axis_binning)
             expectation_hist = self.get_mc_truth_from_response_matrix(projection_mode, use_axis_binning)
 
-        # histogram width doesnt matter
-        # data_hist.Scale(1, "width")
-        # expectation_hist.Scale(1, "width")
+        # negligible effect on ch2 value?
+        data_hist.Scale(1, "width")
+        expectation_hist.Scale(1, "width")
 
         data_values = Hist(data_hist).to_numpy()[0]
         expectation_values = Hist(expectation_hist).to_numpy()[0]
@@ -177,15 +183,7 @@ class TUnFolder:
         # draw comparison plot
         return chi2
 
-    def bottom_line_test(self, projection_mode="*[*]", use_axis_binning=True):
-        # required chi2_folded > chi2_unfolded
-        # case1: 1D, case2: 2D
-        # projection_mode ex) dipt[O];dimass[OUC1]
-        folded_chi2 = self.get_chi2(folded=True, projection_mode=projection_mode, use_axis_binning=use_axis_binning)
-        unfolded_chi2 = self.get_chi2(folded=False, projection_mode=projection_mode, use_axis_binning=use_axis_binning)
-        return folded_chi2 > unfolded_chi2
-
-    def get_condition_number(self):
+    def condition_number(self, draw_matrix=False):
         h_prob_matrix = self.tunfolder.GetProbabilityMatrix("hProb")
         n_bin_x = h_prob_matrix.GetNbinsX()
         n_bin_y = h_prob_matrix.GetNbinsY()
@@ -199,31 +197,53 @@ class TUnFolder:
         print("Matrix condition: " + str(decomp.Condition()))
         return decomp.Condition()
 
+    # general comparison template?
+    def bottom_line_test(self, projection_mode="*[*]", use_axis_binning=True, draw_plot=False,
+                         out_name=''):
 
-    def draw_bottom_line_test(self, data, expectation, text):
+        folded_chi2 = self.get_chi2(folded=True, projection_mode=projection_mode, use_axis_binning=use_axis_binning)
+        unfolded_chi2 = self.get_chi2(folded=False, projection_mode=projection_mode, use_axis_binning=use_axis_binning)
 
-        plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
-        plotter.create_subplots(2, 1, figsize=(8,8),
-                                left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
-        # measurement
-        # plotter.add_comparison()
-        plotter.add_hist(data, **{"histtype": 'errorbar', "color": 'black', 'label': 'Data'})
-        # expectations
-        plotter.add_hist(expectation, **{"histtype": 'errorbar', "color": 'red', 'mfc': 'none',
-                                      "label": 'Simulation'})
+        folded_hist = self.get_input_hist(projection_mode, use_axis_binning)
+        folded_expectation_hist = self.get_mc_reco_from_response_matrix(projection_mode, use_axis_binning)
+        unfolded_hist = self.get_unfolded_hist(projection_mode, use_axis_binning)
+        unfolded_expectation_hist = self.get_mc_truth_from_response_matrix(projection_mode, use_axis_binning)
 
-        plotter.add_ratio_hist(nominator_index=0,
-                               denominator_index=1,  # add all simulation except data
-                               location=(1, 0), color='black', histtype='errorbar')
-        # plotter.cosmetic()
+        folded_hist.Scale(1, "width")
+        folded_expectation_hist.Scale(1, "width")
+        unfolded_hist.Scale(1, "width")
+        unfolded_expectation_hist.Scale(1, "width")
 
-        plotter.draw_hist()
-        plotter.show_legend(location=(0, 0))
-        plotter.get_axis(location=(0, 0)).set_xticklabels([])
-        plotter.adjust_y_scale()
-        plotter.add_text(text=text, location=(0,0), **{"loc": "upper left",})  # Note: required to after setting legend
-        plotter.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
-        plotter.save_fig("comparison_test")
+        if draw_plot:
+            # TODO make a generic function to draw comparison plot
+            plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
+            plotter.create_subplots(2, 1, figsize=(8,8),
+                                    left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+
+            plotter.set_experiment_label(**{"year": self.year})
+            # measurement
+            # plotter.add_comparison()
+            plotter.add_comparison_pair(folded_hist, folded_expectation_hist, location=(0,0), ratio_location=(1,0),
+                                        nominator_args={"histtype": 'errorbar', "color": 'black', 'label': 'RECO Data'},
+                                        denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'red', 'mfc': 'none',
+                                                          "label": 'RECO Sim'})
+            plotter.add_comparison_pair(unfolded_hist, unfolded_expectation_hist, location=(0,0), ratio_location=(1,0),
+                                        nominator_args={"histtype": 'errorbar', "color": 'gray', 'label': 'Unfolded Data'},
+                                        denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'magenta', 'mfc': 'none',
+                                                          "label": 'GEN Sim'})
+            plotter.draw_hist()
+            plotter.comparison_plot_cosmetics(self.variable_name)
+            plotter.show_legend(location=(0, 0))
+            plotter.get_axis(location=(0, 0)).set_xticklabels([])
+            plotter.adjust_y_scale()
+            plotter.add_text(text='$\chi_{folded}^{2}:$' + str(round(folded_chi2, 2))+'\n$\chi_{unfolded}^{2}:$' +
+                                  str(round(unfolded_chi2, 2)),
+                             location=(0,0),
+                             **{"loc": "upper left",})  # Note: required to after setting legend
+            plotter.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
+            plotter.save_fig(out_name + "_btl_test_" + self.channel + self.year)
+
+        return folded_chi2 > unfolded_chi2
 
     def get_mc_truth_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
         projected_hist = self.response_matrix.ProjectionX("histMCTruth", 0, -1, "e")

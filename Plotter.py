@@ -11,6 +11,8 @@ class Plotter:
 
         self.experiment = experiment
         hep.style.use(self.experiment)
+        self.year = ''
+        self.lumi = ''
         plt.ioff()  # interactive mode off; not to show figures on creation
 
         plt.rcParams['axes.linewidth'] = 2.0
@@ -101,13 +103,24 @@ class Plotter:
         self.hist_loc.append(location)
         self.hist_kwargs.append(kwargs)
         self.hist_as_stack.append(as_stack)
+        return len(self.hist_list)-1
+
+    def add_comparison_pair(self, nominator_hist, denominator_hist,
+                            location, ratio_location,
+                            nominator_args, denominator_args):
+        nominator_index = self.add_hist(nominator_hist, location=location, **nominator_args)
+        denominator_index = self.add_hist(denominator_hist, location=location, **denominator_args)
+        self.add_ratio_hist(nominator_index=nominator_index, denominator_index=denominator_index,
+                            location=ratio_location, **nominator_args)
 
     def add_text(self, text, location=(0, 0), **kwargs):
         self.set_current_axis(location=location)
+        plt.rcParams['text.usetex'] = True
         at = AnchoredText(text, prop=dict(size=20), frameon=False,
                      **kwargs)
         self.current_axis.add_artist(at)
         hep.plot.mpl_magic(self.current_axis)
+        plt.rcParams['text.usetex'] = False
 
     def add_data_hist(self):
         pass
@@ -190,6 +203,28 @@ class Plotter:
             self.set_current_axis(location=self.errorbar_loc[index])
             self.current_axis.errorbar(x_value, y_value,  xerr=x_error, yerr=y_error,
                                        **self.errorbar_kwargs[index])
+
+    def comparison_plot_cosmetics(self, x_variable_name, y_log_scale=False, x_log_scale=False,
+                                  bin_width_norm=False):
+
+        if x_log_scale:
+            self.get_axis(location=(0, 0)).set_yscale("log")
+        if x_log_scale:
+            # FIXME loop over all axis
+            self.get_axis(location=(0, 0)).set_xscale("log")
+            self.get_axis(location=(1, 0)).set_xscale("log")
+
+        self.get_axis(location=(0, 0)).set_xticklabels([])
+        if bin_width_norm:
+            self.get_axis(location=(0, 0)).set_ylabel("Events/GeV")
+        else:
+            self.get_axis(location=(0, 0)).set_ylabel("Events/bin")
+        self.show_legend(location=(0, 0))
+
+        self.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
+        self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
+        self.get_axis(location=(1, 0)).set_ylabel("Data/MC")
+        self.get_axis(location=(1, 0)).set_xlabel(x_variable_name + " [GeV]")
 
     def save_fig(self, out_name=''):
         out_file_name = out_name

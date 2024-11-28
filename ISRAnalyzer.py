@@ -9,6 +9,9 @@ def change_to_greek(raw_string):
     else:
         return raw_string
 
+
+
+
 class ISRAnalyzer(Analyzer):
     def __init__(self, data, signal, background,
                  mass_bins, pt_bins,
@@ -20,6 +23,9 @@ class ISRAnalyzer(Analyzer):
         # dipt_prefix, dimass_prefix
         self._set_isr_hist_names()
         self.systematics = None
+
+        self.dipt_label = r'$p_{T}^{' + change_to_greek(self.channel) + '}$'
+        self.dimass_label = r'$M^{' + change_to_greek(self.channel) + '}$'
 
     def _set_isr_hist_names(self):
 
@@ -84,17 +90,16 @@ class ISRAnalyzer(Analyzer):
 
             self.draw_isr_measurement_expectation_plot(hist_name_prefix, mass_bin_postfix,
                                                        bin_width_norm=True,
-                                                       text=str(int(mass_bin[0])) + "<m<" +
+                                                       text=str(int(mass_bin[0])) + "$<m<$" +
                                                             str(int(mass_bin[1])) + " GeV",
-                                                       x_variable_name=
-                                                       r'$p_{T}^{' + change_to_greek(self.channel) + '}$')
+                                                       x_variable_name=self.dipt_label)
 
     def draw_isr_measurement_expectation_plot_dimass(self, hist_name_prefix):
         bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
         self.draw_isr_measurement_expectation_plot(hist_name_prefix, bin_postfix,
                                                    bin_width_norm=True,
-                                                   text=str(r"$p_{T}$<" + str(int(self.pt_bins[1])) + " GeV"),
-                                                   x_variable_name=r'$M^{' + change_to_greek(self.channel) + '}$',
+                                                   text=str(r"$p_{T}<$" + str(int(self.pt_bins[1])) + " GeV"),
+                                                   x_variable_name=self.dimass_label,
                                                    y_log_scale=True, x_log_scale=True)
 
     def draw_isr_measurement_signal_plot_dimass(self, hist_name_prefix):
@@ -104,8 +109,8 @@ class ISRAnalyzer(Analyzer):
         fake_hist = {"hist_name": "dimass_[reco_gen_dressed_fake__fine]_dipt"}
         self.draw_isr_measurement_signal_plot(hist_name_prefix, bin_postfix,
                                                   bin_width_norm=True,
-                                                  text=str(r"$p_{T}$<" + str(int(self.pt_bins[1])) + " GeV"),
-                                                  x_variable_name=r'$M^{' + change_to_greek(self.channel) + '}$',
+                                                  text=str(r"$p_{T}<$" + str(int(self.pt_bins[1])) + " GeV"),
+                                                  x_variable_name=self.dimass_label,
                                                   y_log_scale=True, x_log_scale=True,
                                                   fake_hist=fake_hist
                                                   )
@@ -117,10 +122,9 @@ class ISRAnalyzer(Analyzer):
             fake_hist = {"hist_name": "dipt_[reco_gen_dressed_fake__fine]_dimass"}
             self.draw_isr_measurement_signal_plot(hist_name_prefix, mass_bin_postfix,
                                                   bin_width_norm=True,
-                                                  text=str(int(mass_bin[0])) + "<m<" +
+                                                  text=str(int(mass_bin[0])) + "$<m<$" +
                                                   str(int(mass_bin[1])) + " GeV",
-                                                  x_variable_name=
-                                                  r'$p_{T}^{' + change_to_greek(self.channel) + '}$',
+                                                  x_variable_name=self.dipt_label,
                                                   fake_hist=fake_hist)
 
     def draw_isr_measurement_signal_plot_2d_dipt(self, hist_name):
@@ -137,10 +141,13 @@ class ISRAnalyzer(Analyzer):
 
     def do_isr_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                       unfolded_bin_name=None, folded_bin_name=None,
-                      do_acceptance_correction=False, hist_full_phase_name=''):
+                      do_acceptance_correction=False, hist_full_phase_name='',
+                      variable_label=''):
 
         unfold_result = self.do_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                                       unfolded_bin_name, folded_bin_name)
+                                       unfolded_bin_name, folded_bin_name, variable_label)
+
+        unfold_result.bottom_line_test(draw_plot=True, out_name=input_hist_name)
 
         if do_acceptance_correction:
             mc_hist_full_phase = self.get_signal_hist(hist_full_phase_name)
@@ -176,7 +183,8 @@ class ISRAnalyzer(Analyzer):
             # do_unfold(input_hist_name, matrix_name, fake_hist_name)
             result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                         do_acceptance_correction=do_acceptance_correction,
-                                        hist_full_phase_name=pt_hist_full_phase_name_prefix + mass_bin_postfix)
+                                        hist_full_phase_name=pt_hist_full_phase_name_prefix + mass_bin_postfix,
+                                        variable_label=self.dipt_label)
             pt_data.append(result.get_mean())
         return pt_data
 
