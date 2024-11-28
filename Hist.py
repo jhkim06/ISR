@@ -53,5 +53,26 @@ class Hist(object):
 
         return values, bins, errors
 
+    def to_numpy_2d(self):
+        content_list = []
+        for i_x in range(self.raw_root_hist.GetNbinsX()):
+            reco_list = []
+            for i_y in range(self.raw_root_hist.GetNbinsY()):
+                reco_list.append(self.raw_root_hist.GetBinContent(i_x + 1, i_y + 1))
+            content_list.append(reco_list)
+        content_np = np.array(content_list)
+
+        x_bin_edges = []
+        for i_x in range(self.raw_root_hist.GetNbinsX() + 1):
+            x_bin_edges.append(self.raw_root_hist.GetXaxis().GetBinLowEdge(i_x + 1))
+        x_bin_edges_np = np.array(x_bin_edges)
+
+        y_bin_edges = []
+        for i_y in range(self.raw_root_hist.GetNbinsY() + 1):
+            y_bin_edges.append(self.raw_root_hist.GetYaxis().GetBinLowEdge(i_y + 1))
+        y_bin_edges_np = np.array(y_bin_edges)
+
+        return content_np, x_bin_edges_np, y_bin_edges_np
+
     def get_bin_widths(self):
         pass

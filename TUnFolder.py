@@ -197,6 +197,21 @@ class TUnFolder:
         print("Matrix condition: " + str(decomp.Condition()))
         return decomp.Condition()
 
+    def draw_response_matrix(self, out_name=''):
+        plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
+        plotter.create_subplots(1, 1, figsize=(8, 8),
+                                left=0.15, right=0.9, hspace=0.0, bottom=0.15)
+        plotter.set_experiment_label(label="Simulation")
+
+        rm_np = Hist(self.tunfolder.GetProbabilityMatrix(ctypes.c_char_p(0),
+                                                         ctypes.c_char_p(0),
+                                                         True)).to_numpy_2d()
+        plotter.draw_matrix(rm_np, self.variable_name)
+        plotter.add_text("condition number: " + str(round(self.condition_number(), 2)),
+                         location=(0,0), do_magic=False,
+                         **{"loc": "upper left",})
+        plotter.save_fig(out_name + "_rm_" +  self.channel + self.year)
+
     # general comparison template?
     def bottom_line_test(self, projection_mode="*[*]", use_axis_binning=True, draw_plot=False,
                          out_name=''):
@@ -229,7 +244,7 @@ class TUnFolder:
                                                           "label": 'RECO Sim'})
             plotter.add_comparison_pair(unfolded_hist, unfolded_expectation_hist, location=(0,0), ratio_location=(1,0),
                                         nominator_args={"histtype": 'errorbar', "color": 'gray', 'label': 'Unfolded Data'},
-                                        denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'magenta', 'mfc': 'none',
+                                        denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'blue', 'mfc': 'none',
                                                           "label": 'GEN Sim'})
             plotter.draw_hist()
             plotter.comparison_plot_cosmetics(self.variable_name)

@@ -87,7 +87,7 @@ class Analyzer:
         plotter.draw_hist()
         plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
         plotter.adjust_y_scale()
-        plotter.add_text(text=text, location=(0,0), **{"loc": "upper left",})  # Note: required to after setting legend
+        plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})  # Note: required to after setting legend
         plotter.save_fig(hist_name + "_bg_subtracted" + self.year)
 
     def draw_measurement_expectation_comparison_plot(self, hist_name,
@@ -122,7 +122,7 @@ class Analyzer:
         plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
         # plotter.get_axis(location=(0, 0)).set_ylim(ymin=1e-2)
         plotter.adjust_y_scale()
-        plotter.add_text(text=text, location=(0,0), **{"loc": "upper left",})  # Note: required to after setting legend
+        plotter.add_text(text=text, location=(0,0), **{"frameon":False, "loc": "upper left",})  # Note: required to after setting legend
         plotter.save_fig(hist_name + "_" + self.year)
 
     def get_data_hist(self, hist_name, hist_path='', bin_width_norm=False):

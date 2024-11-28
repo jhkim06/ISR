@@ -3,8 +3,11 @@ from matplotlib.offsetbox import AnchoredText
 import mplhep as hep
 import numpy as np
 from typing import List, Dict, Any
+import matplotlib.colors as mcolors
 
 from Hist import Hist
+import math
+
 
 class Plotter:
     def __init__(self, experiment, base_output_dir, **kwargs):
@@ -113,13 +116,13 @@ class Plotter:
         self.add_ratio_hist(nominator_index=nominator_index, denominator_index=denominator_index,
                             location=ratio_location, **nominator_args)
 
-    def add_text(self, text, location=(0, 0), **kwargs):
+    def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)
         plt.rcParams['text.usetex'] = True
-        at = AnchoredText(text, prop=dict(size=20), frameon=False,
-                     **kwargs)
+        at = AnchoredText(text, prop=dict(size=20), **kwargs)
         self.current_axis.add_artist(at)
-        hep.plot.mpl_magic(self.current_axis)
+        if do_magic:
+            hep.plot.mpl_magic(self.current_axis)
         plt.rcParams['text.usetex'] = False
 
     def add_data_hist(self):
@@ -170,6 +173,7 @@ class Plotter:
             values, bins, errors = Hist(hist).to_numpy()
             self.set_current_axis(location=self.hist_loc[index])
             self.y_minimum = np.min(values)
+
             if not self.hist_as_stack[index]:
                 artist = hep.histplot((values, bins), ax=self.current_axis, yerr=errors,
                                       **self.hist_kwargs[index])
@@ -182,6 +186,36 @@ class Plotter:
                                        bottom=bottom, **self.hist_kwargs[index])
                 bottom += values
             self.current_axis.set_xlim(bins[0], bins[-1])
+
+    def draw_matrix(self, rm_np, variable_name, **kwargs):
+
+        self.set_current_axis((0,0))
+        # hep.hist2dplot(rm_np, norm=mcolors.LogNorm(), ax=self.current_axis, **kwargs)
+        hep.hist2dplot(rm_np, ax=self.current_axis, **kwargs)
+
+        if (rm_np[1][-1] - rm_np[1][0] >= 5e2 and
+                rm_np[2][-1] - rm_np[2][0] >= 5e2):
+            self.current_axis.set_xscale("log")
+            self.current_axis.set_yscale("log")
+
+            # self.current_axis.set_xlim(0.2, rm_np[1][-1])
+            # self.current_axis.set_ylim(0.2, rm_np[2][-1])
+
+        for x in range(len(rm_np[1]) - 1):
+            for y in range(len(rm_np[2]) - 1):
+                c = rm_np[0][x][y]
+                if math.isnan(c):
+                    continue
+                if c < 0.1:
+                    continue
+                x_half_width = (rm_np[1][x+1] - rm_np[1][x])/2
+                y_half_width = (rm_np[2][y+1] - rm_np[2][y])/2
+                self.current_axis.text(rm_np[1][x] + x_half_width,
+                                       rm_np[2][y] + y_half_width,
+                                       f'{c:.2f}', va='center', ha='center', fontsize=10, color='red')
+
+        self.current_axis.set_ylabel(variable_name + "(Reco) [GeV]", fontsize=30)
+        self.current_axis.set_xlabel(variable_name + "(Gen) [GeV]", fontsize=30)
 
     def show_legend(self, location=(0, 0), **kwargs):
         plt.rcParams['text.usetex'] = True

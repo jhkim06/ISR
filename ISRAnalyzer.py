@@ -41,7 +41,6 @@ class ISRAnalyzer(Analyzer):
         self.mass_hist_full_phase_name_prefix = 'dimass_[gen_dressed_acceptance__coarse]_dipt'
 
         # 2D
-
     def get_hist_names_for_unfolding(self, input_hist_name_prefix, matrix_name_prefix,
                                      fake_hist_name_prefix, bg_name_prefix,
                                      bin_postfix=''):
@@ -147,7 +146,9 @@ class ISRAnalyzer(Analyzer):
         unfold_result = self.do_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                        unfolded_bin_name, folded_bin_name, variable_label)
 
+        # TODO handle 2D "dipt[O];dimass[UOC1]"
         unfold_result.bottom_line_test(draw_plot=True, out_name=input_hist_name)
+        unfold_result.draw_response_matrix(out_name=input_hist_name)
 
         if do_acceptance_correction:
             mc_hist_full_phase = self.get_signal_hist(hist_full_phase_name)
@@ -223,7 +224,8 @@ class ISRAnalyzer(Analyzer):
                                                                                                bin_postfix)
         result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                     do_acceptance_correction=do_acceptance_correction,
-                                    hist_full_phase_name=mass_hist_full_phase_name_prefix+bin_postfix)
+                                    hist_full_phase_name=mass_hist_full_phase_name_prefix+bin_postfix,
+                                    variable_label=self.dimass_label)
 
         mass_data = []
         for mass_bin in self.mass_bins:
