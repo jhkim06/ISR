@@ -132,35 +132,47 @@ class TUnFolder:
             print(unfold_method, ' is not supported unfolding method.')
 
     def get_unfolded_hist(self, projection_mode="*[*]", use_axis_binning=True):
-
-        unfolded_hist = self.tunfolder.GetOutput("unfolded_hist",
-                                                 ctypes.c_char_p(0),
-                                                 ctypes.c_char_p(0),
-                                                 ctypes.c_char_p(0),
-                                                 use_axis_binning)
-
-        if projection_mode != "*[*]":
+        if self.unfolded_bin is not None:
+            # seems parameter axis steering not passed properly so use ExtractHistogram()
+            unfolded_hist = self.tunfolder.GetOutput("unfolded_hist",
+                                                     ctypes.c_char_p(0),
+                                                     ctypes.c_char_p(0),
+                                                     ctypes.c_char_p(0),
+                                                     False)
             unfolded_hist = self.unfolded_bin.ExtractHistogram("unfolded_hist_extracted",
-                                                             unfolded_hist,
-                                                             0,  # error matrix
-                                                             use_axis_binning,
-                                                             projection_mode)
+                                                               unfolded_hist,
+                                                               0,  # error matrix
+                                                               use_axis_binning,
+                                                               projection_mode)
+        else:
+            unfolded_hist = self.tunfolder.GetOutput("unfolded_hist",
+                                                     ctypes.c_char_p(0),
+                                                     ctypes.c_char_p(0),
+                                                     ctypes.c_char_p(0),
+                                                     use_axis_binning)
+
         return unfolded_hist
 
     def get_input_hist(self, projection_mode="*[*]", use_axis_binning=True):
-        # seems parameter axis steering not passed properly so use ExtractHistogram()
-        data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
-                                            ctypes.c_char_p(0),
-                                            ctypes.c_char_p(0),
-                                            ctypes.c_char_p(0),
-                                            use_axis_binning)
-
-        if projection_mode != "*[*]":
+        if self.folded_bin is not None:
+            # seems parameter axis steering not passed properly so use ExtractHistogram()
+            data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                False)
             data_hist = self.folded_bin.ExtractHistogram("unfold_input_extracted",
                                                          data_hist,
                                                          0,  # error matrix
                                                          use_axis_binning,
                                                          projection_mode)
+        else:
+            data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                use_axis_binning)
+
         return data_hist
 
     def get_chi2(self, folded=True, projection_mode="*[*]", use_axis_binning=True):
@@ -180,7 +192,7 @@ class TUnFolder:
         data_errors = Hist(data_hist).to_numpy()[2]
 
         chi2 = np.sum(np.square((data_values - expectation_values) / data_errors))  # TODO maybe need to handle non-diagonal errors
-        # draw comparison plot
+
         return chi2
 
     def condition_number(self, draw_matrix=False):

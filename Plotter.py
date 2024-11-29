@@ -239,7 +239,7 @@ class Plotter:
                                        **self.errorbar_kwargs[index])
 
     def comparison_plot_cosmetics(self, x_variable_name, y_log_scale=False, x_log_scale=False,
-                                  bin_width_norm=False):
+                                  bin_width_norm=False, ratio_name='Data/MC'):
 
         if x_log_scale:
             self.get_axis(location=(0, 0)).set_yscale("log")
@@ -257,7 +257,7 @@ class Plotter:
 
         self.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
         self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
-        self.get_axis(location=(1, 0)).set_ylabel("Data/MC")
+        self.get_axis(location=(1, 0)).set_ylabel(ratio_name)
         self.get_axis(location=(1, 0)).set_xlabel(x_variable_name + " [GeV]")
 
     def save_fig(self, out_name=''):
