@@ -4,6 +4,7 @@ import mplhep as hep
 import numpy as np
 from typing import List, Dict, Any
 import matplotlib.colors as mcolors
+from matplotlib.ticker import (FixedLocator, FixedFormatter)
 
 from Hist import Hist
 import math
@@ -125,8 +126,18 @@ class Plotter:
             hep.plot.mpl_magic(self.current_axis)
         plt.rcParams['text.usetex'] = False
 
-    def add_data_hist(self):
-        pass
+    def add_custom_axis_tick_labels(self, locates, labels, location=(0, 0)):
+        self.set_current_axis(location=location)
+        self.current_axis.set_xticks([])
+        self.current_axis.xaxis.set_minor_locator(FixedLocator(locates))
+        self.current_axis.xaxis.set_minor_formatter(FixedFormatter(labels))
+        self.current_axis.tick_params(axis='x', which='both', rotation=35, labelsize=5)
+        for label in self.current_axis.xaxis.get_minorticklabels():
+            label.set_horizontalalignment('right')
+
+    def draw_vlines(self, vlines, location=(0, 0), **kwargs):
+        for line in vlines:
+            self.get_axis(location=location).axvline(x=line, linestyle='--', linewidth=1)
 
     def add_errorbar(self, errorbar_data, location=(0, 0), **kwargs):
         self.errorbar_list.append(errorbar_data)

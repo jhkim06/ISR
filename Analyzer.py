@@ -27,6 +27,7 @@ class Analyzer:
         self.data[1].set_hist_path_prefix(hist_path)
         self.signal[1].set_hist_path_prefix(hist_path)
 
+    # FIXME
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
         return self.signal[1].get_tobject(unfolded_bin_name), self.signal[1].get_tobject(folded_bin_name)
 
@@ -59,7 +60,10 @@ class Analyzer:
                                                 bin_width_norm=False,
                                                 x_variable_name='',
                                                 y_log_scale=False, x_log_scale=False,
-                                                additional_hist={}):
+                                                additional_hist={},
+                                                custom_x_labels=None,
+                                                custom_x_locates=None,
+                                                vlines=None):
         data_bg_subtracted = self.get_bg_subtracted_data(hist_name, bin_width_norm=bin_width_norm)
         signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
 
@@ -68,7 +72,6 @@ class Analyzer:
         plotter.create_subplots(2, 1, figsize=figsize,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
         # measurement
-        plotter.set_experiment_label(**{"year": self.year})
         plotter.add_hist(data_bg_subtracted, **{"histtype": 'errorbar', "color": 'black',
                                                 'label': 'Data'})
         # expectations
@@ -85,8 +88,15 @@ class Analyzer:
                                denominator_index=1,  # add all simulation except data
                                location=(1, 0), color='black', histtype='errorbar')
         plotter.draw_hist()
+        plotter.set_experiment_label(**{"year": self.year})
         plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
         plotter.adjust_y_scale()
+        if vlines:
+            plotter.draw_vlines(vlines=vlines, location=(0, 0))
+            plotter.draw_vlines(vlines=vlines, location=(1, 0))
+
+        if custom_x_labels:
+            plotter.add_custom_axis_tick_labels(custom_x_locates, custom_x_labels, location=(1, 0))
         plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})  # Note: required to after setting legend
         plotter.save_fig(hist_name + "_bg_subtracted" + self.year)
 

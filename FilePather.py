@@ -5,8 +5,7 @@ from helper import get_bottom_dict
 class FilePather:
     def __init__(self, base_dir, path_json):
         # TODO make a script to list samples and save as json file
-        # Note that json file should in base_dir
-        # TODO check if it is true!
+        # Note that json file should in base_dir TODO check if it is true!
         self.base_dir = base_dir
         self.file_path = dict()
 

@@ -2,8 +2,7 @@ import ROOT
 
 
 class ROOTFileGrouper:
-    def __init__(self, group_name,
-                 file_dict, hist_path_prefix='', hist_name_prefix=''):
+    def __init__(self, group_name, file_dict, hist_path_prefix='', hist_name_prefix=''):
 
         self.group_name = group_name
         self.file_dict = file_dict  # dictionary of file paths
@@ -47,7 +46,11 @@ class ROOTFileGrouper:
             file.Close()
 
             if hist_total is None:
-                hist_total = hist.Clone(self.group_name + hist_name)
+                # TODO update proper error handle
+                try:
+                    hist_total = hist.Clone(self.group_name + hist_name)
+                except:
+                    pass
             else:
                 hist_total.Add(hist)
 
