@@ -5,6 +5,8 @@ import numpy as np
 from typing import List, Dict, Any
 import matplotlib.colors as mcolors
 from matplotlib.ticker import (FixedLocator, FixedFormatter)
+from matplotlib.patches import Rectangle
+from matplotlib.collections import PatchCollection
 
 from Hist import Hist
 import math
@@ -270,6 +272,35 @@ class Plotter:
         self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
         self.get_axis(location=(1, 0)).set_ylabel(ratio_name)
         self.get_axis(location=(1, 0)).set_xlabel(x_variable_name + " [GeV]")
+
+    def draw_error_boxes(self, default_value, bins, errors,
+                         location=(0,0), sys_name='', **kwargs):  # TODO add options for hatch cosmetics
+
+        # default style
+        fill = kwargs.get('fill', False)
+        edgecolor = kwargs.get('edgecolor', None)
+        facecolor = kwargs.get('facecolor', None)
+        hatch = kwargs.get('hatch', '///')
+        alpha = kwargs.get('alpha', 0.5)
+
+        center = bins[:-1] + np.diff(bins) / 2.
+        x_width = np.expand_dims(np.diff(bins) / 2., axis=0)
+        x_width = np.append(x_width, x_width, axis=0)
+
+        # symmetric error
+        error_boxes = [Rectangle((x - xe[0], y - ye[0]), xe.sum(), ye.sum(),
+                                 fill=fill, edgecolor=edgecolor, facecolor=facecolor,alpha=alpha,)
+                       for x, y, xe, ye in zip(center, default_value, x_width.T, errors.T)]
+        pc = PatchCollection(error_boxes, match_original=True, hatch=hatch, linewidth=0.0, zorder=100)
+        # for legend only
+        legend_ = Rectangle((0, 0), 0.0, 0.0,
+                            fill=fill, edgecolor=edgecolor, facecolor=facecolor, label=sys_name, hatch=hatch,
+                            alpha=alpha,
+                            linewidth=0.5)
+
+        self.set_current_axis(location=location)
+        self.current_axis.add_collection(pc)
+        self.current_axis.add_patch(legend_)
 
     def save_fig(self, out_name=''):
         out_file_name = out_name
