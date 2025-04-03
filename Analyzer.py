@@ -71,20 +71,21 @@ class Analyzer:
         plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
         plotter.create_subplots(2, 1, figsize=figsize,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+        # expectations
         # measurement
+        if additional_hist:
+            plotter.add_hist(additional_hist['hist'], **{"color": 'cyan', 'yerr': False,
+                                                         "label": 'Fake', "zorder": 999})
+        plotter.add_hist(signal_hist, as_stack=True, **{ "color": 'red',
+                                                         "label": 'Drell-Yan'})
         plotter.add_hist(data_bg_subtracted, **{"histtype": 'errorbar', "color": 'black',
                                                 'label': 'Data'})
-        # expectations
-        plotter.add_hist(signal_hist, **{"histtype": 'errorbar', "color": 'red', 'mfc': 'none',
-                                         "label": 'Drell-Yan'})
         if additional_hist:
-            plotter.add_hist(additional_hist['hist'], **{"color": 'cyan',
-                                             "label": 'Fake'})
-            plotter.add_ratio_hist(nominator_index=2,
+            plotter.add_ratio_hist(nominator_index=0,
                                    denominator_index=1,  # add all simulation except data
                                    location=(1, 0), color='cyan')
 
-        plotter.add_ratio_hist(nominator_index=0,
+        plotter.add_ratio_hist(nominator_index=2,
                                denominator_index=1,  # add all simulation except data
                                location=(1, 0), color='black', histtype='errorbar')
         plotter.draw_hist()
@@ -115,17 +116,18 @@ class Analyzer:
         plotter.create_subplots(2, 1,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
         plotter.set_experiment_label(**{"year": self.year})
-        # measurement
-        plotter.add_hist(data_hist, **{"histtype": 'errorbar', "color": 'black',
-                                       'label': 'Data'})
 
-        # expectations
+        # expectations as stack
+        # seems labels of stack written later
         for bg_label in background_hists:
             plotter.add_hist(background_hists[bg_label], as_stack=True, **{"label": labels[bg_label]})
         plotter.add_hist(signal_hist, as_stack=True, **{"color": 'red', "linestyle": '--',
                                                         "label": 'Drell-Yan'})
-        plotter.add_ratio_hist(nominator_index=0,
-                               denominator_index=[1,2,3,4,5],  # add all simulation except data
+        # measurement
+        plotter.add_hist(data_hist, **{"histtype": 'errorbar', "color": 'black',
+                                       'label': 'Data'})
+        plotter.add_ratio_hist(nominator_index=5,
+                               denominator_index=[0,1,2,3,4],  # add all simulation except data
                                location=(1, 0), color='black', histtype='errorbar')
         # just to show x bin widths
         plotter.draw_hist()

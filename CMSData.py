@@ -10,9 +10,14 @@ class CMSData(object):
         self.mc_pather = FilePather(sample_base_dir + 'mc/', 'mc_config.json')
 
         # systematic
-
+    # signal: DY, background: WW, WZ,ttbar, etc
+    # TODO define processes to be used for example, so make user only need to set process name
+    # get_samples?
     # TODO use txt sample information
-    def get_isr_samples(self, period_name, channel_name, lepton_selection='TightID_b_veto', use_minnlo=True):
+    def get_isr_samples(self,
+                        period_name,
+                        channel_name,
+                        lepton_selection='TightID_b_veto', use_minnlo=True):
 
         # Data
         data_dict = self.data_pather.get_path_dict((channel_name, period_name))
@@ -42,7 +47,7 @@ class CMSData(object):
         # common hist path prefix
         hist_path_prefix = channel_name + period_name + '/' + lepton_selection + '/'
 
-        data_file_group = ROOTFileGrouper('Data', data_dict, hist_path_prefix)
+        data_file_group = ROOTFileGrouper('Data', data_dict, hist_path_prefix)  # TODO set preference for legend
         dy_file_group = ROOTFileGrouper('DY', dy_dict, hist_path_prefix)
         dy_tau_file_group = ROOTFileGrouper('tau', dy_tau_dict, hist_path_prefix,
                                             hist_name_prefix='tau_')
@@ -53,8 +58,11 @@ class CMSData(object):
         return (
             ('Data', data_file_group),  # data
             ('Drell-Yan', dy_file_group),  # signal
-            [('tau', dy_tau_file_group),  # backgrounds
-             ('ttbar', ttbar_file_group),
-             ('VV', vv_file_group),
-             ('gg', gg_file_group)]
+            [
+                # this will be the order to draw later
+                ('gg', gg_file_group),
+                ('ttbar', ttbar_file_group),
+                ('VV', vv_file_group),
+                ('tau', dy_tau_file_group),  # backgrounds
+            ]
         )

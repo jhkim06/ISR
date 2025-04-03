@@ -7,6 +7,7 @@ import matplotlib.colors as mcolors
 from matplotlib.ticker import (FixedLocator, FixedFormatter)
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
+from mplhep.plot import ErrorBarArtists
 
 from Hist import Hist
 import math
@@ -57,6 +58,9 @@ class Plotter:
         self.errorbar_list = []  # [(x_data, y_data)]
         self.errorbar_loc = []
         self.errorbar_kwargs: List[Dict[str, Any]] = []
+
+        self.legend_handles = []
+        self.legend_labels = []
 
         self.y_minimum = 0
 
@@ -186,19 +190,48 @@ class Plotter:
             values, bins, errors = Hist(hist).to_numpy()
             self.set_current_axis(location=self.hist_loc[index])
             self.y_minimum = np.min(values)
+            # if 'label' in self.hist_kwargs[index]:
+            #    print(self.hist_kwargs[index]['label'])
+            #errors=False
 
             if not self.hist_as_stack[index]:
-                artist = hep.histplot((values, bins), ax=self.current_axis, yerr=errors,
-                                      **self.hist_kwargs[index])
+                # NOTE when histtype is errorbar or yerr is set(i.e., when ErrorBarArtists is used),
+                # somehow the legend order changed
+                # histtype options: 'step', 'fill', 'errorbar', 'bar', 'barstep', 'band'
+                if 'yerr' in self.hist_kwargs[index]:
+                    if not self.hist_kwargs[index]['yerr']:
+                        errors = False  # only allow to disable yerr
+                        del self.hist_kwargs[index]['yerr']
+                artists = hep.histplot((values, bins), ax=self.current_axis, yerr=errors,
+                                       **self.hist_kwargs[index])
 
-                updated_dict = {key: value for key, value in self.hist_kwargs[index].items() if key != 'label'}
-                _ = hep.histplot((values, bins), ax=self.current_axis, yerr=errors, xerr=True,
-                                      **updated_dict)
+                # Note according to histtype, legend_artist could be None
+                # Need to properly handle each histtype to get legend_artists
+                # there are two cases: artists[0] or artists[0].stairs
+                if isinstance(artists[0], ErrorBarArtists) or artists[0].legend_artist is not None:
+                    handle = artists[0]
+                else:
+                    handle = artists[0].stairs
             else:
-                self.current_axis.hist(bins[:-1], bins, weights=values, histtype='bar',
-                                       bottom=bottom, **self.hist_kwargs[index])
+                # stack
+                _, _, patches = self.current_axis.hist(bins[:-1], bins, weights=values, histtype='bar',
+                                                       bottom=bottom, **self.hist_kwargs[index])
                 bottom += values
+                handle = patches[0]
+
+            label = self.hist_kwargs[index].get("label", None)
+            if label:
+                self.legend_handles.append(handle)
+                self.legend_labels.append(label)
+
+            #print(self.legend_labels)
+            #handles, labels = self.current_axis.get_legend_handles_labels()
+            #print(labels)
             self.current_axis.set_xlim(bins[0], bins[-1])
+        # write legends in reverse order, i.e., force the order of legend always reverse of the drawn order
+        self.legend_handles.reverse()
+        self.legend_labels.reverse()
+        #print(self.legend_labels)
 
     def draw_matrix(self, rm_np, variable_name, **kwargs):
 
@@ -233,8 +266,7 @@ class Plotter:
     def show_legend(self, location=(0, 0), **kwargs):
         plt.rcParams['text.usetex'] = True
         self.set_current_axis(location=location)
-        hep.plot.hist_legend(self.current_axis, loc='best',
-                             handlelength=1, handleheight=1.2)
+        self.current_axis.legend(self.legend_handles, self.legend_labels, loc='best', )
         hep.plot.yscale_legend(self.current_axis)
         plt.rcParams['text.usetex'] = False
 

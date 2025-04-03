@@ -3,7 +3,7 @@ from Plotter import Plotter
 import numpy as np
 
 
-class Systematic:
+class HistSystematic:
     def __init__(self, systematic_name, nominal_hist, systematic_hists,
                  norm_to_nominal_hist=False,):
         # systematic_hists is dictionary {variation name: systematic histogram}

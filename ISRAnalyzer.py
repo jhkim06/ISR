@@ -16,6 +16,7 @@ class ISRAnalyzer(Analyzer):
                  folded_bin_name='fine', unfolded_bin_name='coarse',
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
                  mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',
+
                  experiment='cms', year='2016', channel='ee'):
 
         super(ISRAnalyzer, self).__init__(data, signal, background,
@@ -36,6 +37,7 @@ class ISRAnalyzer(Analyzer):
         self.mass_folded_bin_name = mass_folded_bin_name
         self.mass_unfolded_bin_name = mass_unfolded_bin_name
 
+        # set histogram name of "pt and mass"
         self._set_isr_1d_hist_names()
         self._set_isr_2d_hist_names()
         self.systematics = None
@@ -210,6 +212,7 @@ class ISRAnalyzer(Analyzer):
         use_axis_binning = True
         if unfolded_bin_name is not None and folded_bin_name is not None:
             # for 2D, need to loop over each mass bins
+            # FIXME change the output plot names according to bin definitions
             for index, _ in enumerate(self.mass_bins):
                 axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
                 unfold_result.bottom_line_test(draw_plot=True, out_name=input_hist_name+'_'+axis_steering,

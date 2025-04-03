@@ -1,6 +1,5 @@
-from Systematic import Systematic
 
 
-class ISRSystematic(Systematic):
+class ISRSystematic:
     def __init__(self):
         pass
