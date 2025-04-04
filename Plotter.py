@@ -151,10 +151,9 @@ class Plotter:
         self.errorbar_kwargs.append(kwargs)
 
     def _add_hists(self, index_to_sum):
-        added_hist = self.hist_list[index_to_sum[0]].Clone("added_hist")
-        for index in index_to_sum[1:]:
-            added_hist.Add(self.hist_list[index])
-
+        added_hist = None
+        for index in index_to_sum:
+            added_hist = self.hist_list[index] + added_hist
         return added_hist
 
     def adjust_y_scale(self, location=(0, 0)):
@@ -164,7 +163,7 @@ class Plotter:
     def add_ratio_hist(self, nominator_index, denominator_index, location=(0, 0), **kwargs):
         # for nominator
         if isinstance(nominator_index, int):
-            ratio_hist = self.hist_list[nominator_index].Clone('ratio_hist')
+            ratio_hist = self.hist_list[nominator_index] + None
         elif isinstance(nominator_index, list):
             # sum all histograms
             ratio_hist = self._add_hists(nominator_index)
@@ -172,11 +171,10 @@ class Plotter:
             pass
 
         # for denominator
-        # ratio_hist.Sumw2()
         if isinstance(denominator_index, int):
-            ratio_hist.Divide(self.hist_list[denominator_index])
+            ratio_hist = ratio_hist.divide(self.hist_list[denominator_index])
         elif isinstance(denominator_index, list):
-            ratio_hist.Divide(self._add_hists(denominator_index))
+            ratio_hist = ratio_hist.divide(self._add_hists(denominator_index))
         else:
             pass
 
@@ -187,7 +185,7 @@ class Plotter:
         # TODO handle stack
         bottom = 0
         for index, hist in enumerate(self.hist_list):
-            values, bins, errors = Hist(hist).to_numpy()
+            values, bins, errors = hist.to_numpy()
             self.set_current_axis(location=self.hist_loc[index])
             self.y_minimum = np.min(values)
             # if 'label' in self.hist_kwargs[index]:

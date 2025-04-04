@@ -3,10 +3,11 @@ from TUnFolder import TUnFolder
 
 
 labels = {
+    "DY": r"$Drell\!\!-\!\!Yan$",
     "gg": r"$\gamma\gamma$",
     "tau": r'$\tau\tau$',
     "ttbar": r'$t\bar{t}$',
-    "VV": "$VV$"
+    "vv": "$VV$"
 }
 
 
@@ -64,7 +65,12 @@ class Analyzer:
                                                 custom_x_labels=None,
                                                 custom_x_locates=None,
                                                 vlines=None):
-        data_bg_subtracted = self.get_bg_subtracted_data(hist_name, bin_width_norm=bin_width_norm)
+        # data_bg_subtracted.hist, data_bg_subtracted.label
+        # data.hist, data.label
+        # data.year, data.lumi
+
+        # signal.hist, signal.label
+        data_bg_subtracted = self.get_bg_subtracted_data_hist(hist_name, bin_width_norm=bin_width_norm)
         signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
 
         # comparison plot
@@ -72,14 +78,14 @@ class Analyzer:
         plotter.create_subplots(2, 1, figsize=figsize,
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
         # expectations
-        # measurement
         if additional_hist:
             plotter.add_hist(additional_hist['hist'], **{"color": 'cyan', 'yerr': False,
                                                          "label": 'Fake', "zorder": 999})
         plotter.add_hist(signal_hist, as_stack=True, **{ "color": 'red',
-                                                         "label": 'Drell-Yan'})
+                                                         "label": f'{labels[signal_hist.get_label()]}'})
+        # measurement
         plotter.add_hist(data_bg_subtracted, **{"histtype": 'errorbar', "color": 'black',
-                                                'label': 'Data'})
+                                                'label': f'{data_bg_subtracted.get_label()} (bkg. subtracted)'})
         if additional_hist:
             plotter.add_ratio_hist(nominator_index=0,
                                    denominator_index=1,  # add all simulation except data
@@ -119,13 +125,13 @@ class Analyzer:
 
         # expectations as stack
         # seems labels of stack written later
-        for bg_label in background_hists:
-            plotter.add_hist(background_hists[bg_label], as_stack=True, **{"label": labels[bg_label]})
+        for _, bg in background_hists.items():
+            plotter.add_hist(bg, as_stack=True, **{"label": labels[bg.get_label()]})
         plotter.add_hist(signal_hist, as_stack=True, **{"color": 'red', "linestyle": '--',
-                                                        "label": 'Drell-Yan'})
+                                                        "label": f'{labels[signal_hist.get_label()]}'})
         # measurement
         plotter.add_hist(data_hist, **{"histtype": 'errorbar', "color": 'black',
-                                       'label': 'Data'})
+                                       'label': f'{data_hist.get_label()}'})
         plotter.add_ratio_hist(nominator_index=5,
                                denominator_index=[0,1,2,3,4],  # add all simulation except data
                                location=(1, 0), color='black', histtype='errorbar')
@@ -138,31 +144,34 @@ class Analyzer:
         plotter.save_fig(hist_name + "_" + self.year)
 
     def get_data_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        return self.data[1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        return self.data.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
 
     def get_signal_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        return self.signal[1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        return self.signal.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
 
     def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False):
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background:
-            temp_dict[bg[0]] = bg[1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+            temp_dict[bg.get_name()] = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
         return temp_dict
 
     def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        total_bg = self.background[0][1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
-        for bg in self.background[1:]:
-            total_bg.Add(bg[1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm))
+        # total_bg = self.background[0].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        total_bg = None
+        for bg in self.background:
+            # total_bg.Add(bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm))
+            total_bg = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm) + total_bg
         return total_bg
 
     def get_total_expectation_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        total_expectation_hist = self.signal[1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
-        total_expectation_hist.Add(self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm))
+        total_expectation_hist = self.signal.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        total_expectation_hist = (self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm) +
+                                  total_expectation_hist)
         return total_expectation_hist
 
-    def get_bg_subtracted_data(self, hist_name, hist_path='', bin_width_norm=False):
-        raw_data = self.data[1].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+    def get_bg_subtracted_data_hist(self, hist_name, hist_path='', bin_width_norm=False):
+        raw_data = self.data.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
         total_bg = self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
-        raw_data.Add(total_bg, -1)
+        raw_data = raw_data - total_bg
         return raw_data

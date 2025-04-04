@@ -1,13 +1,22 @@
 import ROOT
+from Hist import Hist
 
 
 class ROOTFileGrouper:
     def __init__(self, group_name, file_dict, hist_path_prefix='', hist_name_prefix=''):
 
         self.group_name = group_name
+        # TODO positive/negative sample
         self.file_dict = file_dict  # dictionary of file paths
         self.hist_path_prefix = hist_path_prefix
         self.hist_name_prefix = hist_name_prefix
+
+    def __add__(self, other):
+        # update file_dict
+        pass
+
+    def get_name(self):
+        return self.group_name
 
     def list_samples(self):
         for label in self.file_dict.keys():
@@ -56,4 +65,5 @@ class ROOTFileGrouper:
 
         if bin_width_norm:
             hist_total.Scale(1, "width")
-        return hist_total
+        # FIXME return Hist
+        return Hist(hist_total, self.group_name)

@@ -47,7 +47,7 @@ class CMSData(object):
         # common hist path prefix
         hist_path_prefix = channel_name + period_name + '/' + lepton_selection + '/'
 
-        data_file_group = ROOTFileGrouper('Data', data_dict, hist_path_prefix)  # TODO set preference for legend
+        data_file_group = ROOTFileGrouper('Data', data_dict, hist_path_prefix)
         dy_file_group = ROOTFileGrouper('DY', dy_dict, hist_path_prefix)
         dy_tau_file_group = ROOTFileGrouper('tau', dy_tau_dict, hist_path_prefix,
                                             hist_name_prefix='tau_')
@@ -56,13 +56,14 @@ class CMSData(object):
         gg_file_group = ROOTFileGrouper('gg', gg_dict, hist_path_prefix)
 
         return (
-            ('Data', data_file_group),  # data
-            ('Drell-Yan', dy_file_group),  # signal
+            # FIXME use group_name of ROOTFileGrouper
+            data_file_group,  # data
+            dy_file_group,  # signal
             [
                 # this will be the order to draw later
-                ('gg', gg_file_group),
-                ('ttbar', ttbar_file_group),
-                ('VV', vv_file_group),
-                ('tau', dy_tau_file_group),  # backgrounds
+                gg_file_group,
+                ttbar_file_group,
+                vv_file_group,
+                dy_tau_file_group,  # backgrounds
             ]
         )

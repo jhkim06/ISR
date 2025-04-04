@@ -3,17 +3,35 @@ import ROOT
 
 # ROOT histogram to
 class Hist(object):
-    def __init__(self, hist):
+    def __init__(self, hist, label=''):
         self.raw_root_hist = hist
 
-    def __add__(self, other, c1=1):
-        added_hist = self.root_hist.Clone("added")
-        added_hist.Add(other.raw_root_hist, c1)
+        self.label = label
+        # self.label for legend
+        # self.lumi
+        # self.year
 
-        return Hist(added_hist)
+    def __add__(self, other=None, c1=1):
+        added_hist = self.raw_root_hist.Clone("added")
+        if other is None:
+            return Hist(added_hist, self.label)
+        else:
+            added_hist.Add(other.raw_root_hist, c1)
+            return Hist(added_hist, self.label)
 
-    def __sub__(self, other):
+    def __sub__(self, other=None):
         return self.__add__(other, -1)
+
+    def divide(self, other=None):
+        divided_hist = self.raw_root_hist.Clone("divided")
+        if other is None:
+            return Hist(divided_hist, self.label)
+        else:
+            divided_hist.Divide(other.raw_root_hist)
+            return Hist(divided_hist, self.label)
+
+    def get_label(self):
+        return self.label
 
     def get_mean(self, binned_mean=True, range_min=None, range_max=None):
         if binned_mean:
