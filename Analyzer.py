@@ -1,8 +1,9 @@
 from Plotter import Plotter
 from TUnFolder import TUnFolder
 
-
+# simulation legends used in this analysis
 labels = {
+    # group_name of ROOTFileGroup: "legend"
     "DY": r"$Drell\!\!-\!\!Yan$",
     "gg": r"$\gamma\gamma$",
     "tau": r'$\tau\tau$',
@@ -12,7 +13,6 @@ labels = {
 
 
 class Analyzer:
-    # plotter + sample group?
     def __init__(self, data, signal, background, experiment='cms', year='2016', channel='ee'):
         self.experiment = experiment
 
@@ -20,17 +20,17 @@ class Analyzer:
         self.channel = channel
 
         # sample group
-        self.data = data  # (Label, SampleGroup)
+        self.data = data  # ROOTFileGroup
         self.signal = signal
-        self.background = background  # [(Label, SampleGroup)]
+        self.background = background  # [ROOTFileGroup]
 
     def set_base_hist_path(self, hist_path):
-        self.data[1].set_hist_path_prefix(hist_path)
-        self.signal[1].set_hist_path_prefix(hist_path)
+        self.data.set_hist_path_prefix(hist_path)
+        self.signal.set_hist_path_prefix(hist_path)
 
     # FIXME
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
-        return self.signal[1].get_tobject(unfolded_bin_name), self.signal[1].get_tobject(folded_bin_name)
+        return self.signal.get_tobject(unfolded_bin_name), self.signal.get_tobject(folded_bin_name)
 
     def do_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                   unfolded_bin_name=None, folded_bin_name=None, variable_name=''):
@@ -38,7 +38,7 @@ class Analyzer:
         data_hist = self.get_data_hist(input_hist_name)
         response_matrix = self.get_signal_hist(matrix_name)
         fake_hist = self.get_signal_hist(fake_hist_name)
-        backgrounds = self.get_background_hist(bg_hist_name)
+        backgrounds = self.get_background_hist(bg_hist_name, raw_hists=True)
 
         unfolded_bin = None
         folded_bin = None
@@ -46,9 +46,9 @@ class Analyzer:
             unfolded_bin, folded_bin = self.get_unfold_bin_maps(unfolded_bin_name, folded_bin_name)
 
         # draw folded histograms
-        unfold = TUnFolder(response_matrix,
-                           data_hist,
-                           fake_hist,
+        unfold = TUnFolder(response_matrix.get_raw_hist(),
+                           data_hist.get_raw_hist(),
+                           fake_hist.get_raw_hist(),
                            bg_hists=backgrounds, unfolded_bin=unfolded_bin, folded_bin=folded_bin,
                            year=self.year, variable_name=variable_name)
         unfold.unfold()
@@ -149,11 +149,15 @@ class Analyzer:
     def get_signal_hist(self, hist_name, hist_path='', bin_width_norm=False):
         return self.signal.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
 
-    def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False):
+    def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False, raw_hists=False):
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background:
-            temp_dict[bg.get_name()] = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+            if raw_hists:
+                temp_dict[bg.get_name()] = (
+                    bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm).get_raw_hist())
+            else:
+                temp_dict[bg.get_name()] = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
         return temp_dict
 
     def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False):

@@ -55,6 +55,7 @@ class TUnFolder:
 
         # optional histograms
         self.input_fake_hist = input_fake_hist
+        #
         self.bg_hists = bg_hists  # dictionary of background hists
 
         self.unfolded_bin = unfolded_bin
@@ -240,6 +241,11 @@ class TUnFolder:
         folded_expectation_hist.Scale(1, "width")
         unfolded_hist.Scale(1, "width")
         unfolded_expectation_hist.Scale(1, "width")
+
+        folded_hist = Hist(folded_hist)
+        folded_expectation_hist = Hist(folded_expectation_hist)
+        unfolded_hist = Hist(unfolded_hist)
+        unfolded_expectation_hist = Hist(unfolded_expectation_hist)
 
         if draw_plot:
             # TODO make a generic function to draw comparison plot

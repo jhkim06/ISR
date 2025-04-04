@@ -226,10 +226,11 @@ class ISRAnalyzer(Analyzer):
         if do_acceptance_correction:
             mc_hist_full_phase = self.get_signal_hist(hist_full_phase_name)
             mc_hist_acceptance = unfold_result.get_mc_truth_from_response_matrix()
-            acceptance = Acceptance(mc_hist_full_phase, mc_hist_acceptance)
+            acceptance = Acceptance(mc_hist_full_phase, Hist(mc_hist_acceptance))
 
-            acceptance_corrected = acceptance.do_correction(unfold_result.get_unfolded_hist(use_axis_binning=use_axis_binning))
-            result = Hist(acceptance_corrected)
+            acceptance_corrected = acceptance.do_correction(
+                Hist(unfold_result.get_unfolded_hist(use_axis_binning=use_axis_binning)))
+            result = acceptance_corrected
         else:
             result = Hist(unfold_result.get_unfolded_hist(use_axis_binning=use_axis_binning))
 
@@ -263,7 +264,7 @@ class ISRAnalyzer(Analyzer):
                                     do_acceptance_correction=do_acceptance_correction,
                                     hist_full_phase_name=self.pt_mass_hist_full_phase_name)
 
-        pt_data = self.extract_mean_pt_from_2d_hist(result.raw_root_hist, unfolded_bin)
+        pt_data = self.extract_mean_pt_from_2d_hist(result, unfolded_bin)
         if correct_binned_mean:
             self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
         return pt_data
@@ -279,7 +280,7 @@ class ISRAnalyzer(Analyzer):
         for mass_bin in self.mass_bins:
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
 
-            mc_hist_full_phase = Hist(self.get_signal_hist(pt_hist_full_phase_name_prefix + mass_bin_postfix))
+            mc_hist_full_phase = self.get_signal_hist(pt_hist_full_phase_name_prefix + mass_bin_postfix)
             pt_data.append(mc_hist_full_phase.get_mean(binned_mean=False))
         return pt_data
 
@@ -307,7 +308,7 @@ class ISRAnalyzer(Analyzer):
 
         for index, mass_bin in enumerate(self.mass_bins):
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            mc_hist_full_phase = Hist(self.get_signal_hist(pt_hist_full_phase_name_prefix + mass_bin_postfix))
+            mc_hist_full_phase = self.get_signal_hist(pt_hist_full_phase_name_prefix + mass_bin_postfix)
             correction_factor = mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0]
             pt_data[index] = (pt_data[index][0] * correction_factor, pt_data[index][1])
         return pt_data
@@ -316,7 +317,7 @@ class ISRAnalyzer(Analyzer):
         pt_data = []
         for index, _ in enumerate(self.mass_bins):
             axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
-            temp_result = Hist(unfold_bin.ExtractHistogram("", pt_2d_hist, 0,
+            temp_result = Hist(unfold_bin.ExtractHistogram("", pt_2d_hist.get_raw_hist(), 0,
                                                            True,
                                                            axis_steering))
             pt_data.append(temp_result.get_mean())

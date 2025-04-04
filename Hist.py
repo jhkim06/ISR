@@ -30,8 +30,19 @@ class Hist(object):
             divided_hist.Divide(other.raw_root_hist)
             return Hist(divided_hist, self.label)
 
+    def multiply(self, other=None):
+        multiplied_hist = self.raw_root_hist.Clone("multiplied")
+        if other is None:
+            return Hist(multiplied_hist, self.label)
+        else:
+            multiplied_hist.Multiply(other.raw_root_hist)
+            return Hist(multiplied_hist, self.label)
+
     def get_label(self):
         return self.label
+
+    def get_raw_hist(self):
+        return self.raw_root_hist
 
     def get_mean(self, binned_mean=True, range_min=None, range_max=None):
         if binned_mean:
