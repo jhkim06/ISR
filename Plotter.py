@@ -115,6 +115,8 @@ class Plotter:
         self.hist_as_stack.append(as_stack)
         return len(self.hist_list)-1
 
+    # def add_hists()
+
     def add_comparison_pair(self, nominator_hist, denominator_hist,
                             location, ratio_location,
                             nominator_args, denominator_args):

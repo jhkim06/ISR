@@ -11,10 +11,6 @@ class ROOTFileGrouper:
         self.hist_path_prefix = hist_path_prefix
         self.hist_name_prefix = hist_name_prefix
 
-    def __add__(self, other):
-        # update file_dict
-        pass
-
     def get_name(self):
         return self.group_name
 
@@ -65,5 +61,5 @@ class ROOTFileGrouper:
 
         if bin_width_norm:
             hist_total.Scale(1, "width")
-        # FIXME return Hist
+
         return Hist(hist_total, self.group_name)

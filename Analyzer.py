@@ -24,6 +24,9 @@ class Analyzer:
         self.signal = signal
         self.background = background  # [ROOTFileGroup]
 
+        # TODO
+        # self.plotter
+
     def set_base_hist_path(self, hist_path):
         self.data.set_hist_path_prefix(hist_path)
         self.signal.set_hist_path_prefix(hist_path)
@@ -81,18 +84,18 @@ class Analyzer:
         if additional_hist:
             plotter.add_hist(additional_hist['hist'], **{"color": 'cyan', 'yerr': False,
                                                          "label": 'Fake', "zorder": 999})
-        plotter.add_hist(signal_hist, as_stack=True, **{ "color": 'red',
+        signal_index = plotter.add_hist(signal_hist, as_stack=True, **{ "color": 'red',
                                                          "label": f'{labels[signal_hist.get_label()]}'})
         # measurement
-        plotter.add_hist(data_bg_subtracted, **{"histtype": 'errorbar', "color": 'black',
+        data_index = plotter.add_hist(data_bg_subtracted, **{"histtype": 'errorbar', "color": 'black',
                                                 'label': f'{data_bg_subtracted.get_label()} (bkg. subtracted)'})
         if additional_hist:
             plotter.add_ratio_hist(nominator_index=0,
-                                   denominator_index=1,  # add all simulation except data
+                                   denominator_index=signal_index,
                                    location=(1, 0), color='cyan')
 
-        plotter.add_ratio_hist(nominator_index=2,
-                               denominator_index=1,  # add all simulation except data
+        plotter.add_ratio_hist(nominator_index=data_index,
+                               denominator_index=signal_index,
                                location=(1, 0), color='black', histtype='errorbar')
         plotter.draw_hist()
         plotter.set_experiment_label(**{"year": self.year})
@@ -125,15 +128,18 @@ class Analyzer:
 
         # expectations as stack
         # seems labels of stack written later
+        denominator_index_list = []
         for _, bg in background_hists.items():
-            plotter.add_hist(bg, as_stack=True, **{"label": labels[bg.get_label()]})
-        plotter.add_hist(signal_hist, as_stack=True, **{"color": 'red', "linestyle": '--',
-                                                        "label": f'{labels[signal_hist.get_label()]}'})
+            index = plotter.add_hist(bg, as_stack=True, **{"label": labels[bg.get_label()]})
+            denominator_index_list.append(index)
+        index = plotter.add_hist(signal_hist, as_stack=True, **{"color": 'red', "linestyle": '--',
+                                                                "label": f'{labels[signal_hist.get_label()]}'})
+        denominator_index_list.append(index)
         # measurement
-        plotter.add_hist(data_hist, **{"histtype": 'errorbar', "color": 'black',
+        nominator_index = plotter.add_hist(data_hist, **{"histtype": 'errorbar', "color": 'black',
                                        'label': f'{data_hist.get_label()}'})
-        plotter.add_ratio_hist(nominator_index=5,
-                               denominator_index=[0,1,2,3,4],  # add all simulation except data
+        plotter.add_ratio_hist(nominator_index=nominator_index,
+                               denominator_index=denominator_index_list,  # add all simulation except data
                                location=(1, 0), color='black', histtype='errorbar')
         # just to show x bin widths
         plotter.draw_hist()

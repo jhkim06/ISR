@@ -7,7 +7,6 @@ class Hist(object):
         self.raw_root_hist = hist
 
         self.label = label
-        # self.label for legend
         # self.lumi
         # self.year
 
