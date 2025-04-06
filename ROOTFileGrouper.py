@@ -1,18 +1,34 @@
 import ROOT
 from Hist import Hist
 
-
+# Merge root files to handel them simultaneously
 class ROOTFileGrouper:
-    def __init__(self, group_name, file_dict, hist_path_prefix='', hist_name_prefix=''):
+    def __init__(self, group_name, file_dict,
+                 experiment_name='', year='', channel_name='',
+                 hist_path_prefix='', hist_name_prefix=''):
 
         self.group_name = group_name
-        # TODO positive/negative sample
         self.file_dict = file_dict  # dictionary of file paths
+
+        self.experiment_name = experiment_name
+        self.year = year
+        self.channel_name = channel_name
+
+
         self.hist_path_prefix = hist_path_prefix
         self.hist_name_prefix = hist_name_prefix
 
     def get_name(self):
         return self.group_name
+
+    def get_experiment_name(self):
+        return self.experiment_name
+
+    def get_year(self):
+        return self.year
+
+    def get_channel_name(self):
+        return self.channel_name
 
     def list_samples(self):
         for label in self.file_dict.keys():

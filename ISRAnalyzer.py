@@ -19,8 +19,7 @@ class ISRAnalyzer(Analyzer):
 
                  experiment='cms', year='2016', channel='ee'):
 
-        super(ISRAnalyzer, self).__init__(data, signal, background,
-                                          experiment, year, channel)
+        super(ISRAnalyzer, self).__init__(data, signal, background)
         self.mass_bins = mass_bins
         self.pt_bins = pt_bins
         # self.axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'

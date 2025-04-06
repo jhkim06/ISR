@@ -4,28 +4,40 @@ from TUnFolder import TUnFolder
 # simulation legends used in this analysis
 labels = {
     # group_name of ROOTFileGroup: "legend"
-    "DY": r"$Drell\!\!-\!\!Yan$",
+    "Data": "Data",
+    "DY": r"Drell-Yan",
     "gg": r"$\gamma\gamma$",
     "tau": r'$\tau\tau$',
     "ttbar": r'$t\bar{t}$',
     "vv": "$VV$"
 }
 
+colors = {
+    "DY": "red",
+    "Data": "black"
+}
+
+def get_hist_kwargs(label):
+    kwargs = {"color": f'{colors[label]}', "label": f'{labels[label]}'}
+    if label == 'Data':
+        kwargs.update({'histtype': 'errorbar'})
+
+    return kwargs
+
 
 class Analyzer:
-    def __init__(self, data, signal, background, experiment='cms', year='2016', channel='ee'):
-        self.experiment = experiment
+    def __init__(self, data, signal, background):
 
-        self.year = year
-        self.channel = channel
+        self.experiment = data.get_experiment_name()
+        self.year = data.get_year()
+        self.channel = data.get_channel_name()
 
         # sample group
         self.data = data  # ROOTFileGroup
         self.signal = signal
         self.background = background  # [ROOTFileGroup]
 
-        # TODO
-        # self.plotter
+        self.plotter = Plotter(self.experiment, './Plots')
 
     def set_base_hist_path(self, hist_path):
         self.data.set_hist_path_prefix(hist_path)
@@ -63,52 +75,50 @@ class Analyzer:
                                                 text='',
                                                 bin_width_norm=False,
                                                 x_variable_name='',
-                                                y_log_scale=False, x_log_scale=False,
+                                                y_log_scale=False,
+                                                x_log_scale=False,
                                                 additional_hist={},
                                                 custom_x_labels=None,
                                                 custom_x_locates=None,
                                                 vlines=None):
-        # data_bg_subtracted.hist, data_bg_subtracted.label
-        # data.hist, data.label
-        # data.year, data.lumi
 
         # signal.hist, signal.label
         data_bg_subtracted = self.get_bg_subtracted_data_hist(hist_name, bin_width_norm=bin_width_norm)
         signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
 
-        # comparison plot
-        plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
-        plotter.create_subplots(2, 1, figsize=figsize,
-                                left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+        # self.add_data_hist(data)
+        self.init_plotter(figsize=figsize)
+
         # expectations
         if additional_hist:
-            plotter.add_hist(additional_hist['hist'], **{"color": 'cyan', 'yerr': False,
-                                                         "label": 'Fake', "zorder": 999})
-        signal_index = plotter.add_hist(signal_hist, as_stack=True, **{ "color": 'red',
-                                                         "label": f'{labels[signal_hist.get_label()]}'})
+            self.plotter.add_hist(additional_hist['hist'], **{"color": 'cyan', 'yerr': False,
+                                                              "label": 'Fake', "zorder": 999})
+        signal_index = self.plotter.add_hist(signal_hist, as_stack=True,
+                                             **get_hist_kwargs(signal_hist.get_label()))
         # measurement
-        data_index = plotter.add_hist(data_bg_subtracted, **{"histtype": 'errorbar', "color": 'black',
-                                                'label': f'{data_bg_subtracted.get_label()} (bkg. subtracted)'})
+        data_index = self.plotter.add_hist(data_bg_subtracted,
+                                           **get_hist_kwargs(data_bg_subtracted.get_label()))
         if additional_hist:
-            plotter.add_ratio_hist(nominator_index=0,
-                                   denominator_index=signal_index,
-                                   location=(1, 0), color='cyan')
+            self.plotter.add_ratio_hist(nominator_index=0,
+                                        denominator_index=signal_index,
+                                        location=(1, 0))
 
-        plotter.add_ratio_hist(nominator_index=data_index,
-                               denominator_index=signal_index,
-                               location=(1, 0), color='black', histtype='errorbar')
-        plotter.draw_hist()
-        plotter.set_experiment_label(**{"year": self.year})
-        plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
-        plotter.adjust_y_scale()
+        self.plotter.add_ratio_hist(nominator_index=data_index,
+                                    denominator_index=signal_index,
+                                    location=(1, 0))
+        self.plotter.draw_hist()
+        self.plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
+        self.plotter.adjust_y_scale()
+
         if vlines:
-            plotter.draw_vlines(vlines=vlines, location=(0, 0))
-            plotter.draw_vlines(vlines=vlines, location=(1, 0))
-
+            self.plotter.draw_vlines(vlines=vlines, location=(0, 0))
+            self.plotter.draw_vlines(vlines=vlines, location=(1, 0))
         if custom_x_labels:
-            plotter.add_custom_axis_tick_labels(custom_x_locates, custom_x_labels, location=(1, 0))
-        plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})  # Note: required to after setting legend
-        plotter.save_fig(hist_name + "_bg_subtracted" + self.year)
+            self.plotter.add_custom_axis_tick_labels(custom_x_locates, custom_x_labels, location=(1, 0))
+
+        self.plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})  # Note: required to after setting legend
+        self.plotter.save_fig(hist_name + "_bg_subtracted" + self.year)
+        self.plotter.reset()
 
     def draw_measurement_expectation_comparison_plot(self, hist_name,
                                                      text='',
@@ -120,34 +130,36 @@ class Analyzer:
         signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
         background_hists = self.get_background_hist(hist_name, bin_width_norm=bin_width_norm)
         # total_expectation = self.get_total_expectation_hist(hist_name)
-
-        plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
-        plotter.create_subplots(2, 1,
-                                left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
-        plotter.set_experiment_label(**{"year": self.year})
+        self.init_plotter(figsize=(8,8))
 
         # expectations as stack
-        # seems labels of stack written later
         denominator_index_list = []
         for _, bg in background_hists.items():
-            index = plotter.add_hist(bg, as_stack=True, **{"label": labels[bg.get_label()]})
+            index = self.plotter.add_hist(bg, as_stack=True, **{"label": labels[bg.get_label()]})
             denominator_index_list.append(index)
-        index = plotter.add_hist(signal_hist, as_stack=True, **{"color": 'red', "linestyle": '--',
-                                                                "label": f'{labels[signal_hist.get_label()]}'})
+        # self.add_hist_to_plotter(signal_hist, as_stack=True)
+        index = self.plotter.add_hist(signal_hist, as_stack=True, **get_hist_kwargs(signal_hist.get_label()))
         denominator_index_list.append(index)
         # measurement
-        nominator_index = plotter.add_hist(data_hist, **{"histtype": 'errorbar', "color": 'black',
-                                       'label': f'{data_hist.get_label()}'})
-        plotter.add_ratio_hist(nominator_index=nominator_index,
-                               denominator_index=denominator_index_list,  # add all simulation except data
-                               location=(1, 0), color='black', histtype='errorbar')
+        nominator_index = self.plotter.add_hist(data_hist, **get_hist_kwargs(data_hist.get_label()))
+        self.plotter.add_ratio_hist(nominator_index=nominator_index,
+                                    denominator_index=denominator_index_list,
+                                    location=(1, 0))
         # just to show x bin widths
-        plotter.draw_hist()
-        plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
+        # self.draw_plot()
+        self.plotter.draw_hist()
+        self.plotter.comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
         # plotter.get_axis(location=(0, 0)).set_ylim(ymin=1e-2)
-        plotter.adjust_y_scale()
-        plotter.add_text(text=text, location=(0,0), **{"frameon":False, "loc": "upper left",})  # Note: required to after setting legend
-        plotter.save_fig(hist_name + "_" + self.year)
+        self.plotter.adjust_y_scale()
+
+        self.plotter.add_text(text=text, location=(0,0), **{"frameon":False, "loc": "upper left",})  # Note: required to after setting legend
+        self.plotter.save_fig(hist_name + "_" + self.year)
+        self.plotter.reset()
+
+    def init_plotter(self, figsize):
+        self.plotter.create_subplots(2, 1, figsize=figsize,
+                                     left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+        self.plotter.set_experiment_label(**{"year": self.year})
 
     def get_data_hist(self, hist_name, hist_path='', bin_width_norm=False):
         return self.data.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)

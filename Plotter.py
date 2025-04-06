@@ -48,7 +48,6 @@ class Plotter:
         self.out_dir = ''
 
         # histogram
-        self.current_axis = None
         self.hist_list = []
         self.hist_loc = []
         self.hist_as_stack = []
@@ -61,6 +60,30 @@ class Plotter:
 
         self.legend_handles = []
         self.legend_labels = []
+
+        self.y_minimum = 0
+
+    def reset(self):
+        self.rows = 1
+        self.cols = 1
+
+        del self.fig
+        del self.axs
+        self.current_axis = None
+
+        # histogram
+        self.hist_list.clear()
+        self.hist_loc.clear()
+        self.hist_as_stack.clear()
+        self.hist_kwargs.clear()
+
+        # errorbar
+        self.errorbar_list.clear()
+        self.errorbar_loc.clear()
+        self.errorbar_kwargs.clear()
+
+        self.legend_handles.clear()
+        self.legend_labels.clear()
 
         self.y_minimum = 0
 
@@ -114,8 +137,6 @@ class Plotter:
         self.hist_kwargs.append(kwargs)
         self.hist_as_stack.append(as_stack)
         return len(self.hist_list)-1
-
-    # def add_hists()
 
     def add_comparison_pair(self, nominator_hist, denominator_hist,
                             location, ratio_location,
@@ -180,7 +201,11 @@ class Plotter:
         else:
             pass
 
-        # attach ratio histogram
+        if 'color' in self.hist_kwargs[nominator_index]:
+            kwargs['color'] = self.hist_kwargs[nominator_index]['color']
+        if 'histtype' in self.hist_kwargs[nominator_index]:
+            kwargs['histtype'] = self.hist_kwargs[nominator_index]['histtype']
+
         self.add_hist(ratio_hist, location=location, **kwargs)
 
     def draw_hist(self):
@@ -220,6 +245,7 @@ class Plotter:
                 handle = patches[0]
 
             label = self.hist_kwargs[index].get("label", None)
+            # deside whether to show legend
             if label:
                 self.legend_handles.append(handle)
                 self.legend_labels.append(label)
