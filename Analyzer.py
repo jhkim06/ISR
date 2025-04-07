@@ -1,6 +1,7 @@
 from Plotter import Plotter
 from TUnFolder import TUnFolder
 
+
 # simulation legends used in this analysis
 labels = {
     # group_name of ROOTFileGroup: "legend"
@@ -12,13 +13,18 @@ labels = {
     "vv": "$VV$"
 }
 
+
 colors = {
     "DY": "red",
     "Data": "black"
 }
 
+
 def get_hist_kwargs(label):
-    kwargs = {"color": f'{colors[label]}', "label": f'{labels[label]}'}
+    kwargs = {
+        "color": f'{colors[label]}',
+        "label": f'{labels[label]}'
+    }
     if label == 'Data':
         kwargs.update({'histtype': 'errorbar'})
 
@@ -43,7 +49,6 @@ class Analyzer:
         self.data.set_hist_path_prefix(hist_path)
         self.signal.set_hist_path_prefix(hist_path)
 
-    # FIXME
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
         return self.signal.get_tobject(unfolded_bin_name), self.signal.get_tobject(folded_bin_name)
 
@@ -82,11 +87,9 @@ class Analyzer:
                                                 custom_x_locates=None,
                                                 vlines=None):
 
-        # signal.hist, signal.label
         data_bg_subtracted = self.get_bg_subtracted_data_hist(hist_name, bin_width_norm=bin_width_norm)
         signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
 
-        # self.add_data_hist(data)
         self.init_plotter(figsize=figsize)
 
         # expectations
@@ -156,6 +159,7 @@ class Analyzer:
         self.plotter.save_fig(hist_name + "_" + self.year)
         self.plotter.reset()
 
+    # methods for Plotter
     def init_plotter(self, figsize):
         self.plotter.create_subplots(2, 1, figsize=figsize,
                                      left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
@@ -179,10 +183,8 @@ class Analyzer:
         return temp_dict
 
     def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        # total_bg = self.background[0].get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
         total_bg = None
         for bg in self.background:
-            # total_bg.Add(bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm))
             total_bg = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm) + total_bg
         return total_bg
 
