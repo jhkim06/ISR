@@ -41,6 +41,9 @@ class ISRAnalyzer(Analyzer):
         self._set_isr_2d_hist_names()
         self.systematics = None
 
+    def get_mass_bins(self):
+        return self.mass_bins
+
     def _set_isr_1d_hist_names(self):
 
         # 1D case: set pt and mass histogram prefix
@@ -243,7 +246,8 @@ class ISRAnalyzer(Analyzer):
         for mass_bin in self.mass_bins:
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
             # contains histograms for the analysis
-            input_hist_name, matrix_name, fake_hist_name, bg_hist_name = self.get_hist_names_for_1d_dipt(mass_bin_postfix)
+            input_hist_name, matrix_name, fake_hist_name, bg_hist_name = (
+                self.get_hist_names_for_1d_dipt(mass_bin_postfix))
             result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                         do_acceptance_correction=do_acceptance_correction,
                                         hist_full_phase_name=self.pt_hist_full_phase_name_prefix + mass_bin_postfix,
