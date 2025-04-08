@@ -1,6 +1,17 @@
 from Analyzer import Analyzer
 from Hist import Hist
 from Acceptance import Acceptance
+import pandas as pd
+import numpy as np
+
+
+def calculate_squared_root_sum(raw_df, reg_expression, new_col_name="total error"):
+
+    selected_cols = raw_df.filter(regex=reg_expression)
+    squared_sum = (selected_cols ** 2).sum(axis=1)
+    root_of_squared_sum = np.sqrt(squared_sum)
+
+    raw_df[new_col_name] = root_of_squared_sum
 
 
 def change_to_greek(raw_string):
@@ -11,17 +22,20 @@ def change_to_greek(raw_string):
 
 
 class ISRAnalyzer(Analyzer):
-    def __init__(self, data, signal, background,
+    def __init__(self,
+                 data, signal, background,  # Analyzer
+                 # systematic?
+
                  mass_bins, pt_bins,
                  folded_bin_name='fine', unfolded_bin_name='coarse',
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
                  mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',
-
-                 experiment='cms', year='2016', channel='ee'):
+                 ):
 
         super(ISRAnalyzer, self).__init__(data, signal, background)
         self.mass_bins = mass_bins
         self.pt_bins = pt_bins
+
         # self.axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
         # dipt_prefix, dimass_prefix
 
@@ -39,6 +53,12 @@ class ISRAnalyzer(Analyzer):
         # set histogram name of "pt and mass"
         self._set_isr_1d_hist_names()
         self._set_isr_2d_hist_names()
+
+        # save each mean values or combine as one dataframe
+        self.isr_pt = {}  # ex) default: isr_pt, unfold: isr_pt
+        self.isr_mass = {}  #
+        # export_isr_result
+
         self.systematics = None
 
     def get_mass_bins(self):
@@ -50,14 +70,16 @@ class ISRAnalyzer(Analyzer):
         self.pt_hist_name_prefix = 'dipt_[reco__' + self.folded_bin_name + ']_dimass'
         self.pt_matrix_name_prefix = ('dipt_[reco__' + self.folded_bin_name + ']_[gen_' +
                                       self.unfolded_space_name + '__' + self.unfolded_bin_name + ']_dimass')
-        self.pt_fake_hist_name_prefix = 'dipt_[reco_gen_' + self.unfolded_space_name + '_fake__' + self.folded_bin_name + ']_dimass'
+        self.pt_fake_hist_name_prefix = (
+                'dipt_[reco_gen_' + self.unfolded_space_name + '_fake__' + self.folded_bin_name + ']_dimass')
         self.pt_hist_full_phase_name_prefix = ('dipt_[gen_' + self.acceptance_space_name +
                                                '_acceptance__' + self.unfolded_bin_name + ']_dimass')
 
         self.mass_hist_name_prefix = 'dimass_[reco__' + self.mass_folded_bin_name + ']_dipt'
         self.mass_matrix_name_prefix = ('dimass_[reco__' + self.mass_folded_bin_name + ']_[gen_' +
                                         self.unfolded_space_name + '__' + self.mass_unfolded_bin_name + ']_dipt')
-        self.mass_fake_hist_name_prefix = 'dimass_[reco_gen_' + self.unfolded_space_name + '_fake__' + self.mass_folded_bin_name + ']_dipt'
+        self.mass_fake_hist_name_prefix = (
+                'dimass_[reco_gen_' + self.unfolded_space_name + '_fake__' + self.mass_folded_bin_name + ']_dipt')
         self.mass_hist_full_phase_name_prefix = ('dimass_[gen_' + self.acceptance_space_name +
                                                  '_acceptance__' + self.mass_unfolded_bin_name + ']_dipt')
 
@@ -65,16 +87,19 @@ class ISRAnalyzer(Analyzer):
 
         # 2D case: set pt and mass histogram name
         self.pt_mass_detector_bin_postfix = "[reco__" + self.folded_bin_name + "_O-window_v1_UO]"
-        self.pt_mass_unfolded_bin_postfix = "[gen_" + self.unfolded_space_name + "__" + self.unfolded_bin_name + "_O-window_v1_UO]"
+        self.pt_mass_unfolded_bin_postfix = (
+                "[gen_" + self.unfolded_space_name + "__" + self.unfolded_bin_name + "_O-window_v1_UO]")
         self.pt_mass_detector_bin_name = "[tunfold-bin]_[dipt-dimass]_[" + self.folded_bin_name + "_O-window_v1_UO]"
         self.pt_mass_unfolded_bin_name = "[tunfold-bin]_[dipt-dimass]_[" + self.unfolded_bin_name + "_O-window_v1_UO]"
 
         # even if the same bin definition used different contents can be stored
         self.pt_mass_hist_name = "[tunfold-hist]_[dipt-dimass]_" + self.pt_mass_detector_bin_postfix
-        self.pt_mass_matrix_name = "[tunfold-matrix]_[dipt-dimass]_" + self.pt_mass_detector_bin_postfix + "_" + self.pt_mass_unfolded_bin_postfix
+        self.pt_mass_matrix_name = (
+                "[tunfold-matrix]_[dipt-dimass]_" + self.pt_mass_detector_bin_postfix + "_" + self.pt_mass_unfolded_bin_postfix)
         self.pt_mass_fake_hist_name = ("[tunfold-hist]_[dipt-dimass]_[reco_gen_" + self.unfolded_space_name +
                                   "_fake__" + self.folded_bin_name + "_O-window_v1_UO]")
-        self.pt_mass_hist_full_phase_name = ("[tunfold-hist]_[dipt-dimass]_[gen_" + self.acceptance_space_name + "_acceptance__" +
+        self.pt_mass_hist_full_phase_name = \
+            ("[tunfold-hist]_[dipt-dimass]_[gen_" + self.acceptance_space_name + "_acceptance__" +
                                    self.unfolded_bin_name + "_O-window_v1_UO]")
 
     def get_hist_names_for_1d_dipt(self, bin_postfix):
@@ -207,6 +232,7 @@ class ISRAnalyzer(Analyzer):
                       do_acceptance_correction=False, hist_full_phase_name='',
                       variable_label=''):
 
+        #
         unfold_result = self.do_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                                        unfolded_bin_name, folded_bin_name, variable_label)
 
@@ -236,8 +262,31 @@ class ISRAnalyzer(Analyzer):
         else:
             result = Hist(unfold_result.get_unfolded_hist(use_axis_binning=use_axis_binning))
 
-        # FIXME return TUnFolder object
+        # FIXME return TUnFolder object?
         return result
+
+    def get_isr_measurement(self, values, as_df):
+        if as_df:
+            dict_list = []
+
+            for ith_mass in range(len(self.mass_bins)):
+                low_mass_edge = self.mass_bins[ith_mass][0]
+                high_mass_edge = self.mass_bins[ith_mass][1]
+
+                mass_window_str = str(low_mass_edge) + ':' + str(high_mass_edge)
+                dict_temp = dict(mass_window=mass_window_str, mean=values[ith_mass][0])
+                dict_temp['stat error'] = values[ith_mass][1]
+
+                dict_list.append(dict_temp)
+
+            df = pd.DataFrame(dict_list)
+
+            reg_expression = r".*error"
+            calculate_squared_root_sum(df, reg_expression)
+
+            return df
+        else:
+            return values
 
     # TODO use postfix for systematic later
     def get_unfolded_mean_pt_1d(self, do_acceptance_correction=False, correct_binned_mean=False):
@@ -258,8 +307,9 @@ class ISRAnalyzer(Analyzer):
             self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
         return pt_data
 
-    def get_unfolded_mean_pt_2d(self, do_acceptance_correction=False, correct_binned_mean=False):
+    def get_unfolded_mean_pt_2d(self, do_acceptance_correction=False, correct_binned_mean=False, as_df=False):
         unfolded_bin, _ = self.get_unfold_bin_maps(self.pt_mass_unfolded_bin_name, self.pt_mass_detector_bin_name)
+        # use default histograms
         result = self.do_isr_unfold(self.pt_mass_hist_name, self.pt_mass_matrix_name,
                                     self.pt_mass_fake_hist_name, self.pt_mass_hist_name,
                                     unfolded_bin_name=self.pt_mass_unfolded_bin_name,
@@ -270,7 +320,8 @@ class ISRAnalyzer(Analyzer):
         pt_data = self.extract_mean_pt_from_2d_hist(result, unfolded_bin)
         if correct_binned_mean:
             self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
-        return pt_data
+
+        return self.get_isr_measurement(pt_data, as_df)
 
     def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name=''):
         if unfolded_space_name == '':
@@ -312,7 +363,8 @@ class ISRAnalyzer(Analyzer):
         for index, mass_bin in enumerate(self.mass_bins):
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
             mc_hist_full_phase = self.get_signal_hist(pt_hist_full_phase_name_prefix + mass_bin_postfix)
-            correction_factor = mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0]
+            correction_factor = (
+                    mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0])
             pt_data[index] = (pt_data[index][0] * correction_factor, pt_data[index][1])
         return pt_data
 
@@ -326,7 +378,7 @@ class ISRAnalyzer(Analyzer):
             pt_data.append(temp_result.get_mean())
         return pt_data
 
-    def get_unfolded_mean_mass(self, do_acceptance_correction=False):
+    def get_unfolded_mean_mass(self, do_acceptance_correction=False, as_df=False):
 
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
         input_hist_name, matrix_name, fake_hist_name, bg_hist_name = self.get_hist_names_for_1d_dimass(postfix)
@@ -339,4 +391,4 @@ class ISRAnalyzer(Analyzer):
         for mass_bin in self.mass_bins:
             mass_data.append(result.get_mean(range_min=mass_bin[0], range_max=mass_bin[1]))
 
-        return mass_data
+        return self.get_isr_measurement(mass_data, as_df)

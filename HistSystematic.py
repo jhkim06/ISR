@@ -4,7 +4,9 @@ import numpy as np
 
 
 class HistSystematic:
-    def __init__(self, systematic_name, nominal_hist, systematic_hists,
+    def __init__(self, systematic_name,
+                 nominal_hist,
+                 systematic_hists,
                  norm_to_nominal_hist=False,):
         # systematic_hists is dictionary {variation name: systematic histogram}
         self.systematic_name = systematic_name
@@ -57,12 +59,12 @@ class HistSystematic:
         plotter.create_subplots(2, 1, figsize=(8, 8),
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
 
-        nominal_hist = self.nominal_hist.Clone("nominal_hist")
+        nominal_hist = Hist(self.nominal_hist.Clone("nominal_hist"))
         # nominal_hist.Scale(1./nominal_hist.Integral(), 'width')
         plotter.set_experiment_label(**{"year": "year"})
         # loop over systematic hist
         for variation_name, variation_hist in self.systematic_hists.items():
-            variation_hist = variation_hist.Clone("variation_hist")
+            variation_hist = Hist(variation_hist.Clone("variation_hist"))
             # variation_hist.Scale(1./variation_hist.Integral(), 'width')
             plotter.add_comparison_pair(variation_hist, denominator_hist=nominal_hist,
                                         location=(0, 0), ratio_location=(1, 0),
