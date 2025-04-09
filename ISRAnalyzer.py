@@ -24,15 +24,19 @@ def change_to_greek(raw_string):
 class ISRAnalyzer(Analyzer):
     def __init__(self,
                  data, signal, background,  # Analyzer
-                 # systematic?
-
                  mass_bins, pt_bins,
+                 acceptance = None,
                  folded_bin_name='fine', unfolded_bin_name='coarse',
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
                  mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',
                  ):
 
         super(ISRAnalyzer, self).__init__(data, signal, background)
+
+        if acceptance is None:
+            self.acceptance = self.signal
+        else:
+            self.acceptance = acceptance
         self.mass_bins = mass_bins
         self.pt_bins = pt_bins
 
@@ -58,8 +62,6 @@ class ISRAnalyzer(Analyzer):
         self.isr_pt = {}  # ex) default: isr_pt, unfold: isr_pt
         self.isr_mass = {}  #
         # export_isr_result
-
-        self.systematics = None
 
     def get_mass_bins(self):
         return self.mass_bins
@@ -252,8 +254,9 @@ class ISRAnalyzer(Analyzer):
         unfold_result.draw_response_matrix(out_name=input_hist_name)
 
         if do_acceptance_correction:
-            mc_hist_full_phase = self.get_signal_hist(hist_full_phase_name)
-            mc_hist_acceptance = unfold_result.get_mc_truth_from_response_matrix()
+            mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
+            raw_response_matrix = self.get_acceptance_hist(matrix_name)
+            mc_hist_acceptance = unfold_result.extract_truth_from_response_matrix(raw_response_matrix.raw_root_hist)
             acceptance = Acceptance(mc_hist_full_phase, Hist(mc_hist_acceptance))
 
             acceptance_corrected = acceptance.do_correction(
@@ -392,3 +395,6 @@ class ISRAnalyzer(Analyzer):
             mass_data.append(result.get_mean(range_min=mass_bin[0], range_max=mass_bin[1]))
 
         return self.get_isr_measurement(mass_data, as_df)
+
+    def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False):
+        return self.acceptance.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)

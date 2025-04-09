@@ -211,7 +211,7 @@ class TUnFolder:
         return decomp.Condition()
 
     def draw_response_matrix(self, out_name=''):
-        plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
+        plotter = Plotter('CMS', '../Plots')  # FIXME use self.plotter
         plotter.create_subplots(1, 1, figsize=(8, 8),
                                 left=0.15, right=0.9, hspace=0.0, bottom=0.15)
         plotter.set_experiment_label(label="Simulation")
@@ -249,7 +249,7 @@ class TUnFolder:
 
         if draw_plot:
             # TODO make a generic function to draw comparison plot
-            plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
+            plotter = Plotter('CMS', '../Plots')  # FIXME use self.plotter
             plotter.create_subplots(2, 1, figsize=(8,8),
                                     left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
 
@@ -279,7 +279,11 @@ class TUnFolder:
         return folded_chi2 > unfolded_chi2
 
     def get_mc_truth_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
-        projected_hist = self.response_matrix.ProjectionX("histMCTruth", 0, -1, "e")
+        return self.extract_truth_from_response_matrix(self.response_matrix,
+                                                projection_mode=projection_mode,use_axis_binning=use_axis_binning)
+
+    def extract_truth_from_response_matrix(self, raw_2d_hist, projection_mode="*[*]", use_axis_binning=True):
+        projected_hist = raw_2d_hist.ProjectionX("histMCTruth", 0, -1, "e")
 
         if projection_mode != "*[*]":
             projected_hist = self.unfolded_bin.ExtractHistogram("truth_extracted",

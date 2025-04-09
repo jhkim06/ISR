@@ -14,7 +14,11 @@ class CMSData(object):
     # signal: DY, background: WW, WZ,ttbar, etc
     # TODO define processes to be used for example, so make user only need to set process name
     # get_samples?
-    # TODO use txt sample information
+    # TODO use txt sample winformation
+
+    def get_sample(self):
+        pass
+
     def get_isr_samples(self,
                         period_name,
                         channel_name,  # used to set hist path
@@ -35,7 +39,7 @@ class CMSData(object):
             dy_tau_key = 'DYJetsToTauTau_MiNNLO'
         else:
             dy_key = 'DYJets'
-            dy_tau_key = 'DYJets'
+            dy_tau_key = 'DYJetsToTauTau_MiNNLO'
         dy_dict = self.mc_pather.get_path_dict((period_name, dy_key))
 
         # Background

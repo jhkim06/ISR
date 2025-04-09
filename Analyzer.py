@@ -45,7 +45,7 @@ class Analyzer:
         self.background = background  # [ROOTFileGroup]
         # systematic root files?!
 
-        self.plotter = Plotter(self.experiment, './Plots')
+        self.plotter = Plotter(self.experiment, '../Plots')
 
     def set_base_hist_path(self, hist_path):
         self.data.set_hist_path_prefix(hist_path)
@@ -54,10 +54,14 @@ class Analyzer:
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
         return self.signal.get_tobject(unfolded_bin_name), self.signal.get_tobject(folded_bin_name)
 
-    def do_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
+    def do_unfold(self,
+                  input_hist_name,
+                  matrix_name,
+                  fake_hist_name,
+                  bg_hist_name,
                   unfolded_bin_name=None, folded_bin_name=None, variable_name=''):
 
-        # 
+        #
         data_hist = self.get_data_hist(input_hist_name)
         response_matrix = self.get_signal_hist(matrix_name)
         fake_hist = self.get_signal_hist(fake_hist_name)
