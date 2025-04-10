@@ -1,6 +1,5 @@
 from ISRAnalyzer import ISRAnalyzer
 from CMSData import CMSData
-from ISRCombiner import ISRCombiner
 import numpy as np
 
 
@@ -43,14 +42,12 @@ class ISRSystematic:
         self.mean_pt_summary = self.default_mean_pt.copy(deep=True)  # dataframe
         self.mean_mass_summary = self.default_mean_mass.copy(deep=True)
 
-        # combiner
-
+    # TODO enable all systematic cases
     def do_experiment(self, sys_name, **kwargs):
         data = self.data
         signal = self.signal
         bg = self.bg
 
-        # {"use_minnlo": True,
         if 'use_minnlo' in kwargs:
             data, signal, bg = self.cms_data.get_isr_samples(self.period,
                                                              self.channel,
@@ -72,7 +69,6 @@ class ISRSystematic:
                                                         correct_binned_mean=True, as_df=True))
         self.mean_mass_systematics[sys_name].append(
             systematic_analyzer.get_unfolded_mean_mass(do_acceptance_correction=True, as_df=True))
-
 
     def merge_results(self):
         if 'total error' in self.mean_pt_summary.columns:
@@ -113,6 +109,3 @@ class ISRSystematic:
         squared_sum = (selected_cols ** 2).sum(axis=1)
         root_of_squared_sum = np.sqrt(squared_sum)
         self.mean_mass_summary[new_col_name] = root_of_squared_sum
-
-    def combine(self):
-        pass
