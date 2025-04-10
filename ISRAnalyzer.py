@@ -25,11 +25,10 @@ class ISRAnalyzer(Analyzer):
     def __init__(self,
                  data, signal, background,  # Analyzer
                  mass_bins, pt_bins,
-                 acceptance = None,
+                 acceptance = None,  # DY for acceptance correction
                  folded_bin_name='fine', unfolded_bin_name='coarse',
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
-                 mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',
-                 ):
+                 mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',):
 
         super(ISRAnalyzer, self).__init__(data, signal, background)
 
@@ -61,7 +60,6 @@ class ISRAnalyzer(Analyzer):
         # save each mean values or combine as one dataframe
         self.isr_pt = {}  # ex) default: isr_pt, unfold: isr_pt
         self.isr_mass = {}  #
-        # export_isr_result
 
     def get_mass_bins(self):
         return self.mass_bins
@@ -70,39 +68,48 @@ class ISRAnalyzer(Analyzer):
 
         # 1D case: set pt and mass histogram prefix
         self.pt_hist_name_prefix = 'dipt_[reco__' + self.folded_bin_name + ']_dimass'
-        self.pt_matrix_name_prefix = ('dipt_[reco__' + self.folded_bin_name + ']_[gen_' +
-                                      self.unfolded_space_name + '__' + self.unfolded_bin_name + ']_dimass')
-        self.pt_fake_hist_name_prefix = (
-                'dipt_[reco_gen_' + self.unfolded_space_name + '_fake__' + self.folded_bin_name + ']_dimass')
+        self.pt_fake_hist_name_prefix = ('dipt_[reco_gen_' + self.unfolded_space_name
+                                         + '_fake__' + self.folded_bin_name + ']_dimass')
         self.pt_hist_full_phase_name_prefix = ('dipt_[gen_' + self.acceptance_space_name +
                                                '_acceptance__' + self.unfolded_bin_name + ']_dimass')
 
+        self.pt_matrix_name_prefix = ('dipt_[reco__' + self.folded_bin_name + ']_[gen_' +
+                                      self.unfolded_space_name + '__' + self.unfolded_bin_name + ']_dimass')
+
         self.mass_hist_name_prefix = 'dimass_[reco__' + self.mass_folded_bin_name + ']_dipt'
-        self.mass_matrix_name_prefix = ('dimass_[reco__' + self.mass_folded_bin_name + ']_[gen_' +
-                                        self.unfolded_space_name + '__' + self.mass_unfolded_bin_name + ']_dipt')
-        self.mass_fake_hist_name_prefix = (
-                'dimass_[reco_gen_' + self.unfolded_space_name + '_fake__' + self.mass_folded_bin_name + ']_dipt')
+        self.mass_fake_hist_name_prefix = ('dimass_[reco_gen_' + self.unfolded_space_name
+                                           + '_fake__' + self.mass_folded_bin_name + ']_dipt')
         self.mass_hist_full_phase_name_prefix = ('dimass_[gen_' + self.acceptance_space_name +
                                                  '_acceptance__' + self.mass_unfolded_bin_name + ']_dipt')
 
+        self.mass_matrix_name_prefix = ('dimass_[reco__' + self.mass_folded_bin_name + ']_[gen_' +
+                                        self.unfolded_space_name + '__' + self.mass_unfolded_bin_name + ']_dipt')
+
     def _set_isr_2d_hist_names(self):
 
+        type_name = 'bin'
+        var_name = 'dipt-dimass'
+        tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
         # 2D case: set pt and mass histogram name
         self.pt_mass_detector_bin_postfix = "[reco__" + self.folded_bin_name + "_O-window_v1_UO]"
         self.pt_mass_unfolded_bin_postfix = (
                 "[gen_" + self.unfolded_space_name + "__" + self.unfolded_bin_name + "_O-window_v1_UO]")
-        self.pt_mass_detector_bin_name = "[tunfold-bin]_[dipt-dimass]_[" + self.folded_bin_name + "_O-window_v1_UO]"
-        self.pt_mass_unfolded_bin_name = "[tunfold-bin]_[dipt-dimass]_[" + self.unfolded_bin_name + "_O-window_v1_UO]"
+        self.pt_mass_detector_bin_name = tunfold_prefix + "_[" + self.folded_bin_name + "_O-window_v1_UO]"
+        self.pt_mass_unfolded_bin_name = tunfold_prefix + "_[" + self.unfolded_bin_name + "_O-window_v1_UO]"
 
         # even if the same bin definition used different contents can be stored
-        self.pt_mass_hist_name = "[tunfold-hist]_[dipt-dimass]_" + self.pt_mass_detector_bin_postfix
-        self.pt_mass_matrix_name = (
-                "[tunfold-matrix]_[dipt-dimass]_" + self.pt_mass_detector_bin_postfix + "_" + self.pt_mass_unfolded_bin_postfix)
-        self.pt_mass_fake_hist_name = ("[tunfold-hist]_[dipt-dimass]_[reco_gen_" + self.unfolded_space_name +
-                                  "_fake__" + self.folded_bin_name + "_O-window_v1_UO]")
-        self.pt_mass_hist_full_phase_name = \
-            ("[tunfold-hist]_[dipt-dimass]_[gen_" + self.acceptance_space_name + "_acceptance__" +
-                                   self.unfolded_bin_name + "_O-window_v1_UO]")
+        type_name = 'hist'
+        tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
+        self.pt_mass_hist_name = tunfold_prefix + "_" + self.pt_mass_detector_bin_postfix
+        self.pt_mass_fake_hist_name = (tunfold_prefix + "_[reco_gen_" + self.unfolded_space_name
+                                       + "_fake__" + self.folded_bin_name + "_O-window_v1_UO]")
+        self.pt_mass_hist_full_phase_name = (tunfold_prefix + "_[gen_" + self.acceptance_space_name
+                                             + "_acceptance__" + self.unfolded_bin_name + "_O-window_v1_UO]")
+
+        type_name = 'matrix'
+        tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
+        self.pt_mass_matrix_name = (tunfold_prefix + "_" + self.pt_mass_detector_bin_postfix
+                                    + "_" + self.pt_mass_unfolded_bin_postfix)
 
     def get_hist_names_for_1d_dipt(self, bin_postfix):
 
@@ -310,11 +317,21 @@ class ISRAnalyzer(Analyzer):
             self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
         return pt_data
 
-    def get_unfolded_mean_pt_2d(self, do_acceptance_correction=False, correct_binned_mean=False, as_df=False):
-        unfolded_bin, _ = self.get_unfold_bin_maps(self.pt_mass_unfolded_bin_name, self.pt_mass_detector_bin_name)
+    def get_unfolded_mean_pt_2d(self, do_acceptance_correction=False,
+                                correct_binned_mean=False,
+                                as_df=False, **kwargs):
+        unfolded_bin, _ = self.get_unfold_bin_maps(self.pt_mass_unfolded_bin_name,
+                                                   self.pt_mass_detector_bin_name)
         # use default histograms
+        # TODO enable to use different hist name
+        # pt_mass_hist_name_postfix
+        # pt_mass_fake_hist_name
+        # pt_mass_matrix_name
+        # pt_mass_hist_name
+        # data_hist_name, fake_hist_name, bg_hist_name,matrix_name = self.attach_postfix_to_hist_name(**kwargs)
         result = self.do_isr_unfold(self.pt_mass_hist_name, self.pt_mass_matrix_name,
                                     self.pt_mass_fake_hist_name, self.pt_mass_hist_name,
+
                                     unfolded_bin_name=self.pt_mass_unfolded_bin_name,
                                     folded_bin_name=self.pt_mass_detector_bin_name,
                                     do_acceptance_correction=do_acceptance_correction,

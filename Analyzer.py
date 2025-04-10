@@ -45,7 +45,9 @@ class Analyzer:
         self.background = background  # [ROOTFileGroup]
         # systematic root files?!
 
-        self.plotter = Plotter(self.experiment, '../Plots')
+        self.plotter = Plotter(self.experiment,
+                               '/Users/junhokim/Work/cms_snu/ISR/Plots')
+
 
     def set_base_hist_path(self, hist_path):
         self.data.set_hist_path_prefix(hist_path)
