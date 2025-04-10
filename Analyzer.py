@@ -61,13 +61,14 @@ class Analyzer:
                   matrix_name,
                   fake_hist_name,
                   bg_hist_name,
-                  unfolded_bin_name=None, folded_bin_name=None, variable_name=''):
+                  unfolded_bin_name=None, folded_bin_name=None, variable_name='',
+                  bg_scale=1.0):
 
         #
         data_hist = self.get_data_hist(input_hist_name)
         response_matrix = self.get_signal_hist(matrix_name)
         fake_hist = self.get_signal_hist(fake_hist_name)
-        backgrounds = self.get_background_hist(bg_hist_name, raw_hists=True)
+        backgrounds = self.get_background_hist(bg_hist_name, raw_hists=True, bg_scale=bg_scale)
 
         unfolded_bin = None
         folded_bin = None
@@ -180,15 +181,18 @@ class Analyzer:
     def get_signal_hist(self, hist_name, hist_path='', bin_width_norm=False):
         return self.signal.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
 
-    def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False, raw_hists=False):
+    def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False, raw_hists=False,
+                            bg_scale=1.0):
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background:
             if raw_hists:
                 temp_dict[bg.get_name()] = (
-                    bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm).get_raw_hist())
+                    bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm,
+                                               scale=bg_scale).get_raw_hist())
             else:
-                temp_dict[bg.get_name()] = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+                temp_dict[bg.get_name()] = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm,
+                                                                      scale=bg_scale)
         return temp_dict
 
     def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False):

@@ -239,11 +239,11 @@ class ISRAnalyzer(Analyzer):
     def do_isr_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                       unfolded_bin_name=None, folded_bin_name=None,
                       do_acceptance_correction=False, hist_full_phase_name='',
-                      variable_label=''):
+                      variable_label='', bg_scale=1.0):
 
         #
         unfold_result = self.do_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                                       unfolded_bin_name, folded_bin_name, variable_label)
+                                       unfolded_bin_name, folded_bin_name, variable_label, bg_scale=bg_scale)
 
         # TODO handle 2D "dipt[O];dimass[UOC1]"
         use_axis_binning = True
@@ -319,7 +319,7 @@ class ISRAnalyzer(Analyzer):
 
     def get_unfolded_mean_pt_2d(self, do_acceptance_correction=False,
                                 correct_binned_mean=False,
-                                as_df=False, **kwargs):
+                                as_df=False, bg_scale=1.0, **kwargs):
         unfolded_bin, _ = self.get_unfold_bin_maps(self.pt_mass_unfolded_bin_name,
                                                    self.pt_mass_detector_bin_name)
         # use default histograms
@@ -331,6 +331,7 @@ class ISRAnalyzer(Analyzer):
         # data_hist_name, fake_hist_name, bg_hist_name,matrix_name = self.attach_postfix_to_hist_name(**kwargs)
         result = self.do_isr_unfold(self.pt_mass_hist_name, self.pt_mass_matrix_name,
                                     self.pt_mass_fake_hist_name, self.pt_mass_hist_name,
+                                    bg_scale=bg_scale,
 
                                     unfolded_bin_name=self.pt_mass_unfolded_bin_name,
                                     folded_bin_name=self.pt_mass_detector_bin_name,
@@ -398,11 +399,12 @@ class ISRAnalyzer(Analyzer):
             pt_data.append(temp_result.get_mean())
         return pt_data
 
-    def get_unfolded_mean_mass(self, do_acceptance_correction=False, as_df=False):
+    def get_unfolded_mean_mass(self, do_acceptance_correction=False, as_df=False, bg_scale=1.0):
 
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
         input_hist_name, matrix_name, fake_hist_name, bg_hist_name = self.get_hist_names_for_1d_dimass(postfix)
         result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
+                                    bg_scale=bg_scale,
                                     do_acceptance_correction=do_acceptance_correction,
                                     hist_full_phase_name=self.mass_hist_full_phase_name_prefix + postfix,
                                     variable_label=self.dimass_label)

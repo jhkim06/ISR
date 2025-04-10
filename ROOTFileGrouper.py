@@ -50,7 +50,7 @@ class ROOTFileGrouper:
         return tobject
 
     def get_combined_root_hists(self, hist_name, hist_path='', use_local_hist_path=False,
-                                bin_width_norm=False):
+                                bin_width_norm=False, scale=1.0):
         if use_local_hist_path:
             hist_path = hist_path
         else:
@@ -76,6 +76,8 @@ class ROOTFileGrouper:
                 hist_total.Add(hist)
 
         if bin_width_norm:
-            hist_total.Scale(1, "width")
+            hist_total.Scale(1.0, "width")
+        if scale != 1.0:
+            hist_total.Scale(scale)
 
         return Hist(hist_total, self.group_name)

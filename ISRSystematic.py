@@ -63,12 +63,19 @@ class ISRSystematic:
                                           self.mass_bins, self.pt_bins,
                                           acceptance=self.signal)
 
+        bg_scale = 1.0
+        if 'bg_scale' in kwargs:
+            bg_scale = kwargs['bg_scale']
+            print(f'bg_scale: {bg_scale}')
+
         self.systematic_analyzers[sys_name].append(systematic_analyzer)
         self.mean_pt_systematics[sys_name].append(
             systematic_analyzer.get_unfolded_mean_pt_2d(do_acceptance_correction=True,
-                                                        correct_binned_mean=True, as_df=True))
+                                                        correct_binned_mean=True, as_df=True,
+                                                        bg_scale=bg_scale))
         self.mean_mass_systematics[sys_name].append(
-            systematic_analyzer.get_unfolded_mean_mass(do_acceptance_correction=True, as_df=True))
+            systematic_analyzer.get_unfolded_mean_mass(do_acceptance_correction=True, as_df=True,
+                                                       bg_scale=bg_scale))
 
     def merge_results(self):
         if 'total error' in self.mean_pt_summary.columns:
@@ -85,7 +92,7 @@ class ISRSystematic:
 
             for index in range(len(self.systematic_analyzers[sys_name])):
                 sys_mean_pt = self.mean_pt_systematics[sys_name][index]["mean"]
-                sys_mean_mass = self.mean_pt_systematics[sys_name][index]["mean"]
+                sys_mean_mass = self.mean_mass_systematics[sys_name][index]["mean"]
 
                 diff_squared_pt = (default_mean_pt-sys_mean_pt)**2
                 diff_squared_mass = (default_mean_mass-sys_mean_mass)**2
