@@ -11,8 +11,9 @@ def make_combiner_input(df, i):
 
 
 class ISRCombiner:
-    def __init__(self):
+    def __init__(self, is_same_channel=True):
 
+        self.is_same_channel = is_same_channel
         # get_isr_result_df
         self.names = []  # keys for mass and pt dataframe
         self.results_mass_dfs = {}
@@ -50,9 +51,9 @@ class ISRCombiner:
             # combine!
             # get solved combiner
             mass_combiner = Combiner("Mean mass", combiner_input_mass,
-                                     use_rho_same_channel=True, solve=True)
+                                     use_rho_same_channel=self.is_same_channel, solve=True)
             pt_combiner = Combiner("Mean pt", combiner_input_pt,
-                                   use_rho_same_channel=True, solve=True)
+                                   use_rho_same_channel=self.is_same_channel, solve=True)
 
             # update dataframe
             combined_mass_df.loc[i, "mean":] = mass_combiner.get_result_list()

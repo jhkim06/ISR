@@ -3,7 +3,7 @@ from matplotlib.offsetbox import AnchoredText
 import mplhep as hep
 import numpy as np
 from typing import List, Dict, Any
-import matplotlib.colors as mcolors
+# import matplotlib.colors as mcolors
 from matplotlib.ticker import (FixedLocator, FixedFormatter)
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
@@ -143,8 +143,9 @@ class Plotter:
                             nominator_args, denominator_args):
         nominator_index = self.add_hist(nominator_hist, location=location, **nominator_args)
         denominator_index = self.add_hist(denominator_hist, location=location, **denominator_args)
-        self.add_ratio_hist(nominator_index=nominator_index, denominator_index=denominator_index,
-                            location=ratio_location, **nominator_args)
+        self.add_ratio_hist(nominator_index=nominator_index,
+                            denominator_index=denominator_index,
+                            location=ratio_location)
 
     def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)

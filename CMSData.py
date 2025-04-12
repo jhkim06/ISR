@@ -12,11 +12,11 @@ class CMSData(object):
 
         # systematic
     # signal: DY, background: WW, WZ,ttbar, etc
-    # TODO define processes to be used for example, so make user only need to set process name
-    # get_samples?
-    # TODO use txt sample winformation
 
-    def get_sample(self):
+    def get_data(self, period_name, channel_name):
+        pass
+
+    def get_mc(self, period_name):
         pass
 
     def get_isr_samples(self,

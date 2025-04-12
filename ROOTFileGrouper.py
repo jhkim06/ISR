@@ -14,7 +14,6 @@ class ROOTFileGrouper:
         self.year = year
         self.channel_name = channel_name
 
-
         self.hist_path_prefix = hist_path_prefix
         self.hist_name_prefix = hist_name_prefix
 
@@ -80,4 +79,7 @@ class ROOTFileGrouper:
         if scale != 1.0:
             hist_total.Scale(scale)
 
-        return Hist(hist_total, self.group_name)
+        return Hist(hist_total,
+                    label=self.group_name,
+                    channel=self.channel_name,
+                    year=self.year)

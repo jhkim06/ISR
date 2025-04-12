@@ -33,25 +33,38 @@ def get_hist_kwargs(label):
 
 
 class Analyzer:
-    def __init__(self, data, signal, background):
+    def __init__(self, data, signal, background, analysis_name=''):
 
         self.experiment = data.get_experiment_name()
         self.year = data.get_year()
         self.channel = data.get_channel_name()
 
-        # sample group
+        # TODO use sample group!
+        # self.cms_data
         self.data = data  # ROOTFileGroup
         self.signal = signal
         self.background = background  # [ROOTFileGroup]
         # systematic root files?!
 
+        self.analysis_name = analysis_name
+        # self.year, self.channel,
+        # TODO root file wrapper root_file().draw()
         self.plotter = Plotter(self.experiment,
                                '/Users/junhokim/Work/cms_snu/ISR/Plots')
 
+    def draw_data(self):
+        pass
+
+    def draw_signal(self):
+        pass
 
     def set_base_hist_path(self, hist_path):
         self.data.set_hist_path_prefix(hist_path)
         self.signal.set_hist_path_prefix(hist_path)
+
+    def plot_name_postfix(self, postfix=""):
+        postfix = "_" + postfix + "_" if postfix else '_'
+        return postfix + self.channel + "_" + self.year
 
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
         return self.signal.get_tobject(unfolded_bin_name), self.signal.get_tobject(folded_bin_name)
@@ -76,11 +89,11 @@ class Analyzer:
             unfolded_bin, folded_bin = self.get_unfold_bin_maps(unfolded_bin_name, folded_bin_name)
 
         # draw folded histograms
-        unfold = TUnFolder(response_matrix.get_raw_hist(),
-                           data_hist.get_raw_hist(),
-                           fake_hist.get_raw_hist(),
+        unfold = TUnFolder(response_matrix,
+                           data_hist,
+                           fake_hist,
                            bg_hists=backgrounds, unfolded_bin=unfolded_bin, folded_bin=folded_bin,
-                           year=self.year, variable_name=variable_name)
+                           variable_name=variable_name)
         unfold.unfold()
 
         return unfold
@@ -130,7 +143,7 @@ class Analyzer:
             self.plotter.add_custom_axis_tick_labels(custom_x_locates, custom_x_labels, location=(1, 0))
 
         self.plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})  # Note: required to after setting legend
-        self.plotter.save_fig(hist_name + "_bg_subtracted" + self.year)
+        self.plotter.save_fig(self.plot_name_postfix(hist_name + "_bg_subtracted"))
         self.plotter.reset()
 
     def draw_measurement_expectation_comparison_plot(self, hist_name,
@@ -166,7 +179,7 @@ class Analyzer:
         self.plotter.adjust_y_scale()
 
         self.plotter.add_text(text=text, location=(0,0), **{"frameon":False, "loc": "upper left",})  # Note: required to after setting legend
-        self.plotter.save_fig(hist_name + "_" + self.year)
+        self.plotter.save_fig(self.plot_name_postfix(hist_name))
         self.plotter.reset()
 
     # methods for Plotter

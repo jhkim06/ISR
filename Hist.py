@@ -3,12 +3,12 @@ import ROOT
 
 # ROOT histogram to
 class Hist(object):
-    def __init__(self, hist, label=''):
+    def __init__(self, hist, label='', channel='', year=''):
         self.raw_root_hist = hist
 
         self.label = label
-        # self.lumi
-        # self.year
+        self.year = year
+        self.channel = channel
 
     def __add__(self, other=None, c1=1):
         added_hist = self.raw_root_hist.Clone("added")

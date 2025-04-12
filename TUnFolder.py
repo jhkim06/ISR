@@ -39,14 +39,13 @@ class TUnFolder:
 
                  reg_mode='None', ex_constraint='None', density_mode='None',
                  unfold_method=None, n_iterative=100,
-
+                 analysis_name='',
                  iterative=False,
                  efficiency_correction=True,
-                 year='', channel='', variable_name=''
-                 ):
+                 variable_name=''):
 
-        self.year = year
-        self.channel = channel
+        self.year = input_hist.year
+        self.channel = input_hist.channel
         self.variable_name = variable_name
 
         # default setup
@@ -83,24 +82,25 @@ class TUnFolder:
 
     def _create_tunfolder(self):
         if self.use_bin_map:  # Use bin map
-            self.tunfolder = ROOT.TUnfoldDensity(self.response_matrix,
+            self.tunfolder = ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
                                                  ROOT.TUnfold.kHistMapOutputHoriz,
                                                  REG_MODE[self.reg_mode],
                                                  EX_CONSTRAINTS[self.ex_constraint],
                                                  DENSITY_MODE[self.density_mode],
                                                  self.unfolded_bin, self.folded_bin)
         else:
-            self.tunfolder = ROOT.TUnfoldDensity(self.response_matrix,
+            self.tunfolder = ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
                                                  ROOT.TUnfold.kHistMapOutputHoriz,
                                                  REG_MODE[self.reg_mode],
                                                  EX_CONSTRAINTS[self.ex_constraint],
                                                  DENSITY_MODE[self.density_mode])
 
     def _set_tunfolder_input(self):
-        self.tunfolder.SetInput(self.input_hist)
+        self.tunfolder.SetInput(self.input_hist.get_raw_hist())
 
         if self.input_fake_hist is not None:
-            self.tunfolder.SubtractBackground(self.input_fake_hist, 'input_fake')
+            self.tunfolder.SubtractBackground(self.input_fake_hist.get_raw_hist(),
+                                              'input_fake')
 
     def _subtract_backgrounds(self):
         if self.bg_hists is not None:
@@ -226,6 +226,11 @@ class TUnFolder:
                          **{"loc": "upper left",})
         plotter.save_fig(out_name + "_rm_" +  self.channel + self.year)
 
+    def get_response_matrix(self):
+        return Hist(self.tunfolder.GetProbabilityMatrix(ctypes.c_char_p(0),
+                                                        ctypes.c_char_p(0),
+                                                        True))
+
     # general comparison template?
     def bottom_line_test(self, projection_mode="*[*]", use_axis_binning=True, draw_plot=False,
                          out_name=''):
@@ -281,10 +286,12 @@ class TUnFolder:
         return folded_chi2 > unfolded_chi2
 
     def get_mc_truth_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
-        return self.extract_truth_from_response_matrix(self.response_matrix,
-                                                projection_mode=projection_mode,use_axis_binning=use_axis_binning)
+        return self.extract_truth_from_2d_hist_using_bin_definition(self.response_matrix.get_raw_hist(),
+                                                                    projection_mode=projection_mode,
+                                                                    use_axis_binning=use_axis_binning)
 
-    def extract_truth_from_response_matrix(self, raw_2d_hist, projection_mode="*[*]", use_axis_binning=True):
+    def extract_truth_from_2d_hist_using_bin_definition(self, raw_2d_hist, projection_mode="*[*]",
+                                                        use_axis_binning=True):
         projected_hist = raw_2d_hist.ProjectionX("histMCTruth", 0, -1, "e")
 
         if projection_mode != "*[*]":
@@ -296,7 +303,7 @@ class TUnFolder:
         return projected_hist
 
     def get_mc_reco_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
-        projected_hist = self.response_matrix.ProjectionY("histMCReco", 0, -1, "e")
+        projected_hist = self.response_matrix.get_raw_hist().ProjectionY("histMCReco", 0, -1, "e")
 
         if projection_mode != "*[*]":
             projected_hist = self.folded_bin.ExtractHistogram("reco_extracted",
