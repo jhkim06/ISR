@@ -77,8 +77,8 @@ class HistSystematic:
                                                     'hatch': None})
 
         plotter.draw_hist()
-        plotter.comparison_plot_cosmetics("variable", bin_width_norm=True,
-                                          ratio_name='/Nominal')
+        plotter.set_common_comparison_plot_cosmetics("variable", bin_width_norm=True,
+                                                     ratio_name='/Nominal')
         plotter.show_legend(location=(0, 0))
         plotter.get_axis(location=(0, 0)).set_xticklabels([])
         # plotter.adjust_y_scale()

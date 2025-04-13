@@ -48,8 +48,12 @@ class ROOTFileGrouper:
 
         return tobject
 
-    def get_combined_root_hists(self, hist_name, hist_path='', use_local_hist_path=False,
-                                bin_width_norm=False, scale=1.0):
+    def get_combined_root_hists(self,
+                                hist_name,
+                                hist_path='',
+                                use_local_hist_path=False,
+                                bin_width_norm=False,
+                                scale=1.0):
         if use_local_hist_path:
             hist_path = hist_path
         else:

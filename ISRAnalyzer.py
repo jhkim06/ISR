@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 
 
+# TODO check if this is needed here
 def calculate_squared_root_sum(raw_df, reg_expression, new_col_name="total error"):
 
     selected_cols = raw_df.filter(regex=reg_expression)
@@ -34,7 +35,7 @@ class ISRAnalyzer(Analyzer):
         super(ISRAnalyzer, self).__init__(sample_base_dir, )
 
         if acceptance is None:
-            self.acceptance = self.signal
+            self.acceptance = self.signal_name
         else:
             self.acceptance = acceptance
         self.mass_bins = mass_bins
@@ -43,8 +44,8 @@ class ISRAnalyzer(Analyzer):
         # self.axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
         # dipt_prefix, dimass_prefix
 
-        self.dipt_label = r'$p_{T}^{' + change_to_greek(self.channel) + '}$'
-        self.dimass_label = r'$M^{' + change_to_greek(self.channel) + '}$'
+        self.dipt_label = r'$p_{T}$^{' + change_to_greek(self.channel) + '}'
+        self.dimass_label = r'$M$^{' + change_to_greek(self.channel) + '}'
 
         self.folded_bin_name = folded_bin_name
         self.unfolded_bin_name = unfolded_bin_name
@@ -130,20 +131,8 @@ class ISRAnalyzer(Analyzer):
         return input_hist_name, matrix_name, fake_hist_name, bg_hist_name
 
     # basic plots
-    def draw_isr_measurement_expectation_plot(self, year, channel, event_selection,
-                                              hist_name_prefix, bin_postfix='', text="",
-                                              bin_width_norm=False,
-                                              x_variable_name='',
-                                              y_log_scale=False, x_log_scale=False):
-        hist_name = hist_name_prefix + bin_postfix
-        self.draw_measurement_expectation_comparison_plot(year, channel, event_selection,
-                                                          hist_name, text=text,
-                                                          bin_width_norm=bin_width_norm,
-                                                          x_variable_name=x_variable_name,
-                                                          y_log_scale=y_log_scale, x_log_scale=x_log_scale
-                                                          )
-
-    def draw_isr_measurement_signal_plot(self, hist_name_prefix, bin_postfix='', text="",
+    def draw_isr_measurement_signal_plot(self, year, channel, event_selection,
+                                         hist_name_prefix, bin_postfix='', text="",
                                          bin_width_norm=False,
                                          x_variable_name='',
                                          figsize=(8,8),
@@ -156,11 +145,13 @@ class ISRAnalyzer(Analyzer):
             fake_hist['hist'] = self.get_signal_hist(fake_hist['hist_name'] + bin_postfix,
                                                      bin_width_norm=bin_width_norm,)
             del fake_hist['hist_name']
+
         custom_x_labels=None
         custom_x_locates=None
         vlines=None
         if '[tunfold-hist]' in hist_name:  # check if it is 2D
-            _, folded_bin = self.get_unfold_bin_maps(self.pt_mass_unfolded_bin_name, self.pt_mass_detector_bin_name)
+            _, folded_bin = self.get_unfold_bin_maps(self.pt_mass_unfolded_bin_name,
+                                                     self.pt_mass_detector_bin_name)
             n_bins = folded_bin.GetDistributionNumberOfBins()
             custom_x_labels = []
             custom_x_locates = []
@@ -173,7 +164,8 @@ class ISRAnalyzer(Analyzer):
                     vlines.append(i-0.5)
 
         # FIXME too many parameters
-        self.draw_measurement_signal_comparison_plot(hist_name, text=text,
+        self.draw_measurement_signal_comparison_plot(year, channel, event_selection,
+                                                     hist_name, text=text,
                                                      figsize=figsize,
                                                      bin_width_norm=bin_width_norm,
                                                      x_variable_name=x_variable_name,
@@ -183,55 +175,76 @@ class ISRAnalyzer(Analyzer):
                                                      custom_x_locates=custom_x_locates,
                                                      vlines=vlines)
 
+    def draw_isr_measurement_expectation_plot_dimass(self, year, channel, event_selection):
+        bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
+        hist_name = self.mass_hist_name_prefix + bin_postfix
+
+        x_axis_label = r"$m^{" + change_to_greek(channel) +"}$"
+        y_log_scale = True
+        x_log_scale = True
+        bin_width_norm = True
+        text = str(r"$p_{T}^{"+change_to_greek(channel)+"}<$"+str(int(self.pt_bins[1]))+" (GeV)")
+
+        self.draw_measurement_expectation_comparison_plot(year, channel, event_selection,
+                                                          hist_name,
+                                                          bin_width_norm=bin_width_norm,
+                                                          x_axis_label=x_axis_label,
+                                                          y_log_scale=y_log_scale,
+                                                          x_log_scale=x_log_scale,
+                                                          save_and_reset=False)
+
+        self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
+        self.save_and_reset_plotter(hist_name, channel, year)
+
     def draw_isr_measurement_expectation_plot_dipt(self, year, channel, event_selection):
         for mass_bin in self.mass_bins:
+
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
+            hist_name = self.pt_hist_name_prefix + mass_bin_postfix
+            x_axis_label = r"$p_{T}^{" + change_to_greek(channel) + "}$"
+            bin_width_norm = True
+            text = str(int(mass_bin[0]))+"$<m^{"+change_to_greek(channel)+"}<$"+str(int(mass_bin[1])) + " GeV"
 
-            self.draw_isr_measurement_expectation_plot(year, channel, event_selection,
-                self.pt_hist_name_prefix,
-                mass_bin_postfix,
-                bin_width_norm=True,
-                text=str(int(mass_bin[0])) + "$<m<$" +
-                str(int(mass_bin[1])) + " GeV",
-                x_variable_name=self.dipt_label
-            )
+            self.draw_measurement_expectation_comparison_plot(year, channel, event_selection,
+                                                              hist_name,
+                                                              bin_width_norm=bin_width_norm,
+                                                              x_axis_label=x_axis_label,
+                                                              save_and_reset=False)
+            self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
+            self.save_and_reset_plotter(hist_name, channel, year)
 
-    def draw_isr_measurement_expectation_plot_dimass(self):
-        bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
-        self.draw_isr_measurement_expectation_plot(self.mass_hist_name_prefix, bin_postfix,
-                                                   bin_width_norm=True,
-                                                   text=str(r"$p_{T}<$" + str(int(self.pt_bins[1])) + " GeV"),
-                                                   x_variable_name=self.dimass_label,
-                                                   y_log_scale=True, x_log_scale=True)
-
-    def draw_isr_measurement_signal_plot_dimass(self):
+    def draw_isr_measurement_signal_plot_dimass(self, year, channel, event_selection):
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
 
         # dimass_[reco_gen_dressed_fake__fine]_dipt
-        fake_hist = {"hist_name": self.mass_fake_hist_name_prefix}
-        self.draw_isr_measurement_signal_plot(self.mass_hist_name_prefix, postfix,
+        # fake_hist = {"hist_name": self.mass_fake_hist_name_prefix}
+        fake_hist = None
+        self.draw_isr_measurement_signal_plot(year, channel, event_selection,
+                                              self.mass_hist_name_prefix, postfix,
                                                   bin_width_norm=True,
                                                   text=str(r"$p_{T}<$" + str(int(self.pt_bins[1])) + " GeV"),
-                                                  x_variable_name=self.dimass_label,
+                                                  x_variable_name=r'$M$',
                                                   y_log_scale=True, x_log_scale=True,
                                                   fake_hist=fake_hist)
 
-    def draw_isr_measurement_signal_plot_dipt(self):
+    def draw_isr_measurement_signal_plot_dipt(self, year, channel, event_selection):
         for mass_bin in self.mass_bins:
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
 
             # show fake histogram also
             fake_hist = {"hist_name": self.pt_fake_hist_name_prefix}
-            self.draw_isr_measurement_signal_plot(self.pt_hist_name_prefix, mass_bin_postfix,
+            self.draw_isr_measurement_signal_plot(year, channel, event_selection,
+                                                  self.pt_hist_name_prefix, mass_bin_postfix,
                                                   bin_width_norm=True,
                                                   text=str(int(mass_bin[0])) + "$<m<$" +
                                                   str(int(mass_bin[1])) + " GeV",
                                                   x_variable_name=self.dipt_label,
                                                   fake_hist=fake_hist)
 
-    def draw_isr_measurement_signal_plot_2d_dipt(self):
+    def draw_isr_measurement_signal_plot_2d_dipt(self, year, channel, event_selection):
         fake_hist = {"hist_name": self.pt_mass_fake_hist_name}
-        self.draw_isr_measurement_signal_plot(self.pt_mass_hist_name,
+        self.draw_isr_measurement_signal_plot(year, channel, event_selection,
+                                              self.pt_mass_hist_name,
                                               figsize=(15,8),
                                               bin_width_norm=False,
                                               text= "2D",
@@ -239,12 +252,10 @@ class ISRAnalyzer(Analyzer):
                                               r'$p_{T}$, M bin index',
                                               fake_hist=fake_hist)
 
-
-    def do_isr_unfold(self,input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
+    def do_isr_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                       unfolded_bin_name=None, folded_bin_name=None,
                       do_acceptance_correction=False, hist_full_phase_name='',
                       variable_label='', bg_scale=1.0):
-
         #
         unfold_result = self.do_unfold(
             input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
@@ -262,7 +273,6 @@ class ISRAnalyzer(Analyzer):
             use_axis_binning = False
         else:
             unfold_result.bottom_line_test(draw_plot=True, out_name=input_hist_name, use_axis_binning=use_axis_binning)
-
         unfold_result.draw_response_matrix(out_name=input_hist_name)
 
         if do_acceptance_correction:
@@ -271,7 +281,6 @@ class ISRAnalyzer(Analyzer):
             mc_hist_acceptance = (
                 unfold_result.extract_truth_from_2d_hist_using_bin_definition(raw_response_matrix.raw_root_hist))
             acceptance = Acceptance(mc_hist_full_phase, Hist(mc_hist_acceptance))
-
             acceptance_corrected = acceptance.do_correction(
                 Hist(unfold_result.get_unfolded_hist(use_axis_binning=use_axis_binning)))
             result = acceptance_corrected
@@ -292,7 +301,6 @@ class ISRAnalyzer(Analyzer):
                 mass_window_str = str(low_mass_edge) + ':' + str(high_mass_edge)
                 dict_temp = dict(mass_window=mass_window_str, mean=values[ith_mass][0])
                 dict_temp['stat error'] = values[ith_mass][1]
-
                 dict_list.append(dict_temp)
 
             df = pd.DataFrame(dict_list)
@@ -322,34 +330,6 @@ class ISRAnalyzer(Analyzer):
         if correct_binned_mean:
             self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
         return pt_data
-
-    @with_data_hist_info
-    def get_unfolded_mean_pt_2d(self, year, channel, event_selection,
-                                do_acceptance_correction=False,
-                                correct_binned_mean=False,
-                                as_df=False, bg_scale=1.0, **kwargs):
-
-        self.set_data_info(year, channel, event_selection)
-        # set year, channel, event?
-        unfolded_bin, _ = self.get_unfold_bin_maps(
-            self.pt_mass_unfolded_bin_name,
-            self.pt_mass_detector_bin_name)
-
-        # use default histograms
-        # TODO enable to use different hist name
-        result = self.do_isr_unfold(self.pt_mass_hist_name, self.pt_mass_matrix_name,
-                                    self.pt_mass_fake_hist_name, self.pt_mass_hist_name,
-                                    bg_scale=bg_scale,
-                                    unfolded_bin_name=self.pt_mass_unfolded_bin_name,
-                                    folded_bin_name=self.pt_mass_detector_bin_name,
-                                    do_acceptance_correction=do_acceptance_correction,
-                                    hist_full_phase_name=self.pt_mass_hist_full_phase_name)
-
-        pt_data = self.extract_mean_pt_from_2d_hist(result, unfolded_bin)
-        if correct_binned_mean:
-            self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
-
-        return self.get_isr_measurement(pt_data, as_df)
 
     def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name=''):
         if unfolded_space_name == '':
@@ -390,7 +370,7 @@ class ISRAnalyzer(Analyzer):
 
         for index, mass_bin in enumerate(self.mass_bins):
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            mc_hist_full_phase = self.get_mc_hist(self.signal, pt_hist_full_phase_name_prefix + mass_bin_postfix)
+            mc_hist_full_phase = self.get_mc_hist(self.signal_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
             correction_factor = (
                     mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0])
             pt_data[index] = (pt_data[index][0] * correction_factor, pt_data[index][1])
@@ -405,6 +385,34 @@ class ISRAnalyzer(Analyzer):
                                                            axis_steering))
             pt_data.append(temp_result.get_mean())
         return pt_data
+
+    @with_data_hist_info
+    def get_unfolded_mean_pt_2d(self, year, channel, event_selection,
+                                do_acceptance_correction=False,
+                                correct_binned_mean=False,
+                                as_df=False, bg_scale=1.0, **kwargs):
+
+        self.set_data_info(year, channel, event_selection)
+        # set year, channel, event?
+        unfolded_bin, _ = self.get_unfold_bin_maps(
+            self.pt_mass_unfolded_bin_name,
+            self.pt_mass_detector_bin_name)
+
+        # use default histograms
+        # TODO enable to use different hist name
+        result = self.do_isr_unfold(self.pt_mass_hist_name, self.pt_mass_matrix_name,
+                                    self.pt_mass_fake_hist_name, self.pt_mass_hist_name,
+                                    bg_scale=bg_scale,
+                                    unfolded_bin_name=self.pt_mass_unfolded_bin_name,
+                                    folded_bin_name=self.pt_mass_detector_bin_name,
+                                    do_acceptance_correction=do_acceptance_correction,
+                                    hist_full_phase_name=self.pt_mass_hist_full_phase_name)
+
+        pt_data = self.extract_mean_pt_from_2d_hist(result, unfolded_bin)
+        if correct_binned_mean:
+            self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
+
+        return self.get_isr_measurement(pt_data, as_df)
 
     @with_data_hist_info
     def get_unfolded_mean_mass(self, year, channel, event_selection,
@@ -426,4 +434,4 @@ class ISRAnalyzer(Analyzer):
         return self.get_isr_measurement(mass_data, as_df)
 
     def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        return self.get_mc_hist(self.signal, hist_name, bin_width_norm=bin_width_norm)
+        return self.get_mc_hist(self.signal_name, hist_name, bin_width_norm=bin_width_norm)

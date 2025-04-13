@@ -25,7 +25,9 @@ class Plotter:
         plt.rcParams['axes.linewidth'] = 2.0
         plt.rcParams['hatch.linewidth'] = 0.5
 
-        # plt.rcParams.update({
+        plt.rcParams["text.usetex"] = True
+
+        # plt.rcParams.update(
         #     "text.usetex": True,
         #     # "font.family": "Helvetica",
         #     # "font.family": "Helvetica",
@@ -52,6 +54,7 @@ class Plotter:
         self.hist_loc = []
         self.hist_as_stack = []
         self.hist_kwargs: List[Dict[str, Any]] = []  # kwargs for matplotlib
+        self.as_denominator = []
 
         # errorbar
         self.errorbar_list = []  # [(x_data, y_data)]
@@ -76,6 +79,7 @@ class Plotter:
         self.hist_loc.clear()
         self.hist_as_stack.clear()
         self.hist_kwargs.clear()
+        self.as_denominator.clear()
 
         # errorbar
         self.errorbar_list.clear()
@@ -96,8 +100,10 @@ class Plotter:
         if label == "Simulation":
             is_data = False
             label = ""
+        plt.rcParams['text.usetex'] = False
         hep.cms.label(label, data=is_data, fontsize=20,
                       ax=self.current_axis, loc=0, pad=.0, **kwargs)
+        plt.rcParams['text.usetex'] = True
 
     def create_subplots(self, rows=1, cols=1,
                         figsize=(8, 8), left=0.1, right=0.95, bottom=0.1, top=0.9,
@@ -131,11 +137,20 @@ class Plotter:
         else:
             return self.axs[row][col]
 
-    def add_hist(self, hist, location=(0, 0), as_stack=False, **kwargs):
+    def add_hist(self,
+                 hist,
+                 location=(0, 0),
+                 as_denominator=False,
+                 as_stack=False,
+                 **kwargs):
+        # TODO make class for hist in Plotter?
         self.hist_list.append(hist)
         self.hist_loc.append(location)
         self.hist_kwargs.append(kwargs)
         self.hist_as_stack.append(as_stack)
+        self.as_denominator.append(as_denominator)
+        # if as_stack and as_denominator
+
         return len(self.hist_list)-1
 
     def add_comparison_pair(self, nominator_hist, denominator_hist,
@@ -149,12 +164,12 @@ class Plotter:
 
     def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)
-        plt.rcParams['text.usetex'] = True
+        #plt.rcParams['text.usetex'] = True
         at = AnchoredText(text, prop=dict(size=20), **kwargs)
         self.current_axis.add_artist(at)
         if do_magic:
             hep.plot.mpl_magic(self.current_axis)
-        plt.rcParams['text.usetex'] = False
+        #plt.rcParams['text.usetex'] = False
 
     def add_custom_axis_tick_labels(self, locates, labels, location=(0, 0)):
         self.set_current_axis(location=location)
@@ -184,11 +199,32 @@ class Plotter:
         self.set_current_axis(location)
         self.current_axis.set_ylim(ymin=self.y_minimum * 1e-2)
 
-    def add_ratio_hist(self, nominator_index, denominator_index, location=(0, 0), **kwargs):
+    def set_ratio_hists(self):
+        nominator_index = []
+        denominator_index = []
+        for index in range(len(self.hist_list)):
+            if self.as_denominator[index]:
+                denominator_index.append(index)
+            else:
+                nominator_index.append(index)
+
+        if len(denominator_index) == 1 and len(nominator_index) > 1:
+            return nominator_index, denominator_index[0]
+        elif len(nominator_index) == 1 and len(denominator_index) > 1:
+            return nominator_index[0], denominator_index
+        elif len(denominator_index) == 1 and len(nominator_index) == 1:
+            return nominator_index[0], denominator_index[0]
+        else:
+            print('Something went wrong in ratio plot setting...')
+            exit(1)
+
+    def add_ratio_hist(self, location=(0, 0), **kwargs):
+        # setup(): loop over saved hists and define nominator_index and denominator_index
         # for nominator
+        nominator_index, denominator_index = self.set_ratio_hists()
         if isinstance(nominator_index, int):
             ratio_hist = self.hist_list[nominator_index] + None
-        elif isinstance(nominator_index, list):
+        elif isinstance(nominator_index, list):  # check if they are all stacked?
             # sum all histograms
             ratio_hist = self._add_hists(nominator_index)
         else:
@@ -202,10 +238,12 @@ class Plotter:
         else:
             pass
 
+        # follow nominator's marker style
         if 'color' in self.hist_kwargs[nominator_index]:
             kwargs['color'] = self.hist_kwargs[nominator_index]['color']
         if 'histtype' in self.hist_kwargs[nominator_index]:
             kwargs['histtype'] = self.hist_kwargs[nominator_index]['histtype']
+        kwargs['xerr'] = True
 
         self.add_hist(ratio_hist, location=location, **kwargs)
 
@@ -228,7 +266,11 @@ class Plotter:
                     if not self.hist_kwargs[index]['yerr']:
                         errors = False  # only allow to disable yerr
                         del self.hist_kwargs[index]['yerr']
-                artists = hep.histplot((values, bins), ax=self.current_axis, yerr=errors,
+                xerr = False
+                if 'xerr' in self.hist_kwargs[index]:
+                    xerr = True
+                    del self.hist_kwargs[index]['xerr']
+                artists = hep.histplot((values, bins), ax=self.current_axis, yerr=errors, xerr=xerr,
                                        **self.hist_kwargs[index])
 
                 # Note according to histtype, legend_artist could be None
@@ -285,17 +327,17 @@ class Plotter:
                 y_half_width = (rm_np[2][y+1] - rm_np[2][y])/2
                 self.current_axis.text(rm_np[1][x] + x_half_width,
                                        rm_np[2][y] + y_half_width,
-                                       f'{c:.2f}', va='center', ha='center', fontsize=10, color='red')
+                                       f'{c:.2f}', va='center', ha='center', fontsize=15, color='red')
 
         self.current_axis.set_ylabel(variable_name + "(Reco) [GeV]", fontsize=30)
         self.current_axis.set_xlabel(variable_name + "(Gen) [GeV]", fontsize=30)
 
     def show_legend(self, location=(0, 0), **kwargs):
-        plt.rcParams['text.usetex'] = True
+        #plt.rcParams['text.usetex'] = True
         self.set_current_axis(location=location)
-        self.current_axis.legend(self.legend_handles, self.legend_labels, loc='best', )
+        self.current_axis.legend(self.legend_handles, self.legend_labels, loc='best', fontsize=17)
         hep.plot.yscale_legend(self.current_axis)
-        plt.rcParams['text.usetex'] = False
+        #plt.rcParams['text.usetex'] = False
 
     def draw_errorbar(self):
         for index, data in enumerate(self.errorbar_list):
@@ -310,24 +352,33 @@ class Plotter:
             self.current_axis.errorbar(x_value, y_value,  xerr=x_error, yerr=y_error,
                                        **self.errorbar_kwargs[index])
 
-    def comparison_plot_cosmetics(self, x_variable_name, y_log_scale=False, x_log_scale=False,
-                                  bin_width_norm=False, ratio_name='Data/MC'):
+    def set_common_comparison_plot_cosmetics(self,
+                                             x_variable_name,
+                                             y_log_scale=False,
+                                             x_log_scale=False,
+                                             bin_width_norm=False,
+                                             ratio_name='Data/MC',
+                                             ratio_min = 0.4, ratio_max= 1.6):
+        # usual comparison plot cosmetic (2 rows and 1 colum)
+        if y_log_scale:
+            self.get_axis(location=(0, 0)).set_yscale("log")
 
         if x_log_scale:
-            self.get_axis(location=(0, 0)).set_yscale("log")
-        if x_log_scale:
-            # FIXME loop over all axis
             self.get_axis(location=(0, 0)).set_xscale("log")
             self.get_axis(location=(1, 0)).set_xscale("log")
 
+        # remove default tick labels to avoid clipping
         self.get_axis(location=(0, 0)).set_xticklabels([])
+
         if bin_width_norm:
             self.get_axis(location=(0, 0)).set_ylabel("Events/GeV")
         else:
             self.get_axis(location=(0, 0)).set_ylabel("Events/bin")
-        self.show_legend(location=(0, 0))
 
-        self.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
+        self.show_legend(location=(0, 0))
+        self.adjust_y_scale()
+
+        self.get_axis(location=(1, 0)).set_ylim(ratio_min, ratio_max)
         self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
         self.get_axis(location=(1, 0)).set_ylabel(ratio_name)
         self.get_axis(location=(1, 0)).set_xlabel(x_variable_name + " [GeV]")

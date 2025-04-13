@@ -272,7 +272,7 @@ class TUnFolder:
                                         denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'blue', 'mfc': 'none',
                                                           "label": 'GEN Sim'})
             plotter.draw_hist()
-            plotter.comparison_plot_cosmetics(self.variable_name)
+            plotter.set_common_comparison_plot_cosmetics(self.variable_name)
             plotter.show_legend(location=(0, 0))
             plotter.get_axis(location=(0, 0)).set_xticklabels([])
             plotter.adjust_y_scale()
