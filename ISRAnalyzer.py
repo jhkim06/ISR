@@ -213,6 +213,42 @@ class ISRAnalyzer(Analyzer):
             self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
             self.save_and_reset_plotter(hist_name, channel, year)
 
+    def draw_isr_measurement_comparison_plot_dimass(self, *setups):
+
+        bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
+        hist_name = self.mass_hist_name_prefix + bin_postfix
+
+        x_log_scale = True
+        bin_width_norm = True
+        norm = True
+        channels = [ch for _, ch, _ in setups]
+        if len(set(channels)) != 1:
+            x_axis_label = r"$m^{ll}$"
+            text = str(r"$p_{T}^{ll}<$"+str(int(self.pt_bins[1]))+" (GeV)")
+            plot_postfix_channel = 'll'
+        else:
+            x_axis_label = r"$m^{" + change_to_greek(channels[0]) + "}$"
+            text = str(r"$p_{T}^{" + change_to_greek(channels[0]) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
+            plot_postfix_channel = channels[0]
+
+        self.draw_measurement_comparison_plot(*setups,
+                                              hist_name=hist_name,
+                                              bin_width_norm=bin_width_norm,
+                                              norm=norm,
+                                              x_axis_label=x_axis_label,
+                                              x_log_scale=x_log_scale,
+                                              save_and_reset=False)
+
+        self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "lower left", },
+                              do_magic=False)
+        years = [year for year, _, _ in setups]
+        if len(set(years)) > 2:
+            plot_postfix_year = 'years'
+        else:
+            plot_postfix_year = "_".join(years)
+        self.save_and_reset_plotter(hist_name, plot_postfix_channel, plot_postfix_year)
+
+
     def draw_isr_measurement_signal_plot_dimass(self, year, channel, event_selection):
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
 

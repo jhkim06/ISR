@@ -53,6 +53,7 @@ class ROOTFileGrouper:
                                 hist_path='',
                                 use_local_hist_path=False,
                                 bin_width_norm=False,
+                                norm=False,
                                 scale=1.0):
         if use_local_hist_path:
             hist_path = hist_path
@@ -82,6 +83,9 @@ class ROOTFileGrouper:
             hist_total.Scale(1.0, "width")
         if scale != 1.0:
             hist_total.Scale(scale)
+        # normalize to
+        if norm:
+            hist_total.Scale(1./hist_total.Integral())
 
         return Hist(hist_total,
                     label=self.group_name,

@@ -8,6 +8,7 @@ from matplotlib.ticker import (FixedLocator, FixedFormatter)
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from mplhep.plot import ErrorBarArtists
+from tifffile.tifffile import rational
 
 from Hist import Hist
 import math
@@ -158,9 +159,9 @@ class Plotter:
                             nominator_args, denominator_args):
         nominator_index = self.add_hist(nominator_hist, location=location, **nominator_args)
         denominator_index = self.add_hist(denominator_hist, location=location, **denominator_args)
-        self.add_ratio_hist(nominator_index=nominator_index,
-                            denominator_index=denominator_index,
-                            location=ratio_location)
+        self.add_ratio_hists(nominator_index=nominator_index,
+                             denominator_index=denominator_index,
+                             location=ratio_location)
 
     def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)
@@ -218,40 +219,69 @@ class Plotter:
             print('Something went wrong in ratio plot setting...')
             exit(1)
 
-    def add_ratio_hist(self, location=(0, 0), **kwargs):
-        # setup(): loop over saved hists and define nominator_index and denominator_index
-        # for nominator
-        nominator_index, denominator_index = self.set_ratio_hists()
-        if isinstance(nominator_index, int):
-            ratio_hist = self.hist_list[nominator_index] + None
-        elif isinstance(nominator_index, list):  # check if they are all stacked?
-            # sum all histograms
-            ratio_hist = self._add_hists(nominator_index)
-        else:
-            pass
+    def add_ratio_hist(self, ratio_hist, reference_index, location=(0, 0), **kwargs):
 
-        # for denominator
-        if isinstance(denominator_index, int):
-            ratio_hist = ratio_hist.divide(self.hist_list[denominator_index])
-        elif isinstance(denominator_index, list):
-            ratio_hist = ratio_hist.divide(self._add_hists(denominator_index))
-        else:
-            pass
-
-        # follow nominator's marker style
-        if 'color' in self.hist_kwargs[nominator_index]:
-            kwargs['color'] = self.hist_kwargs[nominator_index]['color']
-        if 'histtype' in self.hist_kwargs[nominator_index]:
-            kwargs['histtype'] = self.hist_kwargs[nominator_index]['histtype']
+        if 'color' in self.hist_kwargs[reference_index]:
+            kwargs['color'] = self.hist_kwargs[reference_index]['color']
+        if 'histtype' in self.hist_kwargs[reference_index]:
+            kwargs['histtype'] = self.hist_kwargs[reference_index]['histtype']
         kwargs['xerr'] = True
-
         self.add_hist(ratio_hist, location=location, **kwargs)
+
+    def add_ratio_hists(self, location=(0, 0), **kwargs):
+        nominator_index, denominator_index = self.set_ratio_hists()
+        use_hist_year_for_label = False
+        if all(loc == -999 for loc in self.hist_loc):
+            use_hist_year_for_label = True
+
+        if isinstance(nominator_index, int) and isinstance(denominator_index, int):
+            reference_index = nominator_index
+            ratio_hist = self.hist_list[nominator_index]
+            ratio_hist = ratio_hist.divide(self.hist_list[denominator_index])
+            if use_hist_year_for_label:
+                kwargs['label'] = f'{ratio_hist.year}'
+            self.add_ratio_hist(ratio_hist, reference_index, location=location, **kwargs)
+        elif isinstance(nominator_index, int) and isinstance(denominator_index, list):
+            # add all hists in the denominator_index list
+            if all(self.hist_as_stack[i] for i in denominator_index):
+                reference_index = nominator_index
+                ratio_hist = self.hist_list[nominator_index]
+                denominator_hist = self._add_hists(denominator_index)  # add all
+                ratio_hist = ratio_hist.divide(denominator_hist)
+                if use_hist_year_for_label:
+                    kwargs['label'] = f'{ratio_hist.year}'
+                self.add_ratio_hist(ratio_hist, reference_index, location=location, **kwargs)
+            else:
+                # let's not allow this case
+                print('Something went wrong in ratio plot setting...')
+                exit(1)
+        elif isinstance(nominator_index, list) and isinstance(denominator_index, int):
+            if all(self.hist_as_stack[i] for i in nominator_index):
+                reference_index = denominator_index
+                ratio_hist = self._add_hists(nominator_index)  # add all
+                ratio_hist = ratio_hist.divide(self.hist_list[denominator_index])
+                if use_hist_year_for_label:
+                    kwargs['label'] = f'{ratio_hist.year}'
+                self.add_ratio_hist(ratio_hist, reference_index, location=location, **kwargs)
+            else:
+                for index in nominator_index:
+                    reference_index = index
+                    ratio_hist = self.hist_list[index]
+                    #print(ratio_hist.year)
+                    ratio_hist = ratio_hist.divide(self.hist_list[denominator_index])
+                    if use_hist_year_for_label:
+                        kwargs['label'] = f'{ratio_hist.year}'
+                    self.add_ratio_hist(ratio_hist, reference_index, location=location, **kwargs)
+        else:
+            print('Something went wrong in ratio plot setting...')
+            exit(1)
 
     def draw_hist(self):
         # TODO handle stack
         bottom = 0
         for index, hist in enumerate(self.hist_list):
             values, bins, errors = hist.to_numpy()
+            if self.hist_loc[index] == -999: continue
             self.set_current_axis(location=self.hist_loc[index])
             self.y_minimum = np.min(values)
             # if 'label' in self.hist_kwargs[index]:
@@ -351,6 +381,24 @@ class Plotter:
             self.set_current_axis(location=self.errorbar_loc[index])
             self.current_axis.errorbar(x_value, y_value,  xerr=x_error, yerr=y_error,
                                        **self.errorbar_kwargs[index])
+
+    def set_common_ratio_plot_cosmetics(self,
+                                  x_variable_name,
+                                  x_log_scale=False,
+                                  y_axis_name='Data',
+                                  y_min=0.4,
+                                        y_max=1.6
+                                  ):
+
+        if x_log_scale:
+            self.get_axis(location=(0, 0)).set_xscale("log")
+        self.get_axis(location=(0, 0)).set_ylabel(y_axis_name)
+        self.show_legend(location=(0, 0))
+        # self.adjust_y_scale()
+
+        self.get_axis(location=(0, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
+        self.get_axis(location=(0, 0)).set_xlabel(x_variable_name + " [GeV]")
+        self.get_axis(location=(0, 0)).set_ylim(y_min, y_max)
 
     def set_common_comparison_plot_cosmetics(self,
                                              x_variable_name,

@@ -24,10 +24,10 @@ class Hist(object):
     def divide(self, other=None):
         divided_hist = self.raw_root_hist.Clone("divided")
         if other is None:
-            return Hist(divided_hist, self.label)
+            return Hist(divided_hist, self.label, self.channel, year=self.year)
         else:
             divided_hist.Divide(other.raw_root_hist)
-            return Hist(divided_hist, self.label)
+            return Hist(divided_hist, self.label, self.channel, year=self.year)
 
     def multiply(self, other=None):
         multiplied_hist = self.raw_root_hist.Clone("multiplied")
@@ -42,6 +42,9 @@ class Hist(object):
 
     def get_raw_hist(self):
         return self.raw_root_hist
+
+    def normalize(self):
+        self.raw_root_hist.Scale(1. / self.raw_root_hist.Integral())
 
     def get_mean(self, binned_mean=True, range_min=None, range_max=None):
         if binned_mean:
