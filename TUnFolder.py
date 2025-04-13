@@ -105,7 +105,7 @@ class TUnFolder:
     def _subtract_backgrounds(self):
         if self.bg_hists is not None:
             for name, hist in self.bg_hists.items():
-                self.tunfolder.SubtractBackground(hist, name)
+                self.tunfolder.SubtractBackground(hist.get_raw_hist(), name)
 
     def unfold(self, unfold_method=None, n_iterative=100):
         # FIXME

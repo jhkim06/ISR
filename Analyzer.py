@@ -1,3 +1,4 @@
+from CMSData import CMSData
 from Plotter import Plotter
 from TUnFolder import TUnFolder
 from HistSystematic import HistSystematic
@@ -7,16 +8,16 @@ from HistSystematic import HistSystematic
 labels = {
     # group_name of ROOTFileGroup: "legend"
     "Data": "Data",
-    "DY": r"Drell-Yan",
+    "DYJetsToEE_MiNNLO": r"Drell-Yan",
     "gg": r"$\gamma\gamma$",
-    "tau": r'$\tau\tau$',
-    "ttbar": r'$t\bar{t}$',
+    "DYJetsToTauTau_MiNNLO": r'$\tau\tau$',
+    "TTLL": r'$t\bar{t}$',
     "vv": "$VV$"
 }
 
 
 colors = {
-    "DY": "red",
+    "DYJetsToEE_MiNNLO": "red",
     "Data": "black"
 }
 
@@ -31,20 +32,31 @@ def get_hist_kwargs(label):
 
     return kwargs
 
+def with_data_hist_info(func):
+    def wrapper(self, *args, **kwargs):
+        result = func(self, *args, **kwargs)
+        self.reset_data_info()  # call reset after method finishes
+        return result
+    return wrapper
+
 
 class Analyzer:
-    def __init__(self, data, signal, background, analysis_name=''):
+    def __init__(self, sample_base_dir, signal='DY',
+                 backgrounds=['DYJetsToTauTau_MiNNLO', 'TTLL'],
+                 analysis_name=''):
 
-        self.experiment = data.get_experiment_name()
-        self.year = data.get_year()
-        self.channel = data.get_channel_name()
+        self.data = CMSData(sample_base_dir)
+
+        self.experiment = self.data.experiment
+        self.year = ""
+        self.channel = ""
+        self.event_selection = ""
 
         # TODO use sample group!
         # self.cms_data
-        self.data = data  # ROOTFileGroup
-        self.signal = signal
-        self.background = background  # [ROOTFileGroup]
-        # systematic root files?!
+        # self.data = None
+        self.signal = signal # process name ex) DY
+        self.backgrounds = backgrounds
 
         self.analysis_name = analysis_name
         # self.year, self.channel,
@@ -52,22 +64,29 @@ class Analyzer:
         self.plotter = Plotter(self.experiment,
                                '/Users/junhokim/Work/cms_snu/ISR/Plots')
 
-    def draw_data(self):
-        pass
+    def set_data_info(self, year, channel, event_selection):
+        self.year = year
+        self.channel = channel
+        self.event_selection = event_selection
 
-    def draw_signal(self):
-        pass
+    def reset_data_info(self):
+        self.year = ""
+        self.channel = ""
+        self.event_selection = ""
 
-    def set_base_hist_path(self, hist_path):
-        self.data.set_hist_path_prefix(hist_path)
-        self.signal.set_hist_path_prefix(hist_path)
+    def get_data(self):
+        return self.data.get_data(self.year, self.channel, self.event_selection)
+
+    def get_mc(self, process_name, label=''):
+        return self.data.get_mc(process_name, self.year, self.channel, self.event_selection, label)
 
     def plot_name_postfix(self, postfix=""):
         postfix = "_" + postfix + "_" if postfix else '_'
         return postfix + self.channel + "_" + self.year
 
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
-        return self.signal.get_tobject(unfolded_bin_name), self.signal.get_tobject(folded_bin_name)
+        file_group = self.get_mc(self.signal)
+        return file_group.get_tobject(unfolded_bin_name), file_group.get_tobject(folded_bin_name)
 
     def do_unfold(self,
                   input_hist_name,
@@ -79,9 +98,9 @@ class Analyzer:
 
         #
         data_hist = self.get_data_hist(input_hist_name)
-        response_matrix = self.get_signal_hist(matrix_name)
-        fake_hist = self.get_signal_hist(fake_hist_name)
-        backgrounds = self.get_background_hist(bg_hist_name, raw_hists=True, bg_scale=bg_scale)
+        response_matrix = self.get_mc_hist(self.signal, matrix_name)
+        fake_hist = self.get_mc_hist(self.signal, fake_hist_name)
+        backgrounds = self.get_background_hist(bg_hist_name, bg_scale=bg_scale)
 
         unfolded_bin = None
         folded_bin = None
@@ -146,15 +165,20 @@ class Analyzer:
         self.plotter.save_fig(self.plot_name_postfix(hist_name + "_bg_subtracted"))
         self.plotter.reset()
 
-    def draw_measurement_expectation_comparison_plot(self, hist_name,
+    @with_data_hist_info
+    def draw_measurement_expectation_comparison_plot(self,
+                                                     year, channel, event_selection,
+                                                     hist_name,
                                                      text='',
                                                      bin_width_norm=False,
                                                      x_variable_name='',
                                                      y_log_scale=False, x_log_scale=False):
 
+        self.set_data_info(year, channel, event_selection)
         data_hist = self.get_data_hist(hist_name, bin_width_norm=bin_width_norm)
-        signal_hist = self.get_signal_hist(hist_name, bin_width_norm=bin_width_norm)
+        signal_hist = self.get_mc_hist(self.signal, hist_name, bin_width_norm=bin_width_norm)
         background_hists = self.get_background_hist(hist_name, bin_width_norm=bin_width_norm)
+
         # total_expectation = self.get_total_expectation_hist(hist_name)
         self.init_plotter(figsize=(8,8))
 
@@ -189,28 +213,24 @@ class Analyzer:
         self.plotter.set_experiment_label(**{"year": self.year})
 
     def get_data_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        return self.data.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        file_group = self.get_data()
+        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
 
-    def get_signal_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        return self.signal.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+    def get_mc_hist(self, process_name, hist_name, hist_path='', bin_width_norm=False, scale=1.0):
+        file_group = self.get_mc(process_name)
+        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, scale=scale)
 
-    def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False, raw_hists=False,
-                            bg_scale=1.0):
+    def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False, bg_scale=1.0):
         # return dictionary of root hists
         temp_dict = {}
-        for bg in self.background:
-            if raw_hists:
-                temp_dict[bg.get_name()] = (
-                    bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm,
-                                               scale=bg_scale).get_raw_hist())
-            else:
-                temp_dict[bg.get_name()] = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm,
-                                                                      scale=bg_scale)
+        for bg in self.backgrounds:
+            temp_dict[bg] = self.get_mc_hist(bg, hist_name, bin_width_norm=bin_width_norm,
+                                             scale=bg_scale)
         return temp_dict
 
     def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False):
         total_bg = None
-        for bg in self.background:
+        for bg in self.backgrounds:
             total_bg = bg.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm) + total_bg
         return total_bg
 
