@@ -10,7 +10,6 @@ from matplotlib.collections import PatchCollection
 from mplhep.plot import ErrorBarArtists
 from tifffile.tifffile import rational
 
-from Hist import Hist
 import math
 
 
@@ -56,6 +55,7 @@ class Plotter:
         self.hist_as_stack = []
         self.hist_kwargs: List[Dict[str, Any]] = []  # kwargs for matplotlib
         self.as_denominator = []
+        self.hist_drawn = []
 
         # errorbar
         self.errorbar_list = []  # [(x_data, y_data)]
@@ -81,6 +81,7 @@ class Plotter:
         self.hist_as_stack.clear()
         self.hist_kwargs.clear()
         self.as_denominator.clear()
+        self.hist_drawn.clear()
 
         # errorbar
         self.errorbar_list.clear()
@@ -150,6 +151,7 @@ class Plotter:
         self.hist_kwargs.append(kwargs)
         self.hist_as_stack.append(as_stack)
         self.as_denominator.append(as_denominator)
+        self.hist_drawn.append(False)
         # if as_stack and as_denominator
 
         return len(self.hist_list)-1
@@ -157,11 +159,9 @@ class Plotter:
     def add_comparison_pair(self, nominator_hist, denominator_hist,
                             location, ratio_location,
                             nominator_args, denominator_args):
-        nominator_index = self.add_hist(nominator_hist, location=location, **nominator_args)
-        denominator_index = self.add_hist(denominator_hist, location=location, **denominator_args)
-        self.add_ratio_hists(nominator_index=nominator_index,
-                             denominator_index=denominator_index,
-                             location=ratio_location)
+        self.add_hist(nominator_hist, location=location, as_denominator=False, **nominator_args)
+        self.add_hist(denominator_hist, location=location, as_denominator=True, **denominator_args)
+        self.add_ratio_hists(location=ratio_location)
 
     def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)
@@ -204,10 +204,12 @@ class Plotter:
         nominator_index = []
         denominator_index = []
         for index in range(len(self.hist_list)):
+            if self.hist_drawn[index]: continue
             if self.as_denominator[index]:
                 denominator_index.append(index)
             else:
                 nominator_index.append(index)
+        # print(f'{nominator_index} {denominator_index}')
 
         if len(denominator_index) == 1 and len(nominator_index) > 1:
             return nominator_index, denominator_index[0]
@@ -228,19 +230,27 @@ class Plotter:
         kwargs['xerr'] = True
         self.add_hist(ratio_hist, location=location, **kwargs)
 
-    def add_ratio_hists(self, location=(0, 0), **kwargs):
+    def add_ratio_hists(self, location=(0, 0), draw_reference_errorbar=False, **kwargs):
         nominator_index, denominator_index = self.set_ratio_hists()
         use_hist_year_for_label = False
         if all(loc == -999 for loc in self.hist_loc):
             use_hist_year_for_label = True
 
+        error_band = None
         if isinstance(nominator_index, int) and isinstance(denominator_index, int):
+            draw_reference_errorbar = True
+            error_band_index = denominator_index
             reference_index = nominator_index
             ratio_hist = self.hist_list[nominator_index]
             ratio_hist = ratio_hist.divide(self.hist_list[denominator_index])
+            # HERE!!!
+            # Let's update the systematic for references, i.e., reference/reference or
             if use_hist_year_for_label:
                 kwargs['label'] = f'{ratio_hist.year}'
             self.add_ratio_hist(ratio_hist, reference_index, location=location, **kwargs)
+            error_band = self.hist_list[denominator_index]
+            error_band = error_band.divide(self.hist_list[denominator_index])
+            #print(error_bar.total_sym_sys)
         elif isinstance(nominator_index, int) and isinstance(denominator_index, list):
             # add all hists in the denominator_index list
             if all(self.hist_as_stack[i] for i in denominator_index):
@@ -251,6 +261,9 @@ class Plotter:
                 if use_hist_year_for_label:
                     kwargs['label'] = f'{ratio_hist.year}'
                 self.add_ratio_hist(ratio_hist, reference_index, location=location, **kwargs)
+
+                error_band = denominator_hist
+                error_band = error_band.divide(denominator_hist)
             else:
                 # let's not allow this case
                 print('Something went wrong in ratio plot setting...')
@@ -272,14 +285,23 @@ class Plotter:
                     if use_hist_year_for_label:
                         kwargs['label'] = f'{ratio_hist.year}'
                     self.add_ratio_hist(ratio_hist, reference_index, location=location, **kwargs)
+            error_band = self.hist_list[denominator_index]
+            error_band = error_band.divide(self.hist_list[denominator_index])
         else:
             print('Something went wrong in ratio plot setting...')
             exit(1)
+
+        self.draw_error_boxes(error_band.to_numpy()[0],
+                              error_band.to_numpy()[1],
+                              error_band.total_sym_sys,
+                              location=(1, 0),
+                              **{"facecolor": 'none', "alpha": 0.5, "fill": True, 'hatch': '///'})
 
     def draw_hist(self):
         # TODO handle stack
         bottom = 0
         for index, hist in enumerate(self.hist_list):
+            if self.hist_drawn[index]: continue
             values, bins, errors = hist.to_numpy()
             if self.hist_loc[index] == -999: continue
             self.set_current_axis(location=self.hist_loc[index])
@@ -318,19 +340,20 @@ class Plotter:
                 handle = patches[0]
 
             label = self.hist_kwargs[index].get("label", None)
-            # deside whether to show legend
+            # decide whether to show legend
             if label:
                 self.legend_handles.append(handle)
                 self.legend_labels.append(label)
 
             #print(self.legend_labels)
-            #handles, labels = self.current_axis.get_legend_handles_labels()
-            #print(labels)
+            # handles, labels = self.current_axis.get_legend_handles_labels()
+            # print(labels)
             self.current_axis.set_xlim(bins[0], bins[-1])
+            self.hist_drawn[index] = True
         # write legends in reverse order, i.e., force the order of legend always reverse of the drawn order
-        self.legend_handles.reverse()
-        self.legend_labels.reverse()
-        #print(self.legend_labels)
+        #self.legend_handles.reverse()
+        #self.legend_labels.reverse()
+        # print(self.legend_labels)
 
     def draw_matrix(self, rm_np, variable_name, **kwargs):
 

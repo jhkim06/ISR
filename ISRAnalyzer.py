@@ -231,6 +231,8 @@ class ISRAnalyzer(Analyzer):
             text = str(r"$p_{T}^{" + change_to_greek(channels[0]) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
             plot_postfix_channel = channels[0]
 
+        # TODO show systematic band
+        # error band for reference hist (denominator)
         self.draw_measurement_comparison_plot(*setups,
                                               hist_name=hist_name,
                                               bin_width_norm=bin_width_norm,
@@ -238,7 +240,6 @@ class ISRAnalyzer(Analyzer):
                                               x_axis_label=x_axis_label,
                                               x_log_scale=x_log_scale,
                                               save_and_reset=False)
-
         self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "lower left", },
                               do_magic=False)
         years = [year for year, _, _ in setups]
@@ -304,11 +305,14 @@ class ISRAnalyzer(Analyzer):
             # FIXME change the output plot names according to bin definitions
             for index, _ in enumerate(self.mass_bins):
                 axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
+                #
                 unfold_result.bottom_line_test(draw_plot=True, out_name=input_hist_name+'_'+axis_steering,
                                                use_axis_binning=use_axis_binning, projection_mode=axis_steering)
             use_axis_binning = False
         else:
-            unfold_result.bottom_line_test(draw_plot=True, out_name=input_hist_name, use_axis_binning=use_axis_binning)
+            unfold_result.bottom_line_test(draw_plot=True,
+                                           out_name=input_hist_name,
+                                           use_axis_binning=use_axis_binning)
         unfold_result.draw_response_matrix(out_name=input_hist_name)
 
         if do_acceptance_correction:

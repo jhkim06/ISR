@@ -35,6 +35,7 @@ def get_hist_kwargs(label):
 
     return kwargs
 
+
 def with_data_hist_info(func):
     def wrapper(self, *args, **kwargs):
         result = func(self, *args, **kwargs)
@@ -45,7 +46,8 @@ def with_data_hist_info(func):
 
 class Analyzer:
     def __init__(self, sample_base_dir, signal='DY',
-                 backgrounds=['TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],  #
+                 backgrounds=['TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],
+                 #backgrounds=['DYJetsToTauTau_MiNNLO', 'WW', 'WZ', 'ZZ', 'GGLL', 'TTLL'],
                  analysis_name=''):
 
         self.data = CMSData(sample_base_dir)
@@ -98,7 +100,7 @@ class Analyzer:
                   bg_scale=1.0):
 
         #
-        data_hist = self.get_data_hist(input_hist_name)
+        data_hist = self.get_measurement_hist(input_hist_name)
         response_matrix = self.get_mc_hist(self.signal_name, matrix_name)
         fake_hist = self.get_mc_hist(self.signal_name, fake_hist_name)
         backgrounds = self.get_background_hist(bg_hist_name, bg_scale=bg_scale)
@@ -140,8 +142,8 @@ class Analyzer:
             self.plotter.add_hist(additional_hist['hist'], **{"color": 'cyan', 'yerr': False,
                                                               "label": 'Fake', "zorder": 999})
             self.plotter.add_ratio_hists(location=(1, 0))
-        self.add_signal_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, as_stack=True)
         self.add_data_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, subtract_bg=True)
+        self.add_signal_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, as_stack=True)
 
         self.plotter.add_ratio_hists(location=(1, 0))
         self.plotter.draw_hist()
@@ -174,6 +176,7 @@ class Analyzer:
         # add hists
         self.add_measurement_and_expectation_hists_to_plotter(year, channel, event_selection, hist_name,
                                                               bin_width_norm=bin_width_norm,)
+        # TODO add option to reverse label order
         self.plotter.add_ratio_hists(location=(1, 0))
 
         # draw hists
@@ -199,8 +202,8 @@ class Analyzer:
 
         # Add reference histogram
         self.set_data_info(year_ref, channel_ref, event_sel_ref)
-        self.add_data_hist_to_plotter(hist_name,
-                                      bin_width_norm=bin_width_norm,
+        self.add_data_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm,
+                                      subtract_bg=True,
                                       location=-999,  # do not draw
                                       as_denominator=True,
                                       norm=norm,
@@ -210,8 +213,8 @@ class Analyzer:
         # Add comparison histograms
         for i, (year, channel, event_sel) in enumerate(setups[1:], start=1):
             self.set_data_info(year, channel, event_sel)
-            self.add_data_hist_to_plotter(hist_name,
-                                          bin_width_norm=bin_width_norm,
+            self.add_data_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm,
+                                          subtract_bg=True,
                                           location=-999,  # do not draw
                                           as_denominator=False,
                                           norm=norm,
@@ -220,12 +223,12 @@ class Analyzer:
             self.reset_data_info()
 
         self.plotter.add_ratio_hists(location=(0, 0))
+        # add systematic bands?
         self.plotter.draw_hist()
 
         ratio_name = f"{','.join(s[0] for s in setups[1:])}/{year_ref}"
         self.plotter.set_common_ratio_plot_cosmetics(x_axis_label, x_log_scale=x_log_scale, y_axis_name=ratio_name,
                                                     y_min=0.5, y_max=1.5)
-
         if save_and_reset:
             combined_years = ''.join(s[0] for s in setups)
             self.save_and_reset_plotter(hist_name, channel_ref, combined_years)
@@ -258,9 +261,9 @@ class Analyzer:
                                  location=(0,0),
                                  as_denominator=False, norm=False, **kwargs):
         if subtract_bg:
-            data_hist = self.get_bg_subtracted_data_hist(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+            data_hist = self.get_bg_subtracted_measurement_hist(hist_name, bin_width_norm=bin_width_norm, norm=norm)
         else:
-            data_hist = self.get_data_hist(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+            data_hist = self.get_measurement_hist(hist_name, bin_width_norm=bin_width_norm, norm=norm)
         if not kwargs:
             kwargs = get_hist_kwargs(data_hist.get_label())
         else:
@@ -290,7 +293,7 @@ class Analyzer:
         self.plotter.save_fig(hist_name + self.plot_name_postfix(channel, year, postfix))
         self.plotter.reset()
 
-    def get_data_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+    def get_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
         file_group = self.get_measurement()
         return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
 
@@ -321,7 +324,7 @@ class Analyzer:
             total_expectation_hist.normalize()
         return total_expectation_hist
 
-    def get_bg_subtracted_data_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+    def get_bg_subtracted_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
         file_group = self.get_measurement()
         raw_data = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
         total_bg = self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)

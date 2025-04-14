@@ -220,7 +220,7 @@ class TUnFolder:
         rm_np = Hist(self.tunfolder.GetProbabilityMatrix(ctypes.c_char_p(0),
                                                          ctypes.c_char_p(0),
                                                          True)).to_numpy_2d()
-        plotter.draw_matrix(rm_np, self.variable_name)
+        plotter.draw_matrix(rm_np, "ll")
         plotter.add_text("condition number: " + str(round(self.condition_number(), 2)),
                          location=(0,0), do_magic=False,
                          **{"loc": "upper left",})
@@ -263,16 +263,23 @@ class TUnFolder:
             plotter.set_experiment_label(**{"year": self.year})
             # measurement
             # plotter.add_comparison()
+
             plotter.add_comparison_pair(folded_hist, folded_expectation_hist, location=(0,0), ratio_location=(1,0),
-                                        nominator_args={"histtype": 'errorbar', "color": 'black', 'label': 'RECO Data'},
-                                        denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'red', 'mfc': 'none',
+                                        nominator_args={"histtype": 'errorbar',
+                                                        "color": 'black', 'label': 'RECO Data'},
+                                        denominator_args={"histtype": 'errorbar', 'marker':"s",
+                                                          "color": 'red', 'mfc': 'none',
                                                           "label": 'RECO Sim'})
+            plotter.draw_hist()
+
             plotter.add_comparison_pair(unfolded_hist, unfolded_expectation_hist, location=(0,0), ratio_location=(1,0),
                                         nominator_args={"histtype": 'errorbar', "color": 'gray', 'label': 'Unfolded Data'},
                                         denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'blue', 'mfc': 'none',
                                                           "label": 'GEN Sim'})
+
             plotter.draw_hist()
-            plotter.set_common_comparison_plot_cosmetics(self.variable_name)
+
+            plotter.set_common_comparison_plot_cosmetics('ll')
             plotter.show_legend(location=(0, 0))
             plotter.get_axis(location=(0, 0)).set_xticklabels([])
             plotter.adjust_y_scale()

@@ -1,17 +1,19 @@
-from Hist import Hist
 from Plotter import Plotter
 import numpy as np
+from Hist import Hist
 
 
 class HistSystematic:
-    def __init__(self, systematic_name,
+    def __init__(self,
+                 systematic_name,
                  nominal_hist,
                  systematic_hists,
                  norm_to_nominal_hist=False,):
+
         # systematic_hists is dictionary {variation name: systematic histogram}
         self.systematic_name = systematic_name
         self.nominal_hist = nominal_hist
-        self.systematic_hists = systematic_hists
+        self.systematic_hists = systematic_hists  # FIXME use Hist
         self.norm_to_nominal_hist = norm_to_nominal_hist
 
         if norm_to_nominal_hist:
@@ -55,7 +57,7 @@ class HistSystematic:
 
     def draw_systematic(self):
 
-        plotter = Plotter('CMS', './Plots')  # FIXME use self.plotter
+        plotter = Plotter('CMS', '../Plots')  # FIXME use self.plotter
         plotter.create_subplots(2, 1, figsize=(8, 8),
                                 left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
 
@@ -72,9 +74,12 @@ class HistSystematic:
                                         denominator_args={"histtype": 'errorbar', 'marker': "o", "color": 'black',
                                                           'mfc': 'none',
                                                           "label": 'Nominal'})
-        plotter.draw_error_boxes(self.nominal_values, Hist(self.nominal_hist).to_numpy()[1], self.sym_sys,
-                                 sys_name='FSR', **{"facecolor": 'black', "alpha": 0.2, "fill": True,
-                                                    'hatch': None})
+        # TODO apply this!!
+        plotter.draw_error_boxes(self.nominal_values,
+                                 Hist(self.nominal_hist).to_numpy()[1],  # x bin edges
+                                 self.sym_sys,  #
+                                 sys_name='FSR',
+                                 **{"facecolor": 'black', "alpha": 0.2, "fill": True, 'hatch': None})
 
         plotter.draw_hist()
         plotter.set_common_comparison_plot_cosmetics("variable", bin_width_norm=True,

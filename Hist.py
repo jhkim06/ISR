@@ -3,20 +3,47 @@ import ROOT
 
 # ROOT histogram to
 class Hist(object):
-    def __init__(self, hist, label='', channel='', year=''):
+    def __init__(self, hist, label='', channel='', year='', is_measurement=True):
         self.raw_root_hist = hist
 
         self.label = label
         self.year = year
         self.channel = channel
+        self.is_measurement = is_measurement
+        # dictionary for HistSystematic
+        self.systematic_raw_root_hists = {}  # sys_name, sys_variation_name, histogram
+        self.systematics = {}  # sys_name, up/down variation
+
+        if not isinstance(self.raw_root_hist, ROOT.TH2D):
+            self.template = self.raw_root_hist.Clone()
+            self.template.Reset()
+            self.total_sym_sys = self.create_sys_np_array()  # add statistical error to total_sym_sys
+        # self.calculate_sym_systematic()
+
+
+    def create_sys_np_array(self):
+        # [[up errors], [down errors]]
+        stat_error = self.to_numpy()[2]
+        stat_error = np.expand_dims(stat_error, axis=0)
+        stat_error = np.append(stat_error, stat_error, axis=0)
+        return stat_error
+
+    def calculate_total_sym_systematic(self):
+        temp_sys = np.zeros(self.total_sym_sys.shape)
+        for variation_name, variation_hists in self.systematic_hists.items():
+            pass
+
+    def add_systematic_hist(self, sys_name, raw_hist, sys_variation_name=''):
+        # ex sys_name = ID_SF, variation_name = up,
+        pass
 
     def __add__(self, other=None, c1=1):
         added_hist = self.raw_root_hist.Clone("added")
         if other is None:
-            return Hist(added_hist, self.label)
+            return Hist(added_hist, self.label, self.channel, year=self.year)
         else:
             added_hist.Add(other.raw_root_hist, c1)
-            return Hist(added_hist, self.label)
+            return Hist(added_hist, self.label, self.channel, year=self.year)
 
     def __sub__(self, other=None):
         return self.__add__(other, -1)

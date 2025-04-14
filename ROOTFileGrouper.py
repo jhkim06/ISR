@@ -4,7 +4,7 @@ from Hist import Hist
 # Merge root files to handel them simultaneously
 class ROOTFileGrouper:
     def __init__(self, group_name, file_dict,
-                 experiment_name='', year='', channel_name='',
+                 experiment_name='', year='', channel_name='', is_measurement=True,
                  hist_path_prefix='', hist_name_prefix=''):
 
         self.group_name = group_name
@@ -13,9 +13,12 @@ class ROOTFileGrouper:
         self.experiment_name = experiment_name
         self.year = year
         self.channel_name = channel_name
+        self.is_measurement = is_measurement
 
         self.hist_path_prefix = hist_path_prefix
         self.hist_name_prefix = hist_name_prefix
+
+        # need to have information on systematics
 
     def get_name(self):
         return self.group_name
@@ -50,6 +53,8 @@ class ROOTFileGrouper:
 
     def get_combined_root_hists(self,
                                 hist_name,
+                                # FIXME it's better allow abstract options here or hide these options
+                                hist_sys_postfix = '',
                                 hist_path='',
                                 use_local_hist_path=False,
                                 bin_width_norm=False,
@@ -87,6 +92,7 @@ class ROOTFileGrouper:
         if norm:
             hist_total.Scale(1./hist_total.Integral())
 
+        # Add systematics?
         return Hist(hist_total,
                     label=self.group_name,
                     channel=self.channel_name,
