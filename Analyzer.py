@@ -75,8 +75,8 @@ class Analyzer:
         self.channel = ""
         self.event_selection = ""
 
-    def get_data(self):
-        return self.data.get_data(self.year, self.channel, self.event_selection)
+    def get_measurement(self):
+        return self.data.get_measurement(self.year, self.channel, self.event_selection)
 
     def get_mc(self, process_name, label=''):
         return self.data.get_mc(process_name, self.year, self.channel, self.event_selection, label)
@@ -291,7 +291,7 @@ class Analyzer:
         self.plotter.reset()
 
     def get_data_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        file_group = self.get_data()
+        file_group = self.get_measurement()
         return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
 
     def get_mc_hist(self, process_name, hist_name, hist_path='', bin_width_norm=False, scale=1.0, norm=False):
@@ -322,7 +322,7 @@ class Analyzer:
         return total_expectation_hist
 
     def get_bg_subtracted_data_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        file_group = self.get_data()
+        file_group = self.get_measurement()
         raw_data = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
         total_bg = self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
         raw_data = raw_data-total_bg

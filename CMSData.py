@@ -31,7 +31,7 @@ class CMSData(object):
         # systematic
     # signal: DY, background: WW, WZ,ttbar, etc
 
-    def get_data(self, period_name, channel_name, event_selection):
+    def get_measurement(self, period_name, channel_name, event_selection):
         data_dict = self.data_pather.get_path_dict((channel_name, period_name))
         hist_path_prefix = channel_name + period_name + '/' + event_selection + '/'
 
