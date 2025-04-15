@@ -69,6 +69,7 @@ class ROOTFileGrouper:
         ROOT.TH1.AddDirectory(False)
         # loop over files and open histogram with hist path and add them
         file_dict = self.file_dict
+        # TODO systematic?
         for file_label, file_path in file_dict.items():
 
             file = ROOT.TFile.Open(file_path, 'r')

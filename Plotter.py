@@ -10,22 +10,30 @@ from mplhep.plot import ErrorBarArtists
 import math
 from Hist import Hist
 
-# PlottableHist class
+
+def find_non_negative_min(arr):
+    # Get non-negative values
+    non_negative = arr[arr >= 0]
+    # Find the minimum among them
+    if non_negative.size > 0:
+        minimum = non_negative.min()
+        return minimum if minimum > 0 else 1e-2
+
+
 class PlottableHist(Hist):
-    def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False, drawn=False, **kwargs):
+    def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False, drawn=False, not_to_draw=False,
+                 **kwargs):
 
         super(PlottableHist, self).__init__(hist.raw_root_hist,
-                                            hist.label, hist.channel, hist.year, hist.is_measurement)
+                                            hist.label, hist.channel, hist.year, hist.is_measurement,)
 
         self.hist = hist
+        self.not_to_draw = not_to_draw
         self.location = location
         self.as_denominator = as_denominator
         self.as_stack = as_stack
         self.drawn = drawn
         self.plot_kwargs = kwargs
-
-    # def divide(self, other):
-    #     return self.hist.divide(other.hist if isinstance(other, PlottableHist) else other)
 
 class Plotter:
     def __init__(self, experiment, base_output_dir, **kwargs):
@@ -55,7 +63,7 @@ class Plotter:
         self.legend_handles = []
         self.legend_labels = []
 
-        self.y_minimum = 0
+        self.y_minimum = 999.
 
     def reset(self):
         self.rows = 1
@@ -69,7 +77,7 @@ class Plotter:
         self.errorbar_kwargs.clear()
         self.legend_handles.clear()
         self.legend_labels.clear()
-        self.y_minimum = 0
+        self.y_minimum = 999.
 
     def set_experiment_label(self, label="Preliminary", location=(0, 0), **kwargs):
         self.set_current_axis(location=location)
@@ -133,12 +141,12 @@ class Plotter:
                 continue
 
             values, bins, errors = p_hist.to_numpy()
-            if p_hist.location == -999:
+            if p_hist.location == -999:  # FIXME
                 continue
 
             self.set_current_axis(location=p_hist.location)
-            # self.y_minimum = min(self.y_minimum, np.min(values)) if self.y_minimum else np.min(values)
-            self.y_minimum = np.min(values)
+            # self.y_minimum = min(self.y_minimum, find_non_negative_min(values)) if self.y_minimum else find_non_negative_min(values)
+            self.y_minimum = find_non_negative_min(values)
 
             if not p_hist.as_stack:
                 if p_hist.plot_kwargs.get('yerr') is False:

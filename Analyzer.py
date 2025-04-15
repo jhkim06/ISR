@@ -1,7 +1,6 @@
 from CMSData import CMSData
 from Plotter import Plotter
 from TUnFolder import TUnFolder
-from HistSystematic import HistSystematic
 
 
 # simulation legends used in this analysis
@@ -47,22 +46,20 @@ def with_data_hist_info(func):
 class Analyzer:
     def __init__(self, sample_base_dir, signal='DY',
                  backgrounds=['TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],
-                 #backgrounds=['DYJetsToTauTau_MiNNLO', 'WW', 'WZ', 'ZZ', 'GGLL', 'TTLL'],
                  analysis_name=''):
 
         self.data = CMSData(sample_base_dir)
 
         self.experiment = self.data.experiment
+        # Note set year channel event_selection before do anything
         self.year = ""
         self.channel = ""
         self.event_selection = ""
 
-        # TODO use sample group!
         self.signal_name = signal # process name ex) DY
         self.background_names = backgrounds
 
         self.analysis_name = analysis_name
-        # self.year, self.channel,
         # TODO root file wrapper root_file().draw()
         self.plotter = Plotter(self.experiment,
                                '/Users/junhokim/Work/cms_snu/ISR/Plots')
@@ -77,19 +74,72 @@ class Analyzer:
         self.channel = ""
         self.event_selection = ""
 
+    def plot_name_postfix(self, postfix=""):
+        postfix = "_" + postfix + "_" if postfix else '_'
+        return postfix + self.channel + "_" + self.year
+
     def get_measurement(self):
         return self.data.get_measurement(self.year, self.channel, self.event_selection)
 
     def get_mc(self, process_name, label=''):
         return self.data.get_mc(process_name, self.year, self.channel, self.event_selection, label)
 
-    def plot_name_postfix(self, channel, year, postfix=""):
-        postfix = "_" + postfix + "_" if postfix else '_'
-        return postfix + channel + "_" + year
+    # Methods to get Hist
+    def get_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+        file_group = self.get_measurement()
+        # hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+        # if analyzer has systematic, add them here to Hist
+        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+
+    def get_mc_hist(self, process_name, hist_name, hist_path='', bin_width_norm=False, scale=1.0, norm=False):
+        file_group = self.get_mc(process_name)
+        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, scale=scale, norm=norm)
+
+    def get_background_hists(self, hist_name, hist_path='', bin_width_norm=False, bg_scale=1.0, norm=False):
+        # return dictionary of root hists
+        temp_dict = {}
+        for bg in self.background_names:
+            temp_dict[bg] = self.get_mc_hist(bg, hist_name, bin_width_norm=bin_width_norm,
+                                             scale=bg_scale, norm=norm)
+        return temp_dict
+
+    def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+        total_bg = None
+        for name in self.background_names:
+            bg = self.get_mc_hist(name, hist_name, bin_width_norm=bin_width_norm)
+            total_bg = bg + total_bg
+
+        if norm:
+            total_bg.normalize()
+        return total_bg
+
+    def get_total_expectation_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+        file_group = self.get_measurement(self.signal_name)
+        total_expectation_hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        total_expectation_hist = (self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm) +
+                                  total_expectation_hist)
+
+        if norm:
+            total_expectation_hist.normalize()
+        return total_expectation_hist
+
+    def get_bg_subtracted_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+        file_group = self.get_measurement()
+        raw_data = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        total_bg = self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
+        raw_data = raw_data-total_bg
+
+        if norm:
+            raw_data.normalize()
+        return raw_data
 
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
         file_group = self.get_mc(self.signal_name)
         return file_group.get_tobject(unfolded_bin_name), file_group.get_tobject(folded_bin_name)
+
+    # loop over Systematics in Hist
+    def do_unfold_sys(self):
+        pass
 
     def do_unfold(self,
                   input_hist_name,
@@ -99,11 +149,11 @@ class Analyzer:
                   unfolded_bin_name=None, folded_bin_name=None, variable_name='',
                   bg_scale=1.0):
 
-        #
+        # Systematic in Hist?
         data_hist = self.get_measurement_hist(input_hist_name)
         response_matrix = self.get_mc_hist(self.signal_name, matrix_name)
         fake_hist = self.get_mc_hist(self.signal_name, fake_hist_name)
-        backgrounds = self.get_background_hist(bg_hist_name, bg_scale=bg_scale)
+        backgrounds = self.get_background_hists(bg_hist_name, bg_scale=bg_scale)
 
         unfolded_bin = None
         folded_bin = None
@@ -120,49 +170,29 @@ class Analyzer:
 
         return unfold
 
-    @with_data_hist_info
-    def draw_measurement_signal_comparison_plot(self, year, channel, event_selection, hist_name,
+    def draw_measurement_signal_comparison_plot(self, hist_name,
                                                 bin_width_norm=False,
-                                                additional_hist={},  # ?
-
                                                 figsize=(8,8),
-                                                text='',
                                                 x_variable_name='',
                                                 y_log_scale=False,
                                                 x_log_scale=False,
+                                                save_and_reset=True):  # ?
 
-                                                custom_x_labels=None,  # ?
-                                                custom_x_locates=None,  # ?
-                                                vlines=None):  # ?
+        self.init_plotter(figsize=figsize, rows=2, cols=1, year=self.year)
 
-        self.set_data_info(year, channel, event_selection)
-        self.init_plotter(figsize=figsize, rows=2, cols=1, year=year)
-        # FIXME additional hist?
-        if additional_hist:
-            self.plotter.add_hist(additional_hist['hist'], **{"color": 'cyan', 'yerr': False,
-                                                              "label": 'Fake', "zorder": 999})
-            self.plotter.add_ratio_hists(location=(1, 0))
         self.add_data_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, subtract_bg=True)
         self.add_signal_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, as_stack=True)
 
         self.plotter.add_ratio_hists(location=(1, 0))
         self.plotter.draw_hist()
 
-        self.plotter.set_common_comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
-        self.plotter.adjust_y_scale()
-        if vlines:
-            self.plotter.draw_vlines(vlines=vlines, location=(0, 0))
-            self.plotter.draw_vlines(vlines=vlines, location=(1, 0))
-        if custom_x_labels:
-            self.plotter.add_custom_axis_tick_labels(custom_x_locates, custom_x_labels, location=(1, 0))
-        self.plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})  # Note: required to after setting legend
+        if save_and_reset:
+            # Note if Hist added to plotter, legend might not be included
+            self.plotter.set_common_comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
+            self.plotter.adjust_y_scale()
+            self.save_and_reset_plotter(hist_name, "bg_subtracted")
 
-        self.plotter.save_fig(hist_name + self.plot_name_postfix(channel, year, "bg_subtracted"))
-        self.plotter.reset()
-
-    @with_data_hist_info
     def draw_measurement_expectation_comparison_plot(self,
-                                                     year, channel, event_selection,
                                                      hist_name,
                                                      bin_width_norm=False,
                                                      x_axis_label='',
@@ -171,9 +201,9 @@ class Analyzer:
                                                      save_and_reset=True,):
 
         # check if Plotter is ready?
-        self.init_plotter(figsize=(8,8), rows=2, cols=1, year=year)
+        self.init_plotter(figsize=(8,8), rows=2, cols=1, year=self.year)
         # add hists
-        self.add_measurement_and_expectation_hists_to_plotter(year, channel, event_selection, hist_name,
+        self.add_measurement_and_expectation_hists_to_plotter(hist_name,
                                                               bin_width_norm=bin_width_norm,)
         # TODO add option to reverse label order
         self.plotter.add_ratio_hists(location=(1, 0))
@@ -182,7 +212,7 @@ class Analyzer:
         self.plotter.draw_hist()
         self.plotter.set_common_comparison_plot_cosmetics(x_axis_label, y_log_scale, x_log_scale, bin_width_norm)
         if save_and_reset:
-            self.save_and_reset_plotter(hist_name, channel, year)
+            self.save_and_reset_plotter(hist_name)
 
     def draw_measurement_comparison_plot(self,
                                          *setups,
@@ -222,7 +252,6 @@ class Analyzer:
             self.reset_data_info()
 
         self.plotter.add_ratio_hists(location=(0, 0))
-        # add systematic bands?
         self.plotter.draw_hist()
 
         ratio_name = f"{','.join(s[0] for s in setups[1:])}/{year_ref}"
@@ -245,9 +274,8 @@ class Analyzer:
             self.plotter.create_subplots(rows, cols, figsize=figsize,)
         self.plotter.set_experiment_label(**{"year": year})
 
-    def add_measurement_and_expectation_hists_to_plotter(self, year, channel, event_selection, hist_name,
+    def add_measurement_and_expectation_hists_to_plotter(self, hist_name,
                                                          bin_width_norm=False):
-        self.set_data_info(year, channel, event_selection)
         self.add_background_hists_to_plotter(hist_name, bin_width_norm=bin_width_norm,
                                              as_stack=True, as_denominator=True)
         self.add_signal_hist_to_plotter(hist_name,
@@ -280,7 +308,7 @@ class Analyzer:
 
     def add_background_hists_to_plotter(self, hist_name, bin_width_norm=False, as_stack=False, as_denominator=True,
                                         norm=False):
-        background_hists = self.get_background_hist(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+        background_hists = self.get_background_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
         index_list = []
         for _, bg in background_hists.items():
             index = self.plotter.add_hist(bg, as_stack=as_stack, as_denominator=as_denominator,
@@ -288,46 +316,8 @@ class Analyzer:
             index_list.append(index)
         return index_list
 
-    def save_and_reset_plotter(self, hist_name, channel, year, postfix=''):
-        self.plotter.save_fig(hist_name + self.plot_name_postfix(channel, year, postfix))
+    def save_and_reset_plotter(self, hist_name, postfix=''):
+        self.plotter.save_fig(hist_name + self.plot_name_postfix(postfix))
         self.plotter.reset()
 
-    def get_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        file_group = self.get_measurement()
-        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
 
-    def get_mc_hist(self, process_name, hist_name, hist_path='', bin_width_norm=False, scale=1.0, norm=False):
-        file_group = self.get_mc(process_name)
-        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, scale=scale, norm=norm)
-
-    def get_background_hist(self, hist_name, hist_path='', bin_width_norm=False, bg_scale=1.0, norm=False):
-        # return dictionary of root hists
-        temp_dict = {}
-        for bg in self.background_names:
-            temp_dict[bg] = self.get_mc_hist(bg, hist_name, bin_width_norm=bin_width_norm,
-                                             scale=bg_scale, norm=norm)
-        return temp_dict
-
-    def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        total_bg = None
-        for name in self.background_names:
-            bg = self.get_mc_hist(name, hist_name, bin_width_norm=bin_width_norm, norm=norm)
-            total_bg = bg + total_bg
-        return total_bg
-
-    def get_total_expectation_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        total_expectation_hist = self.signal_name.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
-        total_expectation_hist = (self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm) +
-                                  total_expectation_hist)
-        if norm:
-            total_expectation_hist.normalize()
-        return total_expectation_hist
-
-    def get_bg_subtracted_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        file_group = self.get_measurement()
-        raw_data = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
-        total_bg = self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
-        raw_data = raw_data-total_bg
-        if norm:
-            raw_data.normalize()
-        return raw_data
