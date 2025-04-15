@@ -34,7 +34,7 @@ class CMSData(object):
 
         # systematic
         # for measurement, mc process
-    # signal: DY, background: WW, WZ,ttbar, etc
+        # signal: DY, background: WW, WZ,ttbar, etc
 
 
     def get_measurement(self, period_name, channel_name, event_selection):

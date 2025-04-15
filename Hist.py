@@ -3,7 +3,12 @@ import ROOT
 
 # ROOT histogram to
 class Hist(object):
-    def __init__(self, hist, label='', channel='', year='', is_measurement=True):
+    def __init__(self, hist,
+                 label='',  # to be used in legend of histogram
+                 channel='',
+                 year='',
+                 is_measurement=True):
+
         self.raw_root_hist = hist
 
         self.label = label
@@ -12,13 +17,13 @@ class Hist(object):
         self.is_measurement = is_measurement
         # dictionary for HistSystematic
         self.systematic_raw_root_hists = {}  # sys_name, sys_variation_name, histogram
-        self.systematics = {}  # sys_name, up/down variation
+        self.systematics = {}  # sys_name, up/down variation calculated in Hist
 
+        # only for TH1D, init the total_sym_sys using statistical error
         if not isinstance(self.raw_root_hist, ROOT.TH2D):
             self.template = self.raw_root_hist.Clone()
             self.template.Reset()
             self.total_sym_sys = self.create_sys_np_array()  # add statistical error to total_sym_sys
-        # self.calculate_sym_systematic()
 
 
     def create_sys_np_array(self):
@@ -40,10 +45,12 @@ class Hist(object):
     def __add__(self, other=None, c1=1):
         added_hist = self.raw_root_hist.Clone("added")
         if other is None:
-            return Hist(added_hist, self.label, self.channel, year=self.year)
+            return Hist(added_hist, self.label, self.channel, year=self.year,
+                        is_measurement=self.is_measurement)
         else:
             added_hist.Add(other.raw_root_hist, c1)
-            return Hist(added_hist, self.label, self.channel, year=self.year)
+            return Hist(added_hist, self.label, self.channel, year=self.year,
+                        is_measurement=self.is_measurement)
 
     def __sub__(self, other=None):
         return self.__add__(other, -1)
@@ -51,18 +58,22 @@ class Hist(object):
     def divide(self, other=None):
         divided_hist = self.raw_root_hist.Clone("divided")
         if other is None:
-            return Hist(divided_hist, self.label, self.channel, year=self.year)
+            return Hist(divided_hist, self.label, self.channel, year=self.year,
+                        is_measurement=self.is_measurement)
         else:
             divided_hist.Divide(other.raw_root_hist)
-            return Hist(divided_hist, self.label, self.channel, year=self.year)
+            return Hist(divided_hist, self.label, self.channel, year=self.year,
+                        is_measurement=self.is_measurement)
 
     def multiply(self, other=None):
         multiplied_hist = self.raw_root_hist.Clone("multiplied")
         if other is None:
-            return Hist(multiplied_hist, self.label)
+            return Hist(multiplied_hist, self.label, self.channel, year=self.year,
+                        is_measurement=self.is_measurement)
         else:
             multiplied_hist.Multiply(other.raw_root_hist)
-            return Hist(multiplied_hist, self.label)
+            return Hist(multiplied_hist, self.label, self.channel, year=self.year,
+                        is_measurement=self.is_measurement)
 
     def get_label(self):
         return self.label
@@ -131,6 +142,3 @@ class Hist(object):
         y_bin_edges_np = np.array(y_bin_edges)
 
         return content_np, x_bin_edges_np, y_bin_edges_np
-
-    def get_bin_widths(self):
-        pass

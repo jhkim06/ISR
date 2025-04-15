@@ -170,7 +170,6 @@ class Analyzer:
                                                      x_log_scale=False,
                                                      save_and_reset=True,):
 
-        # total_expectation = self.get_total_expectation_hist(hist_name)
         # check if Plotter is ready?
         self.init_plotter(figsize=(8,8), rows=2, cols=1, year=year)
         # add hists

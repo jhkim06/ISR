@@ -96,4 +96,5 @@ class ROOTFileGrouper:
         return Hist(hist_total,
                     label=self.group_name,
                     channel=self.channel_name,
-                    year=self.year)
+                    year=self.year,
+                    is_measurement=self.is_measurement,)
