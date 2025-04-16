@@ -9,6 +9,7 @@ from matplotlib.collections import PatchCollection
 from mplhep.plot import ErrorBarArtists
 import math
 from Hist import Hist
+import copy
 
 
 def find_non_negative_min(arr):
@@ -25,7 +26,13 @@ class PlottableHist(Hist):
                  **kwargs):
 
         super(PlottableHist, self).__init__(hist.raw_root_hist,
-                                            hist.label, hist.channel, hist.year, hist.is_measurement,)
+                                            label=hist.label,
+                                            channel=hist.channel,
+                                            year=hist.year,
+                                            is_measurement=hist.is_measurement,)
+
+        self.systematic_raw_root_hists = copy.deepcopy(hist.systematic_raw_root_hists)
+        self.systematics = copy.deepcopy(hist.systematics)
 
         self.hist = hist
         self.not_to_draw = not_to_draw
@@ -195,10 +202,11 @@ class Plotter:
             nom_hist = self.plottable_hists[nominator_index].hist
             denom_hist = get_hist(denominator_index)
             ratio_hist = nom_hist.divide(denom_hist)
-            error_band = compute_error_band(denom_hist)
+            error_band = denom_hist.create_ratio_error_band_hist()
+
         elif isinstance(denominator_index, int):
             denom_hist = self.plottable_hists[denominator_index].hist
-            error_band = compute_error_band(denom_hist)
+            error_band = denom_hist.create_ratio_error_band_hist()
             if is_stackable(nominator_index):
                 reference_index = denominator_index
                 nom_hist = sum((self.plottable_hists[i].hist for i in nominator_index))

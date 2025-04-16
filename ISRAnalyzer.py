@@ -32,7 +32,8 @@ class ISRAnalyzer(Analyzer):
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
                  mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',):
 
-        super(ISRAnalyzer, self).__init__(sample_base_dir, )
+        super(ISRAnalyzer, self).__init__(sample_base_dir,
+                                          signal='DY', )
 
         if acceptance is None:
             self.acceptance = self.signal_name

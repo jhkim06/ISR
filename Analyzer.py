@@ -64,6 +64,12 @@ class Analyzer:
         self.plotter = Plotter(self.experiment,
                                '/Users/junhokim/Work/cms_snu/ISR/Plots')
 
+        self.systematics = {
+            # apply only to background Hist
+            "bg_normalization:background": {"up": ("", 1.5), "down": ("", 0.5)},
+        }
+        #self.systematics = {}
+
     def set_data_info(self, year, channel, event_selection):
         self.year = year
         self.channel = channel
@@ -84,16 +90,54 @@ class Analyzer:
     def get_mc(self, process_name, label=''):
         return self.data.get_mc(process_name, self.year, self.channel, self.event_selection, label)
 
+    def set_systematics_on_hist(self, hist, file_group, hist_name, bin_width_norm=False):
+        is_measurement = hist.is_measurement
+        is_signal = hist.is_mc_signal
+
+        for key, value in self.systematics.items():
+            sys_name, apply_to = key.split(":")
+
+            if apply_to == "all":
+                use_sys_config = True
+            elif apply_to == "measurement":
+                use_sys_config = is_measurement
+            elif apply_to == "signal":
+                use_sys_config = not is_measurement and is_signal
+            elif apply_to == "background":
+                use_sys_config = not is_measurement and not is_signal
+            else:
+                use_sys_config = False  # fallback if unknown apply_to
+
+            for variation_name, sys_config in value.items():
+                if use_sys_config:
+                    hist_name = hist_name+"_"+sys_config[0] if sys_config[0] else hist_name
+                    sys_hist = file_group.get_combined_root_hists(hist_name,
+                                                                  scale=sys_config[1],
+                                                                  bin_width_norm=bin_width_norm)
+                    hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
+                else:
+                    sys_hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+                    hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
+
     # Methods to get Hist
     def get_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
         file_group = self.get_measurement()
-        # hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
-        # if analyzer has systematic, add them here to Hist
-        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+
+        hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+        self.set_systematics_on_hist(hist, file_group, hist_name, bin_width_norm=bin_width_norm)  # Analyzer knows systematics
+        return hist
 
     def get_mc_hist(self, process_name, hist_name, hist_path='', bin_width_norm=False, scale=1.0, norm=False):
         file_group = self.get_mc(process_name)
-        return file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, scale=scale, norm=norm)
+        is_signal = False
+        if process_name == self.signal_name:
+            is_signal = True
+
+        hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm,
+                                                  is_signal=is_signal,
+                                                  scale=scale)
+        self.set_systematics_on_hist(hist, file_group, hist_name, bin_width_norm=bin_width_norm)
+        return hist
 
     def get_background_hists(self, hist_name, hist_path='', bin_width_norm=False, bg_scale=1.0, norm=False):
         # return dictionary of root hists
@@ -124,8 +168,7 @@ class Analyzer:
         return total_expectation_hist
 
     def get_bg_subtracted_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        file_group = self.get_measurement()
-        raw_data = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+        raw_data = self.get_measurement_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
         total_bg = self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
         raw_data = raw_data-total_bg
 
@@ -297,6 +340,7 @@ class Analyzer:
             kwargs =  get_hist_kwargs(data_hist.get_label()) | kwargs
         index = self.plotter.add_hist(data_hist, as_denominator=as_denominator, location=location,
                                       **kwargs)
+
         return index
 
     def add_signal_hist_to_plotter(self, hist_name, bin_width_norm=False, as_stack=False, as_denominator=True,

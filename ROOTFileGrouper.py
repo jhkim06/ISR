@@ -58,8 +58,9 @@ class ROOTFileGrouper:
                                 hist_path='',
                                 use_local_hist_path=False,
                                 bin_width_norm=False,
+                                is_signal=False,
                                 norm=False,
-                                scale=1.0):
+                                scale=1.0, raw_hist=False):
         if use_local_hist_path:
             hist_path = hist_path
         else:
@@ -93,9 +94,13 @@ class ROOTFileGrouper:
         if norm:
             hist_total.Scale(1./hist_total.Integral())
 
-        # Add systematics?
-        return Hist(hist_total,
-                    label=self.group_name,
-                    channel=self.channel_name,
-                    year=self.year,
-                    is_measurement=self.is_measurement,)
+        if raw_hist:
+            return hist_total
+        else:
+            # Add systematics?
+            return Hist(hist_total,
+                        label=self.group_name,
+                        channel=self.channel_name,
+                        year=self.year,
+                        is_measurement=self.is_measurement,
+                        is_mc_signal=is_signal)
