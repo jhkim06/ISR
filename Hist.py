@@ -30,6 +30,7 @@ def to_numpy(raw_root_hist):
 class Hist(object):
     def __init__(self, hist,
                  hist_name='',
+                 experiment='CMS',
                  label='',  # to be used in legend of histogram
                  channel='',
                  year='',
@@ -37,8 +38,11 @@ class Hist(object):
                  is_mc_signal=False,):
 
         self.raw_root_hist = hist
+        # TODO how to handle systematic of TH2
+        self.is_TH2 = isinstance(self.raw_root_hist, ROOT.TH2)
 
         self.hist_name = hist_name
+        self.experiment = experiment
         self.label = label
         self.year = year
         self.channel = channel
@@ -49,10 +53,31 @@ class Hist(object):
         self.systematics = {}  # sys_name, up/down variation calculated in Hist
 
         # only for TH1D, init the total_sym_sys using statistical error
-        if not isinstance(self.raw_root_hist, ROOT.TH2D):
+        if not self.is_TH2:
             self.template = self.raw_root_hist.Clone()
             self.template.Reset()
-            self.total_sym_sys = self.create_sys_np_array(to_numpy(self.raw_root_hist)[2])  # add statistical error to total_sym_sys
+            # add statistical error to total_sym_sys
+            self.total_sym_sys = self.create_sys_np_array(to_numpy(self.raw_root_hist)[2])
+
+        # to avoid ImportError
+        from Plotter import Plotter
+        # TODO how to set base_output_dir
+        self.plotter = Plotter(self.experiment,
+                               '/Users/junhokim/Work/cms_snu/ISR/Plots')
+
+    def draw(self, plotter=None, name_postfix='', **kwargs):
+        if plotter:
+            # add hist to the given plotter
+            plotter.add_hist(self)
+
+        else:
+            # inti plotter
+            self.plotter.init_plotter()
+            self.plotter.add_hist(self, **kwargs)
+            self.plotter.draw_hist()
+            self.plotter.get_axis(location=(0, 0)).set_yscale("log")
+            self.plotter.get_axis(location=(0, 0)).set_xscale("log")
+            self.plotter.save_and_reset_plotter(self.hist_name, name_postfix)
 
     def create_sys_np_array(self, error):
         # [[up errors], [down errors]]
@@ -61,6 +86,8 @@ class Hist(object):
         return error_
 
     def total_error(self):
+        if self.is_TH2: return
+
         total_squared = to_numpy(self.raw_root_hist)[2] ** 2  # stat
         # self.total_sym_sys = self.create_sys_np_array(total_squared)
         for sys_name, sys_array in self.systematics.items():
@@ -69,10 +96,14 @@ class Hist(object):
         return total_error
 
     def update_sys_np_array(self):
+        if self.is_TH2: return
+
         total_error = self.total_error()
         self.total_sym_sys = self.create_sys_np_array(total_error)
 
     def compute_systematic_rss_per_sysname(self):
+        if self.is_TH2: return
+
         central_values = to_numpy(self.raw_root_hist)[0]
 
         for sys_name, variations in self.systematic_raw_root_hists.items():
@@ -86,6 +117,9 @@ class Hist(object):
         self.update_sys_np_array()
 
     def set_systematic_hist(self, sys_name, sys_variation_name, raw_hist):
+
+        if self.is_TH2: return
+
         central_values = to_numpy(self.raw_root_hist)[0]
         variation_values = to_numpy(raw_hist)[0]
         squared_diff = (variation_values - central_values) ** 2
@@ -113,6 +147,7 @@ class Hist(object):
         norm_default.Divide(norm_default)
         ratio_error_band = Hist(
             norm_default,
+            hist_name=self.hist_name,
             label=self.label,
             channel=self.channel,
             year=self.year,
@@ -165,6 +200,7 @@ class Hist(object):
 
         result = Hist(
             added_hist,
+            hist_name=self.hist_name,
             label=self.label,
             channel=self.channel,
             year=self.year,
@@ -189,6 +225,7 @@ class Hist(object):
 
         result = Hist(
             divided_hist,
+            hist_name=self.hist_name,
             label=self.label,
             channel=self.channel,
             year=self.year,
@@ -208,6 +245,7 @@ class Hist(object):
 
         result = Hist(
             multiplied_hist,
+            hist_name=self.hist_name,
             label=self.label,
             channel=self.channel,
             year=self.year,

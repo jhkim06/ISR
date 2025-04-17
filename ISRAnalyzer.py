@@ -3,6 +3,7 @@ from Hist import Hist
 from Acceptance import Acceptance
 import pandas as pd
 import numpy as np
+from Hist import Hist
 
 
 # TODO check if this is needed here
@@ -44,10 +45,10 @@ class ISRAnalyzer(Analyzer):
 
         # self.axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
         # dipt_prefix, dimass_prefix
+        self.dipt_label = r'$p_{T}$^{'+change_to_greek(self.channel)+'}'
+        self.dimass_label = r'$M$^{'+change_to_greek(self.channel)+'}'
 
-        self.dipt_label = r'$p_{T}$^{' + change_to_greek(self.channel) + '}'
-        self.dimass_label = r'$M$^{' + change_to_greek(self.channel) + '}'
-
+        # bin names for unfolding
         self.folded_bin_name = folded_bin_name
         self.unfolded_bin_name = unfolded_bin_name
         self.unfolded_space_name = unfolded_space_name
@@ -59,6 +60,9 @@ class ISRAnalyzer(Analyzer):
         # set histogram name of "pt and mass"
         self._set_isr_1d_hist_names()
         self._set_isr_2d_hist_names()
+
+        self.isr_pt = ISRHists(mass_bins, pt_bins)
+        self.isr_mass = ISRHists(mass_bins, pt_bins)
 
     def get_mass_bins(self):
         return self.mass_bins
@@ -191,7 +195,7 @@ class ISRAnalyzer(Analyzer):
             self.plotter.add_custom_axis_tick_labels(custom_x_locates, custom_x_labels, location=(1, 0))
         self.plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})
 
-        self.save_and_reset_plotter(hist_name, "bg_subtracted")
+        self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix("bg_subtracted"))
 
     def draw_isr_measurement_expectation_plot_dimass(self):
         bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
@@ -212,7 +216,7 @@ class ISRAnalyzer(Analyzer):
                                                           save_and_reset=False)
 
         self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
-        self.save_and_reset_plotter(hist_name)
+        self.plooter.save_and_reset_plotter(hist_name)
 
     def draw_isr_measurement_expectation_plot_dipt(self,):
         for mass_bin in self.mass_bins:
@@ -229,7 +233,7 @@ class ISRAnalyzer(Analyzer):
                                                               x_axis_label=x_axis_label,
                                                               save_and_reset=False)
             self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
-            self.save_and_reset_plotter(hist_name)
+            self.plotter.save_and_reset_plotter(hist_name)
 
     def draw_isr_measurement_comparison_plot_dimass(self, *setups):
 
@@ -265,7 +269,8 @@ class ISRAnalyzer(Analyzer):
             plot_postfix_year = 'years'
         else:
             plot_postfix_year = "_".join(years)
-        self.save_and_reset_plotter(hist_name, plot_postfix_channel+"_"+plot_postfix_year)
+        self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix(
+            plot_postfix_channel+"_"+plot_postfix_year))
 
 
     def draw_isr_measurement_signal_plot_dimass(self,):
@@ -305,6 +310,12 @@ class ISRAnalyzer(Analyzer):
                                               x_variable_name=
                                               r'$p_{T}$, m bin index',
                                               fake_hist=fake_hist)
+
+    def setup_isr_hists(self, year, channel, event_selection):
+        self.set_data_info(year, channel, event_selection)
+        # set_isr_pt_hists, self.do_isr_unfold(pt): update unfolded_hist of isr_pt
+        # self.draw_detector_level_isr_plot(pt)
+        # set_isr_mass_hist, self.unfold(dimass)
 
     def do_isr_unfold_sys(self):
         # loop over systematics in Hist
@@ -457,13 +468,13 @@ class ISRAnalyzer(Analyzer):
                                 correct_binned_mean=False,
                                 as_df=False, bg_scale=1.0, **kwargs):
 
-        # set year, channel, event?
         unfolded_bin, _ = self.get_unfold_bin_maps(
             self.pt_mass_unfolded_bin_name,
-            self.pt_mass_detector_bin_name)
+            self.pt_mass_detector_bin_name
+        )
 
+        #
         # use default histograms
-        # TODO enable to use different hist name
         result = self.do_isr_unfold(self.pt_mass_hist_name, self.pt_mass_matrix_name,
                                     self.pt_mass_fake_hist_name, self.pt_mass_hist_name,
                                     bg_scale=bg_scale,

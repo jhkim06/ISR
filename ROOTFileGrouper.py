@@ -99,6 +99,7 @@ class ROOTFileGrouper:
         else:
             # Add systematics?
             return Hist(hist_total,
+                        hist_name=hist_name,
                         label=self.group_name,
                         channel=self.channel_name,
                         year=self.year,

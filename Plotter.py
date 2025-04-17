@@ -86,6 +86,22 @@ class Plotter:
         self.legend_labels.clear()
         self.y_minimum = 999.
 
+    def init_plotter(self, figsize=(8,8), rows=1, cols=1):
+        if rows == 2 and cols == 1:
+            self.create_subplots(rows, cols, figsize=figsize,
+                                         left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+        elif rows == 1 and cols == 1:
+            self.create_subplots(rows, cols, figsize=figsize,
+                                         left=0.15, right=0.95, hspace=0.0, bottom=0.15)
+        else:
+            # FIXME
+            self.create_subplots(rows, cols, figsize=figsize,)
+        self.set_experiment_label()
+
+    def save_and_reset_plotter(self, hist_name, postfix=''):
+        self.save_fig(hist_name + postfix)
+        self.reset()
+
     def set_experiment_label(self, label="Preliminary", location=(0, 0), **kwargs):
         self.set_current_axis(location=location)
         self.current_axis.draw(self.current_axis.figure.canvas.get_renderer())
@@ -411,7 +427,7 @@ class Plotter:
     def save_fig(self, out_name=''):
         out_file_name = out_name
 
-        # print(f"save plot... {out_file_name}")
+        print(f"save plot... {out_file_name}")
         self.fig.savefig(self.base_output_dir + "/" + out_file_name + ".pdf")
         # self.reset()
         plt.close()

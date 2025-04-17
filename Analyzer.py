@@ -66,7 +66,7 @@ class Analyzer:
 
         self.systematics = {
             # apply only to background Hist
-            "bg_normalization:background": {"up": ("", 1.5), "down": ("", 0.5)},
+            "bg_normalization:background": {"up": ("", 1.05), "down": ("", 0.95)},
         }
         #self.systematics = {}
 
@@ -114,10 +114,9 @@ class Analyzer:
                     sys_hist = file_group.get_combined_root_hists(hist_name,
                                                                   scale=sys_config[1],
                                                                   bin_width_norm=bin_width_norm)
-                    hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
                 else:
                     sys_hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
-                    hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
+                hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
 
     # Methods to get Hist
     def get_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
@@ -176,6 +175,7 @@ class Analyzer:
             raw_data.normalize()
         return raw_data
 
+    # get TUnfoldBinning from root file
     def get_unfold_bin_maps(self, unfolded_bin_name, folded_bin_name):
         file_group = self.get_mc(self.signal_name)
         return file_group.get_tobject(unfolded_bin_name), file_group.get_tobject(folded_bin_name)
@@ -194,7 +194,7 @@ class Analyzer:
 
         # Systematic in Hist?
         data_hist = self.get_measurement_hist(input_hist_name)
-        response_matrix = self.get_mc_hist(self.signal_name, matrix_name)
+        response_matrix = self.get_mc_hist(self.signal_name, matrix_name)  # FIXME properly handle TH2
         fake_hist = self.get_mc_hist(self.signal_name, fake_hist_name)
         backgrounds = self.get_background_hists(bg_hist_name, bg_scale=bg_scale)
 
@@ -221,7 +221,7 @@ class Analyzer:
                                                 x_log_scale=False,
                                                 save_and_reset=True):  # ?
 
-        self.init_plotter(figsize=figsize, rows=2, cols=1, year=self.year)
+        self.plotter.init_plotter(figsize=figsize, rows=2, cols=1)
 
         self.add_data_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, subtract_bg=True)
         self.add_signal_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, as_stack=True)
@@ -233,7 +233,7 @@ class Analyzer:
             # Note if Hist added to plotter, legend might not be included
             self.plotter.set_common_comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
             self.plotter.adjust_y_scale()
-            self.save_and_reset_plotter(hist_name, "bg_subtracted")
+            self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix("bg_subtracted"))
 
     def draw_measurement_expectation_comparison_plot(self,
                                                      hist_name,
@@ -244,7 +244,7 @@ class Analyzer:
                                                      save_and_reset=True,):
 
         # check if Plotter is ready?
-        self.init_plotter(figsize=(8,8), rows=2, cols=1, year=self.year)
+        self.init_plotter(figsize=(8,8), rows=2, cols=1)
         # add hists
         self.add_measurement_and_expectation_hists_to_plotter(hist_name,
                                                               bin_width_norm=bin_width_norm,)
@@ -255,7 +255,7 @@ class Analyzer:
         self.plotter.draw_hist()
         self.plotter.set_common_comparison_plot_cosmetics(x_axis_label, y_log_scale, x_log_scale, bin_width_norm)
         if save_and_reset:
-            self.save_and_reset_plotter(hist_name)
+            self.plotter.save_and_reset_plotter(hist_name)
 
     def draw_measurement_comparison_plot(self,
                                          *setups,
@@ -270,7 +270,8 @@ class Analyzer:
 
         # Use first setup as reference (denominator in ratio)
         year_ref, channel_ref, event_sel_ref = setups[0]
-        self.init_plotter(figsize=(8, 8), rows=1, cols=1, year=" ".join([s[0] for s in setups]))
+        # self.plotter.init_plotter(figsize=(8, 8), rows=1, cols=1, year=" ".join([s[0] for s in setups]))
+        self.plotter.init_plotter(figsize=(8, 8), rows=1, cols=1)
 
         # Add reference histogram
         self.set_data_info(year_ref, channel_ref, event_sel_ref)
@@ -302,21 +303,9 @@ class Analyzer:
                                                     y_min=0.5, y_max=1.5)
         if save_and_reset:
             combined_years = ''.join(s[0] for s in setups)
-            self.save_and_reset_plotter(hist_name, channel_ref, combined_years)
+            self.plotter.save_and_reset_plotter(hist_name, channel_ref, self.plot_name_postfix(combined_years))
 
     # methods for Plotter
-    def init_plotter(self, figsize, rows, cols, year):
-        if rows == 2 and cols == 1:
-            self.plotter.create_subplots(rows, cols, figsize=figsize,
-                                         left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
-        elif rows == 1 and cols == 1:
-            self.plotter.create_subplots(rows, cols, figsize=figsize,
-                                         left=0.15, right=0.95, hspace=0.0, bottom=0.15)
-        else:
-            # FIXME
-            self.plotter.create_subplots(rows, cols, figsize=figsize,)
-        self.plotter.set_experiment_label(**{"year": year})
-
     def add_measurement_and_expectation_hists_to_plotter(self, hist_name,
                                                          bin_width_norm=False):
         self.add_background_hists_to_plotter(hist_name, bin_width_norm=bin_width_norm,
@@ -359,9 +348,4 @@ class Analyzer:
                                           **{"label": labels[bg.get_label()]})  # mark as denominator index
             index_list.append(index)
         return index_list
-
-    def save_and_reset_plotter(self, hist_name, postfix=''):
-        self.plotter.save_fig(hist_name + self.plot_name_postfix(postfix))
-        self.plotter.reset()
-
 
