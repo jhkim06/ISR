@@ -244,7 +244,7 @@ class Analyzer:
                                                      save_and_reset=True,):
 
         # check if Plotter is ready?
-        self.init_plotter(figsize=(8,8), rows=2, cols=1)
+        self.plotter.init_plotter(figsize=(8,8), rows=2, cols=1)
         # add hists
         self.add_measurement_and_expectation_hists_to_plotter(hist_name,
                                                               bin_width_norm=bin_width_norm,)

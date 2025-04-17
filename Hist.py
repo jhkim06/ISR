@@ -76,7 +76,7 @@ class Hist(object):
             self.plotter.add_hist(self, **kwargs)
             self.plotter.draw_hist()
             self.plotter.get_axis(location=(0, 0)).set_yscale("log")
-            self.plotter.get_axis(location=(0, 0)).set_xscale("log")
+            #self.plotter.get_axis(location=(0, 0)).set_xscale("log")
             self.plotter.save_and_reset_plotter(self.hist_name, name_postfix)
 
     def create_sys_np_array(self, error):

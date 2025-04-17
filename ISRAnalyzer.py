@@ -4,6 +4,8 @@ from Acceptance import Acceptance
 import pandas as pd
 import numpy as np
 from Hist import Hist
+from ISRHists import ISRHists
+
 
 
 # TODO check if this is needed here
@@ -61,8 +63,8 @@ class ISRAnalyzer(Analyzer):
         self._set_isr_1d_hist_names()
         self._set_isr_2d_hist_names()
 
-        self.isr_pt = ISRHists(mass_bins, pt_bins)
-        self.isr_mass = ISRHists(mass_bins, pt_bins)
+        self.isr_pt = None
+        self.isr_mass = None
 
     def get_mass_bins(self):
         return self.mass_bins
@@ -216,7 +218,7 @@ class ISRAnalyzer(Analyzer):
                                                           save_and_reset=False)
 
         self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
-        self.plooter.save_and_reset_plotter(hist_name)
+        self.plotter.save_and_reset_plotter(hist_name)
 
     def draw_isr_measurement_expectation_plot_dipt(self,):
         for mass_bin in self.mass_bins:
@@ -311,11 +313,52 @@ class ISRAnalyzer(Analyzer):
                                               r'$p_{T}$, m bin index',
                                               fake_hist=fake_hist)
 
-    def setup_isr_hists(self, year, channel, event_selection):
+    def setup_isr_hists(self, year, channel, event_selection, is_2d_pt=True, bin_width_norm=False):
         self.set_data_info(year, channel, event_selection)
-        # set_isr_pt_hists, self.do_isr_unfold(pt): update unfolded_hist of isr_pt
+
+        if is_2d_pt:
+            unfolded_bin, folded_bin = self.get_unfold_bin_maps(
+                self.pt_mass_unfolded_bin_name,
+                self.pt_mass_detector_bin_name
+            )
+            measurement, signal, signal_fake, bgs = self.get_isr_hist()
+
+            self.isr_pt = ISRHists(self.mass_bins, self.pt_bins, is_2d=is_2d_pt, is_pt=True,
+                                   folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
+            self.isr_pt.set_isr_hists(measurement, signal, signal_fake, bgs)
+
+            measurement, signal, signal_fake, bgs = self.get_isr_hist(is_pt=False, bin_width_norm=bin_width_norm)
+            self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False)
+            self.isr_mass.set_isr_hists(measurement, signal, signal_fake, bgs)
+        else:
+            pass
+        bin_width_norm = True
+        # 2D hist (make option for 1D hists)
         # self.draw_detector_level_isr_plot(pt)
         # set_isr_mass_hist, self.unfold(dimass)
+
+    def get_isr_hist(self, is_pt=True, is_2d=True, bin_width_norm=False):
+        if is_pt:
+            if is_2d:
+                measurement = self.get_measurement_hist(self.pt_mass_hist_name, bin_width_norm=False)
+                signal = self.get_mc_hist(self.signal_name, self.pt_mass_hist_name, bin_width_norm=False)
+                bgs = self.get_background_hists(self.pt_mass_hist_name, bin_width_norm=False)
+                signal_fake = self.get_mc_hist(self.signal_name, self.pt_mass_fake_hist_name,
+                                               bin_width_norm=False)
+                return measurement, signal, signal_fake, bgs
+            else:
+                # return list of hists
+                pass
+        else:
+            postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
+            input_hist_name, _, input_fake_hist_name, _ = self.get_hist_names_for_1d_dimass(postfix)
+
+            measurement = self.get_measurement_hist(input_hist_name, bin_width_norm=bin_width_norm)
+            signal = self.get_mc_hist(self.signal_name, input_hist_name, bin_width_norm=bin_width_norm)
+            bgs = self.get_background_hists(input_hist_name, bin_width_norm=bin_width_norm)
+            signal_fake = self.get_mc_hist(self.signal_name, input_fake_hist_name,
+                                           bin_width_norm=bin_width_norm)
+            return measurement, signal, signal_fake, bgs
 
     def do_isr_unfold_sys(self):
         # loop over systematics in Hist
