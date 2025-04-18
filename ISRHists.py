@@ -27,19 +27,23 @@ class ISRMatrix(Hist):
 
 # group of hists for ISR
 class ISRHistSet:
-    def __init__(self, measurement_hist, signal_hist, signal_fake_hist, background_hists):
+    def __init__(self, measurement_hist, signal_hist, signal_fake_hist, background_hists,
+                 response_matrix):
         # detector hist
         self.measurement_hist = measurement_hist
         self.signal_hist = signal_hist
         self.signal_fake_hist = signal_fake_hist
         self.background_hists = background_hists  # Note this is dictionary of hists
 
-        self.response_matrix = None
+        self.response_matrix = response_matrix
 
+        self.tunfolder = None
         self.unfolded_measurement_hist = None
+        self.unfolded_signal_hist = None  # request to tunfolder
         self.acceptance_corrected_measurement_hist = None
 
 
+# ISRPtHists ISRMassHists
 class ISRHists:
     def __init__(self,
                  mass_bins,  # mass windows
@@ -62,7 +66,7 @@ class ISRHists:
         self.mean_values = None
 
     # Note set *detector* level hists
-    def set_isr_hists(self, measurement_hist, signal_hist, signal_fake_hist, background_hists):
+    def set_isr_hists(self, measurement_hist, signal_hist, signal_fake_hist, background_hists, matrix):
 
         if self.is_pt and len(self.mass_bins) == len(self.isr_hists):
             print('Check the number of mass bins and the number of ISR hists...')
@@ -78,13 +82,35 @@ class ISRHists:
                         ISR2DHist(measurement_hist, self.folded_tunfold_bin),
                         ISR2DHist(signal_hist, self.folded_tunfold_bin),
                         ISR2DHist(signal_fake_hist, self.folded_tunfold_bin),
-                        new_background_hists
+                        new_background_hists,
+                        matrix
                     )
                 )
             else:
                 self.isr_hists.append(
-                    ISRHistSet(measurement_hist, signal_hist, signal_fake_hist, background_hists)
+                    ISRHistSet(measurement_hist, signal_hist, signal_fake_hist, background_hists, matrix)
                 )
+
+    def get_isr_hists(self, mass_window_index=-1):
+        if self.is_2d or self.is_pt==False:
+            isr_hist = self.isr_hists[0]
+        else:
+            isr_hist = self.isr_hists[mass_window_index]
+        return (isr_hist.measurement_hist,
+                isr_hist.signal_fake_hist,
+                isr_hist.background_hists,
+                isr_hist.response_matrix)
+
+
+    def set_isr_response_matrices(self, response_matrix, mass_window_index=-1):
+        if self.is_pt:
+            if self.is_2d:
+                self.isr_hists[0].response_matrix = response_matrix
+            else:
+                pass
+        else:
+            self.isr_hists[0].response_matrix = response_matrix
+
 
     def get(self, hist_type='signal', mass_window_index=-1):
         # get hist object
@@ -122,14 +148,26 @@ class ISRHists:
         plotter = measurement_hist.plotter
 
         plotter.init_plotter()
-        plotter.add_hist(measurement_hist, **{'histtype':'errorbar'})
-        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True)
+        plotter.add_hist(measurement_hist, **{'histtype':'errorbar','color':'black'})
+        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **{'color':'red'})
         plotter.draw_hist()
 
         plotter.save_and_reset_plotter(measurement_hist.hist_name)
 
-    def draw_unfolded_level(self):
-        pass
+    def draw_unfolded_level(self, mass_window_index=-1):
+        measurement_hist = self.get(hist_type='unfolded_measurement', mass_window_index=mass_window_index)
+        signal_hist = self.get(hist_type='unfolded_signal', mass_window_index=mass_window_index)
+
+        plotter = measurement_hist.plotter
+
+        plotter.init_plotter()
+        plotter.add_hist(measurement_hist, **{'histtype':'errorbar','color':'black'})
+        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **{'color':'red'})
+        plotter.draw_hist()
+        plotter.get_axis(location=(0, 0)).set_yscale("log")
+        plotter.get_axis(location=(0, 0)).set_xscale("log")
+
+        plotter.save_and_reset_plotter(measurement_hist.hist_name)
 
     def draw_acceptance_corrected_level(self):
         pass

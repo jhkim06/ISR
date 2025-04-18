@@ -1,7 +1,7 @@
 from Hist import Hist
 import copy
 
-
+# ISRHist?
 # for additional info on tunfold
 class ISR2DHist(Hist):
     def __init__(self, hist,  # 1D hist

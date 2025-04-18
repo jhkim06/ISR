@@ -54,8 +54,6 @@ class Hist(object):
 
         # only for TH1D, init the total_sym_sys using statistical error
         if not self.is_TH2:
-            self.template = self.raw_root_hist.Clone()
-            self.template.Reset()
             # add statistical error to total_sym_sys
             self.total_sym_sys = self.create_sys_np_array(to_numpy(self.raw_root_hist)[2])
 
@@ -64,6 +62,34 @@ class Hist(object):
         # TODO how to set base_output_dir
         self.plotter = Plotter(self.experiment,
                                '/Users/junhokim/Work/cms_snu/ISR/Plots')
+
+    def create(self,
+               hist=None,
+               hist_name='',
+               label='',  # to be used in legend of histogram
+               year='',
+               ):
+        if hist is None:
+            hist = self.raw_root_hist
+        if hist_name == '':
+            hist_name = self.hist_name
+        if label == '':
+            label = self.label
+        if year == '':
+            year = self.year
+
+        new_hist = Hist(hist,
+                        hist_name=hist_name,
+                        label=label,
+                        year=year,
+                        channel=self.channel,
+                        experiment=self.experiment,
+                        is_measurement=self.is_measurement,
+                        is_mc_signal=self.is_mc_signal,
+                        )
+        return new_hist
+
+
 
     def draw(self, plotter=None, name_postfix='', **kwargs):
         if plotter:
@@ -76,7 +102,7 @@ class Hist(object):
             self.plotter.add_hist(self, **kwargs)
             self.plotter.draw_hist()
             self.plotter.get_axis(location=(0, 0)).set_yscale("log")
-            #self.plotter.get_axis(location=(0, 0)).set_xscale("log")
+            self.plotter.get_axis(location=(0, 0)).set_xscale("log")
             self.plotter.save_and_reset_plotter(self.hist_name, name_postfix)
 
     def create_sys_np_array(self, error):
@@ -145,15 +171,7 @@ class Hist(object):
     def create_ratio_error_band_hist(self):
         norm_default = self.raw_root_hist.Clone("norm_default")
         norm_default.Divide(norm_default)
-        ratio_error_band = Hist(
-            norm_default,
-            hist_name=self.hist_name,
-            label=self.label,
-            channel=self.channel,
-            year=self.year,
-            is_measurement=self.is_measurement,
-            is_mc_signal=self.is_mc_signal
-        )
+        ratio_error_band = self.create(hist=norm_default,)
         ratio_error_band.systematic_raw_root_hists = copy.deepcopy(self.systematic_raw_root_hists)
         ratio_error_band.normalize_systematic_raw_hists_by_central(self.raw_root_hist)
         ratio_error_band.compute_systematic_rss_per_sysname()
@@ -198,16 +216,7 @@ class Hist(object):
         if other is not None:
             added_hist.Add(other.raw_root_hist, c1)
 
-        result = Hist(
-            added_hist,
-            hist_name=self.hist_name,
-            label=self.label,
-            channel=self.channel,
-            year=self.year,
-            is_measurement=self.is_measurement,
-            is_mc_signal=self.is_mc_signal
-        )
-
+        result = self.create(hist=added_hist)
         # Initialize systematics
         result.systematic_raw_root_hists = self._apply_systematics_operation(other, "Add", "added",
                                                                              scale=c1)
@@ -223,15 +232,7 @@ class Hist(object):
         if other is not None:
             divided_hist.Divide(other.raw_root_hist)
 
-        result = Hist(
-            divided_hist,
-            hist_name=self.hist_name,
-            label=self.label,
-            channel=self.channel,
-            year=self.year,
-            is_measurement=self.is_measurement,
-            is_mc_signal=self.is_mc_signal
-        )
+        result = self.create(hist=divided_hist)
 
         result.systematic_raw_root_hists = self._apply_systematics_operation(other, "Divide", "divided")
         result.compute_systematic_rss_per_sysname()
@@ -243,15 +244,7 @@ class Hist(object):
         if other is not None:
             multiplied_hist.Multiply(other.raw_root_hist)
 
-        result = Hist(
-            multiplied_hist,
-            hist_name=self.hist_name,
-            label=self.label,
-            channel=self.channel,
-            year=self.year,
-            is_measurement=self.is_measurement,
-            is_mc_signal=self.is_mc_signal
-        )
+        result = self.create(hist=multiplied_hist)
         result.systematic_raw_root_hists = self._apply_systematics_operation(other, "Multiply", "multiplied")
         result.compute_systematic_rss_per_sysname()
         return result

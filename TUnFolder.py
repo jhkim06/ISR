@@ -76,39 +76,58 @@ class TUnFolder:
         self.lcurve = ROOT.TGraph()
         self.curvature = ROOT.TSpline3()
 
-        self._create_tunfolder()
+        self.tunfolder = self._create_tunfolder()
         self._set_tunfolder_input()
         self._subtract_backgrounds()
 
+    # FIXME check if use_bin_map really needed
     def _create_tunfolder(self):
         if self.use_bin_map:  # Use bin map
-            self.tunfolder = ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
+            return ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
                                                  ROOT.TUnfold.kHistMapOutputHoriz,
                                                  REG_MODE[self.reg_mode],
                                                  EX_CONSTRAINTS[self.ex_constraint],
                                                  DENSITY_MODE[self.density_mode],
                                                  self.unfolded_bin, self.folded_bin)
         else:
-            self.tunfolder = ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
+            return ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
                                                  ROOT.TUnfold.kHistMapOutputHoriz,
                                                  REG_MODE[self.reg_mode],
                                                  EX_CONSTRAINTS[self.ex_constraint],
                                                  DENSITY_MODE[self.density_mode])
 
-    def _set_tunfolder_input(self):
-        self.tunfolder.SetInput(self.input_hist.get_raw_hist())
+    def _set_tunfolder_input(self, sys_name='', var_name='', sys_tunfolder=None):
 
-        if self.input_fake_hist is not None:
-            self.tunfolder.SubtractBackground(self.input_fake_hist.get_raw_hist(),
-                                              'input_fake')
+        if sys_name:
+            sys_input_hist = self.input_hist.systematic_raw_root_hists[sys_name][var_name]
+            sys_tunfolder.SetInput(sys_input_hist)
 
-    def _subtract_backgrounds(self):
+            if self.input_fake_hist:
+                sys_input_fake_hist = self.input_fake_hist.systematic_raw_root_hists[sys_name][var_name]
+                sys_tunfolder.SubtractBackground(sys_input_fake_hist, 'input_fake'+sys_name+var_name)
+        else:
+            self.tunfolder.SetInput(self.input_hist.get_raw_hist())
+
+            if self.input_fake_hist is not None:
+                self.tunfolder.SubtractBackground(self.input_fake_hist.get_raw_hist(),
+                                                  'input_fake')
+
+    def _subtract_backgrounds(self, sys_name='', var_name='', sys_tunfolder=None):
         if self.bg_hists is not None:
             for name, hist in self.bg_hists.items():
-                self.tunfolder.SubtractBackground(hist.get_raw_hist(), name)
+                if sys_name:
+                    sys_bg = hist.systematic_raw_root_hists[sys_name][var_name]
+                    sys_tunfolder.SubtractBackground(sys_bg, name)
+                else:
+                    self.tunfolder.SubtractBackground(hist.get_raw_hist(), name)
 
-    def unfold(self, unfold_method=None, n_iterative=100):
+    def unfold(self, unfold_method=None, n_iterative=100, sys_tunfolder=None):
         # FIXME
+        if sys_tunfolder:
+            tunfolder = sys_tunfolder
+        else:
+            tunfolder = self.tunfolder
+
         if unfold_method is None and self.unfold_method is None:
             self.unfold_method = unfold_method
         else:
@@ -118,19 +137,41 @@ class TUnFolder:
         self.n_iterative = n_iterative
 
         if self.unfold_method is None:
-            self.tunfolder.DoUnfold(self.reg_strength)
-            self.reg_strength = self.tunfolder.GetTau()
+            tunfolder.DoUnfold(self.reg_strength)
+            if sys_tunfolder is None:
+                self.reg_strength = tunfolder.GetTau()
         elif self.unfold_method == 'scan_sure':
-            i_best = self.tunfolder.ScanSURE(n_iterative,
+            i_best = tunfolder.ScanSURE(n_iterative,
                                              ctypes.c_double(0),
                                              ctypes.c_double(0),
                                              self.graphSURE,
                                              self.df_deviance,
                                              self.lcurve)
 
-            self.reg_strength = pow(10, self.graphSURE.GetX()[i_best])
+            if sys_tunfolder is None:
+                self.reg_strength = pow(10, self.graphSURE.GetX()[i_best])
         else:
             print(unfold_method, ' is not supported unfolding method.')
+
+    def sys_unfold(self):
+        # loop over hist systematics
+        sys_unfolded_hist = {}
+        sys_hist = self.input_hist.systematic_raw_root_hists
+        for sys_name, variations in sys_hist.items():
+            sys_unfolded_hist[sys_name] = {}
+            for var_name, hist in variations.items():
+                tunfolder = self._create_tunfolder()
+                self._set_tunfolder_input(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
+                self._subtract_backgrounds(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
+                self.unfold(sys_tunfolder=tunfolder)
+                use_axis_binning = True
+                # Check difference with use_axis_binning = False
+                sys_unfolded_hist[sys_name][var_name] = tunfolder.GetOutput("unfolded_hist"+sys_name+var_name,
+                                                                            ctypes.c_char_p(0),
+                                                                            ctypes.c_char_p(0),
+                                                                            ctypes.c_char_p(0),
+                                                                            use_axis_binning)
+        return sys_unfolded_hist
 
     def get_unfolded_hist(self, projection_mode="*[*]", use_axis_binning=True):
         if self.unfolded_bin is not None:

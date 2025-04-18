@@ -192,7 +192,7 @@ class Analyzer:
                   unfolded_bin_name=None, folded_bin_name=None, variable_name='',
                   bg_scale=1.0):
 
-        # Systematic in Hist?
+
         data_hist = self.get_measurement_hist(input_hist_name)
         response_matrix = self.get_mc_hist(self.signal_name, matrix_name)  # FIXME properly handle TH2
         fake_hist = self.get_mc_hist(self.signal_name, fake_hist_name)
