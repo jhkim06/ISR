@@ -86,7 +86,7 @@ class Plotter:
         self.legend_labels.clear()
         self.y_minimum = 999.
 
-    def init_plotter(self, figsize=(8,8), rows=1, cols=1):
+    def init_plotter(self, figsize=(8,8), rows=1, cols=1,):
         if rows == 2 and cols == 1:
             self.create_subplots(rows, cols, figsize=figsize,
                                          left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
@@ -96,7 +96,6 @@ class Plotter:
         else:
             # FIXME
             self.create_subplots(rows, cols, figsize=figsize,)
-        self.set_experiment_label()
 
     def save_and_reset_plotter(self, hist_name, postfix=''):
         self.save_fig(hist_name + postfix)
@@ -344,7 +343,7 @@ class Plotter:
 
     def adjust_y_scale(self, location=(0, 0)):
         self.set_current_axis(location)
-        self.current_axis.set_ylim(ymin=self.y_minimum * 1e-2)
+        self.current_axis.set_ylim(ymin=self.y_minimum * 1e-1)
 
     def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)

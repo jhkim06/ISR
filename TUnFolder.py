@@ -160,22 +160,25 @@ class TUnFolder:
         for sys_name, variations in sys_hist.items():
             sys_unfolded_hist[sys_name] = {}
             for var_name, hist in variations.items():
-                tunfolder = self._create_tunfolder()
+                tunfolder = self._create_tunfolder()  # create with default response matrix
                 self._set_tunfolder_input(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self._subtract_backgrounds(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self.unfold(sys_tunfolder=tunfolder)
                 use_axis_binning = True
-                # Check difference with use_axis_binning = False
+                # Check differences with use_axis_binning = False
                 sys_unfolded_hist[sys_name][var_name] = tunfolder.GetOutput("unfolded_hist"+sys_name+var_name,
                                                                             ctypes.c_char_p(0),
                                                                             ctypes.c_char_p(0),
                                                                             ctypes.c_char_p(0),
                                                                             use_axis_binning)
+
+        # TODO different response matrix?
+
         return sys_unfolded_hist
 
     def get_unfolded_hist(self, projection_mode="*[*]", use_axis_binning=True):
         if self.unfolded_bin is not None:
-            # seems parameter axis steering not passed properly so use ExtractHistogram()
+            # it seems parameter axis steering not passed properly so use ExtractHistogram()
             unfolded_hist = self.tunfolder.GetOutput("unfolded_hist",
                                                      ctypes.c_char_p(0),
                                                      ctypes.c_char_p(0),
@@ -197,7 +200,7 @@ class TUnFolder:
 
     def get_input_hist(self, projection_mode="*[*]", use_axis_binning=True):
         if self.folded_bin is not None:
-            # seems parameter axis steering not passed properly so use ExtractHistogram()
+            # it seems parameter axis steering not passed properly so use ExtractHistogram()
             data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),

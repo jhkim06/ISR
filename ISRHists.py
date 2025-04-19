@@ -1,5 +1,6 @@
-from Hist import Hist
+from Hist import Hist, change_to_greek
 import copy
+from Analyzer import labels, colors, get_hist_kwargs
 from ISR2DHist import ISR2DHist
 
 '''
@@ -33,7 +34,7 @@ class ISRHistSet:
         self.measurement_hist = measurement_hist
         self.signal_hist = signal_hist
         self.signal_fake_hist = signal_fake_hist
-        self.background_hists = background_hists  # Note this is dictionary of hists
+        self.background_hist = background_hists  # Note this is dictionary of hists
 
         self.response_matrix = response_matrix
 
@@ -49,8 +50,11 @@ class ISRHists:
                  mass_bins,  # mass windows
                  pt_bins,
                  is_2d, is_pt,
+                 year='', channel='',
                  folded_tunfold_bin=None, unfolded_tunfold_bin=None):  # pt cut
 
+        self.year = year
+        self.channel = channel
         self.mass_bins = mass_bins
         self.pt_bins = pt_bins
         self.is_2d = is_2d
@@ -64,6 +68,12 @@ class ISRHists:
 
         #
         self.mean_values = None
+
+        # common plot cosmetics
+        if is_pt:
+            self.x_axis_label = r"$p_{T}^{"+change_to_greek(self.channel)+"}$"
+        else:
+            self.x_axis_label = r"$m^{"+change_to_greek(self.channel)+"}$"
 
     # Note set *detector* level hists
     def set_isr_hists(self, measurement_hist, signal_hist, signal_fake_hist, background_hists, matrix):
@@ -111,8 +121,7 @@ class ISRHists:
         else:
             self.isr_hists[0].response_matrix = response_matrix
 
-
-    def get(self, hist_type='signal', mass_window_index=-1):
+    def get(self, hist_type='signal', mass_window_index=-1, bin_width_norm=False):
         # get hist object
         if self.is_pt:
             if self.is_2d:
@@ -128,29 +137,59 @@ class ISRHists:
         if target_hist is None:
             raise ValueError(f"No attribute names '{attr_name}' found")
 
-        # Note for backgrounds are dictionary of hists
-        if hist_type == 'background':
-            pass
-        else:
-            if self.is_2d:
-                if -1 < mass_window_index < len(self.mass_bins):
-                    return target_hist.extract_1d_hist(mass_window_index)
+        if self.is_2d:
+            # decide whether to extract 1d hist or not
+            if -1 < mass_window_index < len(self.mass_bins):
+                if hist_type == 'background':
+                    extracted_background_hists = {}
+                    for bg_name, bg_hist in target_hist.items():
+                        extracted_background_hists[bg_name] = bg_hist.extract_1d_hist(mass_window_index)
+                    return extracted_background_hists
                 else:
-                    return target_hist
+                    return target_hist.extract_1d_hist(mass_window_index)  # bin_width_norm applied in extract_1d_hist
             else:
                 return target_hist
+        else:
+            return target_hist
+        # hist.bin_width_norm()
+
+    def get_additional_text_on_plot(self, mass_window_index=-1):
+        text = ''
+        if self.is_pt:
+            if self.is_2d:
+                text = (str(int(self.mass_bins[mass_window_index][0]))+
+                        "$<m^{"+change_to_greek(self.channel)+"}<$"+
+                        str(int(self.mass_bins[mass_window_index][1])) + " GeV")
+        else:
+            text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
+        return text
 
     def draw_detector_level(self, mass_window_index=-1):
 
         measurement_hist = self.get(hist_type='measurement', mass_window_index=mass_window_index)
         signal_hist = self.get(hist_type='signal', mass_window_index=mass_window_index)
+        background_hists = self.get(hist_type='background', mass_window_index=mass_window_index)
 
         plotter = measurement_hist.plotter
 
-        plotter.init_plotter()
-        plotter.add_hist(measurement_hist, **{'histtype':'errorbar','color':'black'})
-        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **{'color':'red'})
+        plotter.init_plotter(rows=2, cols=1)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})  # to avoid clipping of labels
+        for bg_name, bg_hist in background_hists.items():
+            plotter.add_hist(bg_hist, as_stack=True, as_denominator=True, **{'label': labels[bg_hist.get_label()]})
+        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **get_hist_kwargs(signal_hist.get_label()))
+        plotter.add_hist(measurement_hist, **get_hist_kwargs(measurement_hist.get_label()))
+        plotter.add_ratio_hists(location=(1, 0))
+
         plotter.draw_hist()
+        # TODO define common cosmetics in class definition
+        x_log_scale = True
+        y_log_scale = True
+        if self.is_pt:
+            x_log_scale = False
+            y_log_scale = False
+        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale, y_log_scale=y_log_scale)
+        text = self.get_additional_text_on_plot(mass_window_index)
+        plotter.add_text(text=text, location=(0, 0),  **{"frameon": False, "loc": "upper left", })
 
         plotter.save_and_reset_plotter(measurement_hist.hist_name)
 

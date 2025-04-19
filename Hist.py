@@ -3,6 +3,13 @@ import ROOT
 import copy
 
 
+def change_to_greek(raw_string):
+    if raw_string == 'mm':
+        return "\mu\mu"
+    else:
+        return raw_string
+
+
 def to_numpy(raw_root_hist):
     values = []
     bins = []
@@ -89,8 +96,10 @@ class Hist(object):
                         )
         return new_hist
 
+    def bin_width_norm(self):
+        pass
 
-
+    # for quick
     def draw(self, plotter=None, name_postfix='', **kwargs):
         if plotter:
             # add hist to the given plotter

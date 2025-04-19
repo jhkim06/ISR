@@ -66,7 +66,7 @@ class Analyzer:
 
         self.systematics = {
             # apply only to background Hist
-            "bg_normalization:background": {"up": ("", 1.05), "down": ("", 0.95)},
+            "bg_normalization:background": {"up": ("", 1.25), "down": ("", 0.75)},
         }
         #self.systematics = {}
 

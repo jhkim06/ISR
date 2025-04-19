@@ -3,7 +3,7 @@ from Hist import Hist
 from Acceptance import Acceptance
 import pandas as pd
 import numpy as np
-from Hist import Hist
+from Hist import Hist, change_to_greek
 from ISRHists import ISRHists
 from ISR2DHist import ISR2DHist
 from TUnFolder import TUnFolder
@@ -19,21 +19,16 @@ def calculate_squared_root_sum(raw_df, reg_expression, new_col_name="total error
     raw_df[new_col_name] = root_of_squared_sum
 
 
-def change_to_greek(raw_string):
-    if raw_string == 'mm':
-        return "\mu\mu"
-    else:
-        return raw_string
-
-
 class ISRAnalyzer(Analyzer):
     def __init__(self,
                  sample_base_dir,
                  mass_bins,
                  pt_bins,
                  acceptance = None,  # DY for acceptance correction
+
                  folded_bin_name='fine', unfolded_bin_name='coarse',
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
+
                  mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',):
 
         super(ISRAnalyzer, self).__init__(sample_base_dir,
@@ -325,11 +320,13 @@ class ISRAnalyzer(Analyzer):
             measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist()
 
             self.isr_pt = ISRHists(self.mass_bins, self.pt_bins, is_2d=is_2d_pt, is_pt=True,
+                                   year=year, channel=channel,
                                    folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
             self.isr_pt.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
 
             measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=False, bin_width_norm=bin_width_norm)
-            self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False)
+            self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False,
+                                     year=year, channel=channel)
             self.isr_mass.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
         else:
             pass
@@ -379,8 +376,6 @@ class ISRAnalyzer(Analyzer):
                                variable_name='')
             unfold.unfold()
             self.isr_pt.isr_hists[mass_window_index].tunfolder = unfold
-
-
             unfolded_hist = input_hist.create(hist=unfold.get_unfolded_hist(use_axis_binning=False),
                                               label=input_hist.label+'(unfolded)')
             # loop over systematics on hists
@@ -561,10 +556,6 @@ class ISRAnalyzer(Analyzer):
                                                            axis_steering))
             pt_data.append(temp_result.get_mean())
         return pt_data
-
-
-    def get_unfolded_mean_pt_2d_systematic(self):
-        pass
 
     def get_unfolded_mean_pt_2d(self,
                                 do_acceptance_correction=False,
