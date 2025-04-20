@@ -7,6 +7,7 @@ from TUnFolder import TUnFolder
 labels = {
     # group_name of ROOTFileGroup: "legend"
     "Data": "Data",
+    "Data(unfolded)": "Data (unfolded)",
     "DYJetsToEE_MiNNLO": r"Drell-Yan",
     "GGLL": r"$\gamma\gamma$",
     "DYJetsToTauTau_MiNNLO": r'$\tau\tau$',
@@ -20,7 +21,8 @@ labels = {
 
 colors = {
     "DYJetsToEE_MiNNLO": "red",
-    "Data": "black"
+    "Data": "black",
+    "Data(unfolded)": "black",
 }
 
 
@@ -29,7 +31,7 @@ def get_hist_kwargs(label):
         "color": f'{colors[label]}',
         "label": f'{labels[label]}'
     }
-    if label == 'Data':
+    if 'Data' in label:
         kwargs.update({'histtype': 'errorbar'})
 
     return kwargs
@@ -66,7 +68,7 @@ class Analyzer:
 
         self.systematics = {
             # apply only to background Hist
-            "bg_normalization:background": {"up": ("", 1.25), "down": ("", 0.75)},
+            "bg_normalization:background": {"up": ("", 1.05), "down": ("", 0.95)},
         }
         #self.systematics = {}
 

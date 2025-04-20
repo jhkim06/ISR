@@ -189,6 +189,8 @@ class Hist(object):
 
     def _apply_systematics_operation(self, other, operation, postfix, scale=1):
         result = {}
+        if other is None:
+            return copy.deepcopy(self.systematic_raw_root_hists)
 
         all_sys_names = set(self.systematic_raw_root_hists.keys()) | set(other.systematic_raw_root_hists.keys())
 

@@ -11,6 +11,7 @@ class Acceptance:
         self.acceptance_hist = self.mc_hist_full_phase.divide(self.mc_hist_in_acceptance)
 
     def do_correction(self, input_hist):
+        # input_hist from unfolder
         out_hist = input_hist.multiply(self.acceptance_hist)
         return out_hist
 

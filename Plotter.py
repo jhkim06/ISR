@@ -19,6 +19,8 @@ def find_non_negative_min(arr):
     if non_negative.size > 0:
         minimum = non_negative.min()
         return minimum if minimum > 0 else 1e-2
+    else:
+        return 1e-2
 
 
 class PlottableHist(Hist):

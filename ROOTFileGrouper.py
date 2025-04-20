@@ -1,5 +1,7 @@
 import ROOT
 from Hist import Hist
+#ROOT.gErrorIgnoreLevel = ROOT.kWarning
+
 
 # Merge root files to handel them simultaneously
 class ROOTFileGrouper:

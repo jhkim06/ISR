@@ -1,30 +1,7 @@
 from Hist import Hist, change_to_greek
-import copy
 from Analyzer import labels, colors, get_hist_kwargs
 from ISR2DHist import ISR2DHist
 
-'''
-class ISRMatrix(Hist):
-    def __init__(self, hist,  # TH2
-                 tunfold_folded_bin,
-                 tunfold_unfolded_bin,
-                 hist_name='',
-                 experiment='CMS',
-                 label='',  # to be used in legend of histogram
-                 channel='',
-                 year='',
-                 is_measurement=True,
-                 is_mc_signal=False,):
-
-        super(ISR2DHist, self).__init__(hist,
-                                        hist_name=hist_name,
-                                        experiment=experiment,
-                                        label=label,
-                                        channel=channel,
-                                        year=year,
-                                        is_measurement=is_measurement,
-                                        is_mc_signal=is_mc_signal,)
-'''
 
 # group of hists for ISR
 class ISRHistSet:
@@ -41,7 +18,9 @@ class ISRHistSet:
         self.tunfolder = None
         self.unfolded_measurement_hist = None
         self.unfolded_signal_hist = None  # request to tunfolder
+
         self.acceptance_corrected_measurement_hist = None
+        self.acceptance_corrected_signal_hist = None  # request to acceptance_corrector
 
 
 # ISRPtHists ISRMassHists
@@ -55,8 +34,10 @@ class ISRHists:
 
         self.year = year
         self.channel = channel
+
         self.mass_bins = mass_bins
         self.pt_bins = pt_bins
+
         self.is_2d = is_2d
         self.is_pt = is_pt
 
@@ -67,7 +48,16 @@ class ISRHists:
         self.unfolded_tunfold_bin = unfolded_tunfold_bin
 
         #
-        self.mean_values = None
+        self.measurement_mean_values = None
+        self.measurement_bg_subtracted_mean_values = None
+        self.signal_mean_values = None
+        self.background_mean_values = None
+
+        self.unfolded_measurement_mean_values = None
+        self.unfolded_signal_mean_values = None
+
+        self.acceptance_corrected_measurement_mean_values = None
+        self.acceptance_corrected_signal_mean_values = None
 
         # common plot cosmetics
         if is_pt:
@@ -202,14 +192,11 @@ class ISRHists:
 
         plotter.init_plotter(rows=2, cols=1)
         plotter.set_experiment_label(**{'year': measurement_hist.year})
-        plotter.add_hist(measurement_hist, **{'histtype':'errorbar','color':'black'})
-        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **{'color':'red'})
+        plotter.add_hist(measurement_hist, **get_hist_kwargs(measurement_hist.get_label()))
+        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True,  **{'label': 'Drell-Yan'})
         plotter.add_ratio_hists(location=(1, 0))
 
         plotter.draw_hist()
-        plotter.get_axis(location=(0, 0)).set_yscale("log")
-        plotter.get_axis(location=(0, 0)).set_xscale("log")
-
         x_log_scale = True
         y_log_scale = True
         if self.is_pt:
@@ -220,5 +207,25 @@ class ISRHists:
         plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
         plotter.save_and_reset_plotter(measurement_hist.hist_name)
 
-    def draw_acceptance_corrected_level(self):
-        pass
+    def draw_acceptance_corrected_level(self, mass_window_index=-1,):
+        measurement_hist = self.get(hist_type='acceptance_corrected_measurement', mass_window_index=mass_window_index)
+        signal_hist = self.get(hist_type='acceptance_corrected_signal', mass_window_index=mass_window_index)
+
+        plotter = measurement_hist.plotter
+
+        plotter.init_plotter(rows=2, cols=1)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
+        plotter.add_hist(measurement_hist, **get_hist_kwargs(measurement_hist.get_label()))
+        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True,  **{'label': 'Drell-Yan'})
+        plotter.add_ratio_hists(location=(1, 0))
+
+        plotter.draw_hist()
+        x_log_scale = True
+        y_log_scale = True
+        if self.is_pt:
+            x_log_scale = False
+            y_log_scale = False
+        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale, y_log_scale=y_log_scale)
+        text = self.get_additional_text_on_plot(mass_window_index)
+        plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
+        plotter.save_and_reset_plotter(measurement_hist.hist_name)

@@ -164,37 +164,42 @@ class TUnFolder:
                 self._set_tunfolder_input(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self._subtract_backgrounds(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self.unfold(sys_tunfolder=tunfolder)
-                use_axis_binning = True
-                # Check differences with use_axis_binning = False
-                sys_unfolded_hist[sys_name][var_name] = tunfolder.GetOutput("unfolded_hist"+sys_name+var_name,
-                                                                            ctypes.c_char_p(0),
-                                                                            ctypes.c_char_p(0),
-                                                                            ctypes.c_char_p(0),
-                                                                            use_axis_binning)
+                sys_unfolded_hist[sys_name][var_name] = self.get_unfolded_hist(use_axis_binning=False, tunfolder=tunfolder)
 
         # TODO different response matrix?
 
         return sys_unfolded_hist
 
-    def get_unfolded_hist(self, projection_mode="*[*]", use_axis_binning=True):
+    def get_unfolded_hist(self, projection_mode="*[*]",
+                          use_axis_binning=True,
+                          tunfolder=None):
+
+        if tunfolder is None:
+            tunfolder = self.tunfolder
+        else:
+            tunfolder = tunfolder
+
         if self.unfolded_bin is not None:
+            # 2D unfolding
             # it seems parameter axis steering not passed properly so use ExtractHistogram()
-            unfolded_hist = self.tunfolder.GetOutput("unfolded_hist",
-                                                     ctypes.c_char_p(0),
-                                                     ctypes.c_char_p(0),
-                                                     ctypes.c_char_p(0),
-                                                     False)
+            unfolded_hist = tunfolder.GetOutput("unfolded_hist",
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                False)
+            # for "*[*]", use_axis_binning=True, makes no sense?
             unfolded_hist = self.unfolded_bin.ExtractHistogram("unfolded_hist_extracted",
                                                                unfolded_hist,
                                                                0,  # error matrix
-                                                               use_axis_binning,
+                                                               False,
                                                                projection_mode)
         else:
-            unfolded_hist = self.tunfolder.GetOutput("unfolded_hist",
-                                                     ctypes.c_char_p(0),
-                                                     ctypes.c_char_p(0),
-                                                     ctypes.c_char_p(0),
-                                                     use_axis_binning)
+            # 1D unfolding
+            unfolded_hist = tunfolder.GetOutput("unfolded_hist",
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                ctypes.c_char_p(0),
+                                                True)  # for 1D, False, True makes no difference?
 
         return unfolded_hist
 
