@@ -410,6 +410,7 @@ class ISRAnalyzer(Analyzer):
         unfolded_hist.systematic_raw_root_hists = sys_unfolded_raw_hist
         unfolded_hist.compute_systematic_rss_per_sysname()
 
+        # FIXME propagate systematic hist
         raw_hist = unfold.get_mc_truth_from_response_matrix(use_axis_binning=True)
         # raw_hist.Scale(1, "width")
         unfolded_signal_hist = signal_fake_hist.create(

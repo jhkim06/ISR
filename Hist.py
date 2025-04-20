@@ -189,32 +189,27 @@ class Hist(object):
 
     def _apply_systematics_operation(self, other, operation, postfix, scale=1):
         result = {}
-        if other is not None:
-            self_keys = set(self.systematic_raw_root_hists.keys())
-            other_keys = set(other.systematic_raw_root_hists.keys())
-        else:
-            return copy.deepcopy(self.systematic_raw_root_hists)
 
-        if self_keys != other_keys:
-            print(f"⚠️ Warning: Systematic keys differ:\n  self = {self_keys}\n  other = {other_keys}")
+        all_sys_names = set(self.systematic_raw_root_hists.keys()) | set(other.systematic_raw_root_hists.keys())
 
-        for sys_name in self_keys & other_keys:
-            self_vars = set(self.systematic_raw_root_hists[sys_name].keys())
-            other_vars = set(other.systematic_raw_root_hists[sys_name].keys())
-            if self_vars != other_vars:
-                print(
-                    f"⚠️ Warning: Variation keys differ in '{sys_name}':\n  self = {self_vars}\n  other = {other_vars}")
+        for sys_name in all_sys_names:
+            self_vars = self.systematic_raw_root_hists.get(sys_name, {})
+            other_vars = other.systematic_raw_root_hists.get(sys_name, {})
 
-        for sys_name, variations in self.systematic_raw_root_hists.items():
+            all_var_names = set(self_vars.keys()) | set(other_vars.keys())
             result[sys_name] = {}
-            for var_name, hist in variations.items():
-                new_hist = hist.Clone(f"{sys_name}_{var_name}_{postfix}")
-                if other and sys_name in other.systematic_raw_root_hists and var_name in \
-                        other.systematic_raw_root_hists[sys_name]:
-                    if operation == "Add":
-                        new_hist.__getattribute__(operation)(other.systematic_raw_root_hists[sys_name][var_name], scale)
-                    else:
-                        new_hist.__getattribute__(operation)(other.systematic_raw_root_hists[sys_name][var_name])
+
+            for var_name in all_var_names:
+                # Use default hist if missing
+                self_hist = self_vars.get(var_name, self.raw_root_hist)
+                other_hist = other_vars.get(var_name, other.raw_root_hist)
+
+                new_hist = self_hist.Clone(f"{sys_name}_{var_name}_{postfix}")
+                if operation == "Add":
+                    getattr(new_hist, operation)(other_hist, scale)
+                else:
+                    getattr(new_hist, operation)(other_hist)
+
                 result[sys_name][var_name] = new_hist
 
         return result

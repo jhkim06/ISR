@@ -108,7 +108,7 @@ class ISRHists:
             isr_hist = self.isr_hists[mass_window_index]
         return (isr_hist.measurement_hist,
                 isr_hist.signal_fake_hist,
-                isr_hist.background_hists,
+                isr_hist.background_hist,
                 isr_hist.response_matrix)
 
 
@@ -194,18 +194,30 @@ class ISRHists:
         plotter.save_and_reset_plotter(measurement_hist.hist_name)
 
     def draw_unfolded_level(self, mass_window_index=-1):
+
         measurement_hist = self.get(hist_type='unfolded_measurement', mass_window_index=mass_window_index)
         signal_hist = self.get(hist_type='unfolded_signal', mass_window_index=mass_window_index)
 
         plotter = measurement_hist.plotter
 
-        plotter.init_plotter()
+        plotter.init_plotter(rows=2, cols=1)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
         plotter.add_hist(measurement_hist, **{'histtype':'errorbar','color':'black'})
         plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **{'color':'red'})
+        plotter.add_ratio_hists(location=(1, 0))
+
         plotter.draw_hist()
         plotter.get_axis(location=(0, 0)).set_yscale("log")
         plotter.get_axis(location=(0, 0)).set_xscale("log")
 
+        x_log_scale = True
+        y_log_scale = True
+        if self.is_pt:
+            x_log_scale = False
+            y_log_scale = False
+        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale, y_log_scale=y_log_scale)
+        text = self.get_additional_text_on_plot(mass_window_index)
+        plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
         plotter.save_and_reset_plotter(measurement_hist.hist_name)
 
     def draw_acceptance_corrected_level(self):
