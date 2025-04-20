@@ -305,7 +305,11 @@ class Hist(object):
                 squared_sum += (var_mean - central_mean) ** 2
             result[sys_name] = np.sqrt(squared_sum)
 
-        return pd.DataFrame([result])
+        result = pd.DataFrame([result])
+        error_columns = result.columns.difference(['mean'])
+        result['total_error'] = np.sqrt((result[error_columns] ** 2).sum(axis=1))
+
+        return result
 
     def to_numpy(self, stat=False):
         values, bins, stat_error = to_numpy(self.raw_root_hist)

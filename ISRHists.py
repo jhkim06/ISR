@@ -1,6 +1,7 @@
 from Hist import Hist, change_to_greek
 from Analyzer import labels, colors, get_hist_kwargs
 from ISR2DHist import ISR2DHist
+import pandas as pd
 
 
 # group of hists for ISR
@@ -59,6 +60,8 @@ class ISRHists:
         self.acceptance_corrected_measurement_mean_values = []
         self.acceptance_corrected_signal_mean_values = []
 
+        self.binned_mean_correction_factors = None
+
         # common plot cosmetics
         if is_pt:
             self.x_axis_label = r"$p_{T}^{"+change_to_greek(self.channel)+"}$"
@@ -101,9 +104,8 @@ class ISRHists:
             # loop over mass bins
             if self.is_pt:
                 for index in range(len(self.mass_bins)):
-                    measurement_hist = self.get(hist_type='acceptance_corrected_measurement',
-                                                mass_window_index=index)
-                    mean = measurement_hist.get_mean_df()
+                    extracted_hist = measurement_hist.extract_1d_hist(index=index)
+                    mean = extracted_hist.get_mean_df()
                     self.acceptance_corrected_measurement_mean_values.append(mean)
             else:
                 for low, high in self.mass_bins:
@@ -111,6 +113,7 @@ class ISRHists:
                     self.acceptance_corrected_measurement_mean_values.append(mean)
         else:
             # set mean for mass_window_index
+            # TODO 1D case self.is_pt == True, self.is_2d == False
             pass
 
     def get_isr_hists(self, mass_window_index=-1):
@@ -122,7 +125,6 @@ class ISRHists:
                 isr_hist.signal_fake_hist,
                 isr_hist.background_hist,
                 isr_hist.response_matrix)
-
 
     def set_isr_response_matrices(self, response_matrix, mass_window_index=-1):
         if self.is_pt:
@@ -186,6 +188,26 @@ class ISRHists:
         else:
             raise ValueError("Cannot draw ISR plot between two ISR histograms with different dimensionality")
 
+        measurement_hist = self.get(hist_type='acceptance_corrected_measurement', mass_window_index=0)
+        plotter = measurement_hist.plotter
+
+        plotter.init_plotter(figsize=(10,8), rows=1, cols=1)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
+
+        mass=pd.concat(isr_mass.acceptance_corrected_measurement_mean_values, ignore_index=True)
+        pt=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
+        pt_scaled=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
+        pt_scaled['mean'] = pt_scaled['mean'] * self.binned_mean_correction_factors
+
+        plotter.add_errorbar((mass, pt), color='black', marker='.')
+        plotter.add_errorbar((mass, pt_scaled), color='gray', marker='o', mfc='none')
+        plotter.draw_errorbar()
+
+        plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
+        text = isr_mass.get_additional_text_on_plot()
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper left", })
+
+        plotter.save_and_reset_plotter("isr_test")
 
     def draw_detector_level(self, mass_window_index=-1):
 

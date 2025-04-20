@@ -294,6 +294,13 @@ class Plotter:
         self.current_axis.add_collection(pc)
         self.current_axis.add_patch(legend_)
 
+    def set_isr_plot_cosmetics(self, channel, ):
+
+        self.get_axis(location=(0, 0)).set_xscale("log")
+
+        self.get_axis(location=(0, 0)).set_ylabel(r"Mean $p_{T}^{"+channel+"}$ GeV")
+        self.get_axis(location=(0, 0)).set_xlabel(r"Mean $m^{"+channel+"}$ GeV")
+
     def set_common_ratio_plot_cosmetics(self,
                                         x_variable_name,
                                         x_log_scale=False,
@@ -353,7 +360,7 @@ class Plotter:
         at = AnchoredText(text, prop=dict(size=20), **kwargs)
         self.current_axis.add_artist(at)
         if do_magic:
-            hep.plot.mpl_magic(self.current_axis)
+            hep.plot.mpl_magic(self.current_axis)  # error without legend?
         #plt.rcParams['text.usetex'] = False
 
     def add_comparison_pair(self, nominator_hist, denominator_hist,
@@ -415,8 +422,11 @@ class Plotter:
 
             x_value = x_data.T[0]
             y_value = y_data.T[0]
-            x_error = x_data.T[1]
-            y_error = y_data.T[1]
+
+            # use the last bin (total error) as error bar
+            x_error = x_data.T[-1]
+            y_error = y_data.T[-1]
+
             self.set_current_axis(location=self.errorbar_loc[index])
             self.current_axis.errorbar(x_value, y_value, xerr=x_error, yerr=y_error,
                                        **self.errorbar_kwargs[index])
