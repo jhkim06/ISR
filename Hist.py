@@ -1,6 +1,7 @@
 import numpy as np
 import ROOT
 import copy
+import pandas as pd
 
 
 def change_to_greek(raw_string):
@@ -270,21 +271,41 @@ class Hist(object):
                 self.systematic_raw_root_hists[sys_name][var_name] = hist
 
 
-    def get_mean(self, binned_mean=True, range_min=None, range_max=None):
-        if binned_mean:
+    def get_mean(self, binned_mean=True, range_min=None, range_max=None, target_hist=None):
+        if target_hist:
+            target_hist = target_hist
+        else:
+            target_hist = self.raw_root_hist
+
+        if binned_mean:  # force binned mean
             if range_min is None and range_max is None:
-                range_min = self.raw_root_hist.GetXaxis().GetXmin()
-                range_max = self.raw_root_hist.GetXaxis().GetXmax()
-                self.raw_root_hist.GetXaxis().SetRangeUser(range_min, range_max)
-                mean, mean_error = self.raw_root_hist.GetMean(), self.raw_root_hist.GetMeanError()
-                self.raw_root_hist.GetYaxis().SetRangeUser(0, 0)
-            else:
-                self.raw_root_hist.GetXaxis().SetRangeUser(range_min, range_max)
-                mean, mean_error = self.raw_root_hist.GetMean(), self.raw_root_hist.GetMeanError()
-                self.raw_root_hist.GetYaxis().SetRangeUser(0, 0)
+                range_min = target_hist.GetXaxis().GetXmin()
+                range_max = target_hist.GetXaxis().GetXmax()
+            target_hist.GetXaxis().SetRangeUser(range_min, range_max)
+            mean, mean_error = target_hist.GetMean(), target_hist.GetMeanError()
+            target_hist.GetYaxis().SetRangeUser(0, 0)
             return mean, mean_error
         else:
-            return self.raw_root_hist.GetMean(), self.raw_root_hist.GetMeanError()
+            return target_hist.GetMean(), target_hist.GetMeanError()
+
+    def get_mean_df(self, binned_mean=True, range_min=None, range_max=None):
+        central_mean, central_error = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max)
+        # Initialize result dict
+        result = {
+            "mean": central_mean,
+            "stat": central_error
+        }
+
+        # Loop over systematics and calculate RSS of mean shifts
+        for sys_name, variations in self.systematic_raw_root_hists.items():
+            squared_sum = 0.0
+            for var_name, hist in variations.items():
+                var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
+                                            target_hist=hist)
+                squared_sum += (var_mean - central_mean) ** 2
+            result[sys_name] = np.sqrt(squared_sum)
+
+        return pd.DataFrame([result])
 
     def to_numpy(self, stat=False):
         values, bins, stat_error = to_numpy(self.raw_root_hist)

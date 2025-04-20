@@ -56,8 +56,8 @@ class ISRHists:
         self.unfolded_measurement_mean_values = None
         self.unfolded_signal_mean_values = None
 
-        self.acceptance_corrected_measurement_mean_values = None
-        self.acceptance_corrected_signal_mean_values = None
+        self.acceptance_corrected_measurement_mean_values = []
+        self.acceptance_corrected_signal_mean_values = []
 
         # common plot cosmetics
         if is_pt:
@@ -90,6 +90,28 @@ class ISRHists:
                 self.isr_hists.append(
                     ISRHistSet(measurement_hist, signal_hist, signal_fake_hist, background_hists, matrix)
                 )
+
+    def set_acceptance_corrected_hist(self, measurement_hist, signal_hist, mass_window_index=0,):
+
+        self.isr_hists[mass_window_index].acceptance_corrected_measurement_hist = measurement_hist
+        self.isr_hists[mass_window_index].acceptance_corrected_signal_hist = signal_hist
+
+        # set mean values
+        if self.is_2d or self.is_pt==False:
+            # loop over mass bins
+            if self.is_pt:
+                for index in range(len(self.mass_bins)):
+                    measurement_hist = self.get(hist_type='acceptance_corrected_measurement',
+                                                mass_window_index=index)
+                    mean = measurement_hist.get_mean_df()
+                    self.acceptance_corrected_measurement_mean_values.append(mean)
+            else:
+                for low, high in self.mass_bins:
+                    mean = measurement_hist.get_mean_df(range_min=low, range_max=high)
+                    self.acceptance_corrected_measurement_mean_values.append(mean)
+        else:
+            # set mean for mass_window_index
+            pass
 
     def get_isr_hists(self, mass_window_index=-1):
         if self.is_2d or self.is_pt==False:
@@ -153,6 +175,17 @@ class ISRHists:
         else:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
+
+    def draw_isr_plot(self, other):
+        if self.is_pt and other.is_pt == False:
+            isr_pt = self
+            isr_mass = other
+        elif self.is_pt == False and other.is_pt:
+            isr_pt = other
+            isr_mass = self
+        else:
+            raise ValueError("Cannot draw ISR plot between two ISR histograms with different dimensionality")
+
 
     def draw_detector_level(self, mass_window_index=-1):
 

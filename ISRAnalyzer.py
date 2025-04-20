@@ -433,8 +433,8 @@ class ISRAnalyzer(Analyzer):
 
             unfolded_bin = self.isr_pt.unfolded_tunfold_bin
 
-            self.isr_pt.isr_hists[0].acceptance_corrected_measurement_hist = ISR2DHist(acceptance_corrected, unfolded_bin)
-            self.isr_pt.isr_hists[0].acceptance_corrected_signal_hist = ISR2DHist(mc_hist_full_phase, unfolded_bin)
+            self.isr_pt.set_acceptance_corrected_hist(ISR2DHist(acceptance_corrected, unfolded_bin),
+                                                      ISR2DHist(mc_hist_full_phase, unfolded_bin))
 
     def mass_isr_acceptance_correction(self):
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
@@ -447,8 +447,7 @@ class ISRAnalyzer(Analyzer):
         acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
 
-        self.isr_mass.isr_hists[0].acceptance_corrected_measurement_hist = acceptance_corrected
-        self.isr_mass.isr_hists[0].acceptance_corrected_signal_hist = mc_hist_full_phase
+        self.isr_mass.set_acceptance_corrected_hist(acceptance_corrected, mc_hist_full_phase)
 
     def do_isr_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
                       unfolded_bin_name=None, folded_bin_name=None,
