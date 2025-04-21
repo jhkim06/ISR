@@ -65,6 +65,9 @@ class ISRAnalyzer(Analyzer):
     def get_mass_bins(self):
         return self.mass_bins
 
+    def get_isr_results(self):
+        return self.isr_pt, self.isr_mass
+
     def _set_isr_1d_hist_names(self):
 
         # 1D case: set pt and mass histogram prefix
@@ -156,83 +159,6 @@ class ISRAnalyzer(Analyzer):
         return custom_x_labels, custom_x_locates, vlines
 
     # basic plots
-    def draw_isr_measurement_signal_plot(self,
-                                         hist_name_prefix, bin_postfix='', text="", bin_width_norm=False,
-                                         x_variable_name='',
-                                         figsize=(8,8),
-                                         y_log_scale=False,
-                                         x_log_scale=False,
-                                         fake_hist=None):
-
-        hist_name = hist_name_prefix + bin_postfix
-
-        self.draw_measurement_signal_comparison_plot(
-            hist_name,
-            figsize=figsize,
-            bin_width_norm=bin_width_norm,
-            x_variable_name=x_variable_name,
-            y_log_scale=y_log_scale,
-            x_log_scale=x_log_scale,
-            save_and_reset=False)
-
-        if fake_hist:
-            fake_hist['hist'] = self.get_mc_hist(self.signal_name, fake_hist['hist_name'] + bin_postfix,
-                                                 bin_width_norm=bin_width_norm,)
-            self.plotter.add_hist(fake_hist['hist'], **{"color": 'cyan', 'yerr': False,
-                                                        "label": 'Fake', "zorder": 999})
-            self.plotter.draw_hist()
-            self.plotter.set_common_comparison_plot_cosmetics(x_variable_name, y_log_scale, x_log_scale, bin_width_norm)
-            self.plotter.adjust_y_scale()
-            # self.plotter.add_ratio_hists(location=(1, 0))
-
-        custom_x_labels, custom_x_locates, vlines = self.get_bin_labels_locates_mass_window_boundaries(hist_name)
-        if vlines:
-            self.plotter.draw_vlines(vlines=vlines, location=(0, 0))
-            self.plotter.draw_vlines(vlines=vlines, location=(1, 0))
-        if custom_x_labels:
-            self.plotter.add_custom_axis_tick_labels(custom_x_locates, custom_x_labels, location=(1, 0))
-        self.plotter.add_text(text=text, location=(0,0), **{"frameon": False, "loc": "upper left",})
-
-        self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix("bg_subtracted"))
-
-    def draw_isr_measurement_expectation_plot_dimass(self):
-        bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
-        hist_name = self.mass_hist_name_prefix + bin_postfix
-
-        x_axis_label = r"$m^{" + change_to_greek(self.channel) +"}$"
-        y_log_scale = True
-        x_log_scale = True
-        bin_width_norm = True
-        text = str(r"$p_{T}^{"+change_to_greek(self.channel)+"}<$"+str(int(self.pt_bins[1]))+" (GeV)")
-
-        self.draw_measurement_expectation_comparison_plot(
-                                                          hist_name,
-                                                          bin_width_norm=bin_width_norm,
-                                                          x_axis_label=x_axis_label,
-                                                          y_log_scale=y_log_scale,
-                                                          x_log_scale=x_log_scale,
-                                                          save_and_reset=False)
-
-        self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
-        self.plotter.save_and_reset_plotter(hist_name)
-
-    def draw_isr_measurement_expectation_plot_dipt(self,):
-        for mass_bin in self.mass_bins:
-
-            mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            hist_name = self.pt_hist_name_prefix + mass_bin_postfix
-            x_axis_label = r"$p_{T}^{" + change_to_greek(self.channel) + "}$"
-            bin_width_norm = True
-            text = str(int(mass_bin[0]))+"$<m^{"+change_to_greek(self.channel)+"}<$"+str(int(mass_bin[1])) + " GeV"
-
-            self.draw_measurement_expectation_comparison_plot(
-                                                              hist_name,
-                                                              bin_width_norm=bin_width_norm,
-                                                              x_axis_label=x_axis_label,
-                                                              save_and_reset=False)
-            self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
-            self.plotter.save_and_reset_plotter(hist_name)
-
     def draw_isr_measurement_comparison_plot_dimass(self, *setups):
 
         bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
@@ -270,45 +196,6 @@ class ISRAnalyzer(Analyzer):
         self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix(
             plot_postfix_channel+"_"+plot_postfix_year))
 
-
-    def draw_isr_measurement_signal_plot_dimass(self,):
-        postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
-
-        # dimass_[reco_gen_dressed_fake__fine]_dipt
-        fake_hist = {"hist_name": self.mass_fake_hist_name_prefix}
-        self.draw_isr_measurement_signal_plot(
-                                              self.mass_hist_name_prefix, postfix,
-                                              bin_width_norm=True,
-                                              text=str(r"$p_{T}<$" + str(int(self.pt_bins[1])) + " GeV"),
-                                              x_variable_name=r"$m^{" + change_to_greek(self.channel) + "}$",
-                                              y_log_scale=True, x_log_scale=True,
-                                              fake_hist=fake_hist)
-
-    def draw_isr_measurement_signal_plot_dipt(self):
-        x_axis_label = r"$p_{T}^{" + change_to_greek(self.channel) + "}$"
-        for mass_bin in self.mass_bins:
-            mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-
-            # show fake histogram also
-            fake_hist = {"hist_name": self.pt_fake_hist_name_prefix}
-            self.draw_isr_measurement_signal_plot(
-                                                  self.pt_hist_name_prefix, mass_bin_postfix,
-                                                  bin_width_norm=True,
-                                                  text=str(int(mass_bin[0]))+"$<m<$"+str(int(mass_bin[1])) + " GeV",
-                                                  x_variable_name=x_axis_label,
-                                                  fake_hist=fake_hist,)
-
-    def draw_isr_measurement_signal_plot_2d_dipt(self,):
-        fake_hist = {"hist_name": self.pt_mass_fake_hist_name}
-        self.draw_isr_measurement_signal_plot(
-                                              self.pt_mass_hist_name,
-                                              figsize=(15,8),
-                                              bin_width_norm=False,
-                                              text= "2D",
-                                              x_variable_name=
-                                              r'$p_{T}$, m bin index',
-                                              fake_hist=fake_hist)
-
     def setup_isr_hists(self, year, channel, event_selection, is_2d_pt=True, bin_width_norm=False):
         self.set_data_info(year, channel, event_selection)
 
@@ -338,10 +225,6 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False,
                                  year=year, channel=channel)
         self.isr_mass.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
-
-        # 2D hist (make option for 1D hists)
-        # self.draw_detector_level_isr_plot(pt)
-        # set_isr_mass_hist, self.unfold(dimass)
 
     # FIXME make two for mass and pt
     def get_isr_hist(self, is_pt=True, is_2d=True, bin_width_norm=False, mass_window_index=0):
@@ -510,88 +393,6 @@ class ISRAnalyzer(Analyzer):
 
         self.isr_mass.set_acceptance_corrected_hist(acceptance_corrected, mc_hist_full_phase)
 
-    def do_isr_unfold(self, input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                      unfolded_bin_name=None, folded_bin_name=None,
-                      do_acceptance_correction=False, hist_full_phase_name='',
-                      variable_label='', bg_scale=1.0):
-        #
-        unfold_result = self.do_unfold(
-            input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-            unfolded_bin_name, folded_bin_name, variable_label, bg_scale=bg_scale)
-
-        # TODO handle 2D "dipt[O];dimass[UOC1]"
-        use_axis_binning = True
-        if unfolded_bin_name is not None and folded_bin_name is not None:
-            # for 2D, need to loop over each mass bins
-            # FIXME change the output plot names according to bin definitions
-            for index, _ in enumerate(self.mass_bins):
-                axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
-                #
-                unfold_result.bottom_line_test(draw_plot=True, out_name=input_hist_name+'_'+axis_steering,
-                                               use_axis_binning=use_axis_binning, projection_mode=axis_steering)
-            use_axis_binning = False
-        else:
-            unfold_result.bottom_line_test(draw_plot=True,
-                                           out_name=input_hist_name,
-                                           use_axis_binning=use_axis_binning)
-        unfold_result.draw_response_matrix(out_name=input_hist_name)
-
-        if do_acceptance_correction:
-            mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
-            raw_response_matrix = self.get_acceptance_hist(matrix_name)
-            mc_hist_acceptance = (
-                unfold_result.extract_truth_from_2d_hist_using_bin_definition(raw_response_matrix.raw_root_hist))
-            acceptance = Acceptance(mc_hist_full_phase, Hist(mc_hist_acceptance))
-            acceptance_corrected = acceptance.do_correction(
-                Hist(unfold_result.get_unfolded_hist(use_axis_binning=use_axis_binning)))
-            result = acceptance_corrected
-        else:
-            result = Hist(unfold_result.get_unfolded_hist(use_axis_binning=use_axis_binning))
-
-        # FIXME return TUnFolder object?
-        return result
-
-    def get_isr_measurement(self, values, as_df):
-        if as_df:
-            dict_list = []
-
-            for ith_mass in range(len(self.mass_bins)):
-                low_mass_edge = self.mass_bins[ith_mass][0]
-                high_mass_edge = self.mass_bins[ith_mass][1]
-
-                mass_window_str = str(low_mass_edge) + ':' + str(high_mass_edge)
-                dict_temp = dict(mass_window=mass_window_str, mean=values[ith_mass][0])
-                dict_temp['stat error'] = values[ith_mass][1]
-                dict_list.append(dict_temp)
-
-            df = pd.DataFrame(dict_list)
-
-            reg_expression = r".*error"
-            calculate_squared_root_sum(df, reg_expression)
-
-            return df
-        else:
-            return values
-
-    # TODO use postfix for systematic later
-    def get_unfolded_mean_pt_1d(self, do_acceptance_correction=False, correct_binned_mean=False):
-        # Use mass_bin as postfix
-        pt_data = []
-        for mass_bin in self.mass_bins:
-            mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            # contains histograms for the analysis
-            input_hist_name, matrix_name, fake_hist_name, bg_hist_name = (
-                self.get_hist_names_for_1d_dipt(mass_bin_postfix))
-            result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                                        do_acceptance_correction=do_acceptance_correction,
-                                        hist_full_phase_name=self.pt_hist_full_phase_name_prefix + mass_bin_postfix,
-                                        variable_label=self.dipt_label)
-            # get unbinned mean and binned mean
-            pt_data.append(result.get_mean())
-        if correct_binned_mean:
-            self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
-        return pt_data
-
     def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name=''):
         if unfolded_space_name == '':
             unfolded_space_name = self.unfolded_space_name
@@ -638,18 +439,6 @@ class ISRAnalyzer(Analyzer):
 
         return correction_factors
 
-    def correction_to_unbinned_prefsr_mean(self, pt_data, space_name, bin_name):
-        pt_hist_full_phase_name_prefix = ('dipt_[gen_' + space_name +
-                                          '_acceptance__' + bin_name + ']_dimass')
-
-        for index, mass_bin in enumerate(self.mass_bins):
-            mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            mc_hist_full_phase = self.get_mc_hist(self.signal_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
-            correction_factor = (
-                    mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0])
-            pt_data[index] = (pt_data[index][0] * correction_factor, pt_data[index][1])
-        return pt_data
-
     def extract_mean_pt_from_2d_hist(self, pt_2d_hist, unfold_bin):
         pt_data = []
         for index, _ in enumerate(self.mass_bins):
@@ -659,49 +448,6 @@ class ISRAnalyzer(Analyzer):
                                                            axis_steering))
             pt_data.append(temp_result.get_mean())
         return pt_data
-
-    def get_unfolded_mean_pt_2d(self,
-                                do_acceptance_correction=False,
-                                correct_binned_mean=False,
-                                as_df=False, bg_scale=1.0, **kwargs):
-
-        unfolded_bin, _ = self.get_unfold_bin_maps(
-            self.pt_mass_unfolded_bin_name,
-            self.pt_mass_detector_bin_name
-        )
-
-        #
-        # use default histograms
-        result = self.do_isr_unfold(self.pt_mass_hist_name, self.pt_mass_matrix_name,
-                                    self.pt_mass_fake_hist_name, self.pt_mass_hist_name,
-                                    bg_scale=bg_scale,
-                                    unfolded_bin_name=self.pt_mass_unfolded_bin_name,
-                                    folded_bin_name=self.pt_mass_detector_bin_name,
-                                    do_acceptance_correction=do_acceptance_correction,
-                                    hist_full_phase_name=self.pt_mass_hist_full_phase_name)
-
-        pt_data = self.extract_mean_pt_from_2d_hist(result, unfolded_bin)
-        if correct_binned_mean:
-            self.correction_to_unbinned_prefsr_mean(pt_data, self.unfolded_space_name, self.unfolded_bin_name)
-
-        return self.get_isr_measurement(pt_data, as_df)
-
-    def get_unfolded_mean_mass(self,
-                               do_acceptance_correction=False, as_df=False, bg_scale=1.0):
-
-        postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
-        input_hist_name, matrix_name, fake_hist_name, bg_hist_name = self.get_hist_names_for_1d_dimass(postfix)
-        result = self.do_isr_unfold(input_hist_name, matrix_name, fake_hist_name, bg_hist_name,
-                                    bg_scale=bg_scale,
-                                    do_acceptance_correction=do_acceptance_correction,
-                                    hist_full_phase_name=self.mass_hist_full_phase_name_prefix + postfix,
-                                    variable_label=r"$m^{" + change_to_greek(self.channel) + "}$")
-
-        mass_data = []
-        for mass_bin in self.mass_bins:
-            mass_data.append(result.get_mean(range_min=mass_bin[0], range_max=mass_bin[1]))
-
-        return self.get_isr_measurement(mass_data, as_df)
 
     def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False):
         return self.get_mc_hist(self.signal_name, hist_name, bin_width_norm=bin_width_norm)

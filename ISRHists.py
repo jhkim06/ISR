@@ -2,6 +2,7 @@ from Hist import Hist, change_to_greek
 from Analyzer import labels, colors, get_hist_kwargs
 from ISR2DHist import ISR2DHist
 import pandas as pd
+import numpy as np
 
 
 # group of hists for ISR
@@ -67,6 +68,16 @@ class ISRHists:
             self.x_axis_label = r"$p_{T}^{"+change_to_greek(self.channel)+"}$"
         else:
             self.x_axis_label = r"$m^{"+change_to_greek(self.channel)+"}$"
+
+    def update_mean_values(self, other, sys_name):
+        for index, mean_value in enumerate(self.acceptance_corrected_measurement_mean_values):
+            sys_mean = other.acceptance_corrected_measurement_mean_values[index]['mean']
+            mean = mean_value['mean']
+            insert_idx = mean_value.columns.get_loc('total_error')
+            mean_value.insert(insert_idx, sys_name, abs(sys_mean-mean))
+
+            error_columns = mean_value.columns.difference(['mean'])
+            mean_value['total_error'] = np.sqrt((mean_value[error_columns] ** 2).sum(axis=1))
 
     # Note set *detector* level hists
     def set_isr_hists(self, measurement_hist, signal_hist, signal_fake_hist, background_hists, matrix):
@@ -180,7 +191,7 @@ class ISRHists:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
 
-    def draw_isr_plot(self, other):
+    def draw_isr_plot(self, other, save_and_reset_plotter=True):
         if self.is_pt and other.is_pt == False:
             isr_pt = self
             isr_mass = other
@@ -197,19 +208,20 @@ class ISRHists:
         plotter.set_experiment_label(**{'year': measurement_hist.year})
 
         mass=pd.concat(isr_mass.acceptance_corrected_measurement_mean_values, ignore_index=True)
-        pt=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
+        # pt=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
         pt_scaled=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
         pt_scaled['mean'] = pt_scaled['mean'] * self.binned_mean_correction_factors
 
         # plotter.add_errorbar((mass, pt), color='black', marker='.')
-        plotter.add_errorbar((mass, pt_scaled), color='gray', marker='.')
+        plotter.add_errorbar((mass, pt_scaled), color='black', marker='.')
         plotter.draw_errorbar()
 
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
         text = isr_mass.get_additional_text_on_plot()
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper left", })
 
-        plotter.save_and_reset_plotter("isr_test")
+        if save_and_reset_plotter:
+            plotter.save_and_reset_plotter("isr_test"+"_"+self.channel+self.year)
 
     def draw_detector_level(self, mass_window_index=-1):
 
