@@ -296,6 +296,7 @@ class Plotter:
 
     def set_isr_plot_cosmetics(self, channel, ):
 
+        self.get_axis(location=(0, 0)).set_ylim(15, 29)
         self.get_axis(location=(0, 0)).set_xscale("log")
 
         self.get_axis(location=(0, 0)).set_ylabel(r"Mean $p_{T}^{"+channel+"}$ GeV")

@@ -35,7 +35,7 @@ class ISR2DHist(Hist):
 
     def extract_1d_hist(self, index):
         extracted_raw_hist = self.extract_1d_raw_hist(self.raw_root_hist, index)
-        extracted_raw_hist.Scale(1, "width")
+        # extracted_raw_hist.Scale(1, "width")
 
         extracted_hist = Hist(
             extracted_raw_hist,
@@ -53,7 +53,7 @@ class ISR2DHist(Hist):
             extracted_systematic_raw_hists[sys_name] = {}
             for var_name, hist in variations.items():
                 extracted_systematic_raw_hists[sys_name][var_name] = self.extract_1d_raw_hist(hist, index)
-                extracted_systematic_raw_hists[sys_name][var_name].Scale(1, "width")
+                # extracted_systematic_raw_hists[sys_name][var_name].Scale(1, "width")
 
         extracted_hist.systematic_raw_root_hists = extracted_systematic_raw_hists
         extracted_hist.compute_systematic_rss_per_sysname()

@@ -114,7 +114,9 @@ class ISRHists:
         else:
             # set mean for mass_window_index
             # TODO 1D case self.is_pt == True, self.is_2d == False
-            pass
+            if self.is_pt:
+                mean = measurement_hist.get_mean_df()
+                self.acceptance_corrected_measurement_mean_values.append(mean)
 
     def get_isr_hists(self, mass_window_index=-1):
         if self.is_2d or self.is_pt==False:
@@ -199,8 +201,8 @@ class ISRHists:
         pt_scaled=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
         pt_scaled['mean'] = pt_scaled['mean'] * self.binned_mean_correction_factors
 
-        plotter.add_errorbar((mass, pt), color='black', marker='.')
-        plotter.add_errorbar((mass, pt_scaled), color='gray', marker='o', mfc='none')
+        # plotter.add_errorbar((mass, pt), color='black', marker='.')
+        plotter.add_errorbar((mass, pt_scaled), color='gray', marker='.')
         plotter.draw_errorbar()
 
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
