@@ -8,7 +8,7 @@ import numpy as np
 # group of hists for ISR
 class ISRHistSet:
     def __init__(self, measurement_hist, signal_hist, signal_fake_hist, background_hists,
-                 response_matrix):
+                 response_matrix=None):
         # detector hist
         self.measurement_hist = measurement_hist
         self.signal_hist = signal_hist
@@ -45,6 +45,7 @@ class ISRHists:
 
         # detector level hists
         self.isr_hists = []
+        self.isr_hists_1d = []  #
 
         self.folded_tunfold_bin = folded_tunfold_bin
         self.unfolded_tunfold_bin = unfolded_tunfold_bin
@@ -69,6 +70,7 @@ class ISRHists:
         else:
             self.x_axis_label = r"$m^{"+change_to_greek(self.channel)+"}$"
 
+    # TODO update hist also
     def update_mean_values(self, other, sys_name):
         for index, mean_value in enumerate(self.acceptance_corrected_measurement_mean_values):
             sys_mean = other.acceptance_corrected_measurement_mean_values[index]['mean']
@@ -81,7 +83,6 @@ class ISRHists:
 
     # Note set *detector* level hists
     def set_isr_hists(self, measurement_hist, signal_hist, signal_fake_hist, background_hists, matrix):
-
         if self.is_pt and len(self.mass_bins) == len(self.isr_hists):
             print('Check the number of mass bins and the number of ISR hists...')
             return
@@ -148,37 +149,39 @@ class ISRHists:
         else:
             self.isr_hists[0].response_matrix = response_matrix
 
+    def set_1d_isr_hists(self):
+        for index, _ in enumerate(self.mass_bins):
+            pass
+
     def get(self, hist_type='signal', mass_window_index=-1, bin_width_norm=False):
-        # get hist object
-        if self.is_pt:
-            if self.is_2d:
-                isr_hist_to_draw = self.isr_hists[0]
-            else:
-                isr_hist_to_draw = self.isr_hists[mass_window_index]
+        # Choose the relevant ISR hist container
+        if self.is_pt and not self.is_2d:
+            isr_hist_to_draw = self.isr_hists[mass_window_index]
         else:
-            # for mass, only one isr_hist will be used
             isr_hist_to_draw = self.isr_hists[0]
 
+        # Fetch the target hist or dict of hists
         attr_name = hist_type + "_hist"
         target_hist = getattr(isr_hist_to_draw, attr_name)
         if target_hist is None:
-            raise ValueError(f"No attribute names '{attr_name}' found")
+            raise ValueError(f"No attribute named '{attr_name}' found")
 
+        # Helper to normalize and return
+        def normalize(hist):
+            return hist.bin_width_norm() if bin_width_norm else hist
+
+        # Handle 2D case
         if self.is_2d:
-            # decide whether to extract 1d hist or not
-            if -1 < mass_window_index < len(self.mass_bins):
+            if 0 <= mass_window_index < len(self.mass_bins):
                 if hist_type == 'background':
-                    extracted_background_hists = {}
-                    for bg_name, bg_hist in target_hist.items():
-                        extracted_background_hists[bg_name] = bg_hist.extract_1d_hist(mass_window_index)
-                    return extracted_background_hists
-                else:
-                    return target_hist.extract_1d_hist(mass_window_index)  # bin_width_norm applied in extract_1d_hist
-            else:
-                return target_hist
-        else:
-            return target_hist
-        # hist.bin_width_norm()
+                    return {k: normalize(v.extract_1d_hist(mass_window_index)) for k, v in target_hist.items()}
+                return normalize(target_hist.extract_1d_hist(mass_window_index))
+            return normalize(target_hist)
+
+        # Handle 1D case
+        if hist_type == 'background':
+            return {k: normalize(v) for k, v in target_hist.items()}
+        return normalize(target_hist)
 
     def get_additional_text_on_plot(self, mass_window_index=-1):
         text = ''
@@ -223,78 +226,64 @@ class ISRHists:
         if save_and_reset_plotter:
             plotter.save_and_reset_plotter("isr_test"+"_"+self.channel+self.year)
 
-    def draw_detector_level(self, mass_window_index=-1):
-
-        measurement_hist = self.get(hist_type='measurement', mass_window_index=mass_window_index)
-        signal_hist = self.get(hist_type='signal', mass_window_index=mass_window_index)
-        background_hists = self.get(hist_type='background', mass_window_index=mass_window_index)
-
+    def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix=''):
         plotter = measurement_hist.plotter
-
         plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.year})  # to avoid clipping of labels
-        for bg_name, bg_hist in background_hists.items():
-            plotter.add_hist(bg_hist, as_stack=True, as_denominator=True, **{'label': labels[bg_hist.get_label()]})
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
+
+        # Add backgrounds if any
+        if background_hists:
+            for bg_name, bg_hist in background_hists.items():
+                plotter.add_hist(bg_hist, as_stack=True, as_denominator=True,
+                                 **{'label': labels[bg_hist.get_label()]})
+
+        # Add signal and measurement
         plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **get_hist_kwargs(signal_hist.get_label()))
         plotter.add_hist(measurement_hist, **get_hist_kwargs(measurement_hist.get_label()))
+
+        # Add ratio + draw
         plotter.add_ratio_hists(location=(1, 0))
-
         plotter.draw_hist()
-        # TODO define common cosmetics in class definition
-        x_log_scale = True
-        y_log_scale = True
+
+        x_log_scale = y_log_scale = True
         if self.is_pt:
-            x_log_scale = False
-            y_log_scale = False
-        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale, y_log_scale=y_log_scale)
+            x_log_scale = y_log_scale = False
+
+        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale,
+                                                     y_log_scale=y_log_scale)
+
+        if text:
+            plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left"})
+
+        plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+
+    def draw_detector_level(self, mass_window_index=-1, bin_width_norm=False):
+        measurement_hist = self.get('measurement', mass_window_index, bin_width_norm=bin_width_norm)
+        signal_hist = self.get('signal', mass_window_index, bin_width_norm=bin_width_norm)
+        background_hists = self.get('background', mass_window_index, bin_width_norm=bin_width_norm)
         text = self.get_additional_text_on_plot(mass_window_index)
-        plotter.add_text(text=text, location=(0, 0),  **{"frameon": False, "loc": "upper left", })
 
-        plotter.save_and_reset_plotter(measurement_hist.hist_name)
+        suffix = '_detector'
+        if self.is_2d:
+            suffix = '_detector_'+str(mass_window_index)
+        self._draw_comparison_plot(measurement_hist, signal_hist, background_hists, text, suffix=suffix)
 
-    def draw_unfolded_level(self, mass_window_index=-1):
-
-        measurement_hist = self.get(hist_type='unfolded_measurement', mass_window_index=mass_window_index)
-        signal_hist = self.get(hist_type='unfolded_signal', mass_window_index=mass_window_index)
-
-        plotter = measurement_hist.plotter
-
-        plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.year})
-        plotter.add_hist(measurement_hist, **get_hist_kwargs(measurement_hist.get_label()))
-        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True,  **{'label': 'Drell-Yan'})
-        plotter.add_ratio_hists(location=(1, 0))
-
-        plotter.draw_hist()
-        x_log_scale = True
-        y_log_scale = True
-        if self.is_pt:
-            x_log_scale = False
-            y_log_scale = False
-        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale, y_log_scale=y_log_scale)
+    def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False):
+        measurement_hist = self.get('unfolded_measurement', mass_window_index, bin_width_norm=bin_width_norm)
+        signal_hist = self.get('unfolded_signal', mass_window_index, bin_width_norm=bin_width_norm)
         text = self.get_additional_text_on_plot(mass_window_index)
-        plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
-        plotter.save_and_reset_plotter(measurement_hist.hist_name)
 
-    def draw_acceptance_corrected_level(self, mass_window_index=-1,):
-        measurement_hist = self.get(hist_type='acceptance_corrected_measurement', mass_window_index=mass_window_index)
-        signal_hist = self.get(hist_type='acceptance_corrected_signal', mass_window_index=mass_window_index)
+        suffix = '_unfolded'
+        if self.is_2d:
+            suffix = '_unfolded_'+str(mass_window_index)
+        self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix)
 
-        plotter = measurement_hist.plotter
-
-        plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.year})
-        plotter.add_hist(measurement_hist, **get_hist_kwargs(measurement_hist.get_label()))
-        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True,  **{'label': 'Drell-Yan'})
-        plotter.add_ratio_hists(location=(1, 0))
-
-        plotter.draw_hist()
-        x_log_scale = True
-        y_log_scale = True
-        if self.is_pt:
-            x_log_scale = False
-            y_log_scale = False
-        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale, y_log_scale=y_log_scale)
+    def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False):
+        measurement_hist = self.get('acceptance_corrected_measurement', mass_window_index, bin_width_norm=bin_width_norm)
+        signal_hist = self.get('acceptance_corrected_signal', mass_window_index, bin_width_norm=bin_width_norm)
         text = self.get_additional_text_on_plot(mass_window_index)
-        plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left", })
-        plotter.save_and_reset_plotter(measurement_hist.hist_name)
+
+        suffix = '_acceptance_corrected'
+        if self.is_2d:
+            suffix = '_acceptance_corrected_'+str(mass_window_index)
+        self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix='_acceptance_corrected')

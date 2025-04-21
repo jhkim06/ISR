@@ -196,9 +196,8 @@ class ISRAnalyzer(Analyzer):
         self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix(
             plot_postfix_channel+"_"+plot_postfix_year))
 
-    def setup_isr_hists(self, year, channel, event_selection, is_2d=True, bin_width_norm=False):
+    def setup_isr_hists(self, year, channel, event_selection, is_2d=True):
         self.set_data_info(year, channel, event_selection)
-
         if is_2d:
             unfolded_bin, folded_bin = self.get_unfold_bin_maps(
                 self.pt_mass_unfolded_bin_name,
@@ -216,18 +215,16 @@ class ISRAnalyzer(Analyzer):
                                    year=year, channel=channel, )
             for index, _ in enumerate(self.mass_bins):
                 measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=True, is_2d=False,
-                                                                                  bin_width_norm=bin_width_norm,
                                                                                   mass_window_index=index)
                 self.isr_pt.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
 
         # for mass, always 1D
-        measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=False, bin_width_norm=bin_width_norm)
+        measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=False)
         self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False,
                                  year=year, channel=channel)
         self.isr_mass.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
 
-    # FIXME make two for mass and pt
-    def get_isr_hist(self, is_pt=True, is_2d=True, bin_width_norm=False, mass_window_index=0):
+    def get_isr_hist(self, is_pt=True, is_2d=True, mass_window_index=0):
         if is_pt:
             if is_2d:
                 hist_name = self.pt_mass_hist_name
@@ -239,23 +236,16 @@ class ISRAnalyzer(Analyzer):
                 fake_hist_name = self.pt_fake_hist_name_prefix+mass_bin_postfix
                 matrix_name = self.pt_matrix_name_prefix+mass_bin_postfix
 
-            measurement = self.get_measurement_hist(hist_name, bin_width_norm=False)
-            signal = self.get_mc_hist(self.signal_name, hist_name, bin_width_norm=False)
-            bgs = self.get_background_hists(hist_name, bin_width_norm=False)
-            signal_fake = self.get_mc_hist(self.signal_name, fake_hist_name, bin_width_norm=False)
-            matrix = self.get_mc_hist(self.signal_name, matrix_name)
-            return measurement, signal, signal_fake, bgs, matrix
         else:
             postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
-            input_hist_name, matrix_name, input_fake_hist_name, _ = self.get_hist_names_for_1d_dimass(postfix)
+            hist_name, matrix_name, fake_hist_name, _ = self.get_hist_names_for_1d_dimass(postfix)
 
-            measurement = self.get_measurement_hist(input_hist_name, bin_width_norm=bin_width_norm)
-            signal = self.get_mc_hist(self.signal_name, input_hist_name, bin_width_norm=bin_width_norm)
-            bgs = self.get_background_hists(input_hist_name, bin_width_norm=bin_width_norm)
-            signal_fake = self.get_mc_hist(self.signal_name, input_fake_hist_name,
-                                           bin_width_norm=bin_width_norm)
-            matrix = self.get_mc_hist(self.signal_name, matrix_name)
-            return measurement, signal, signal_fake, bgs, matrix
+        measurement = self.get_measurement_hist(hist_name)
+        signal = self.get_mc_hist(self.signal_name, hist_name)
+        bgs = self.get_background_hists(hist_name)
+        signal_fake = self.get_mc_hist(self.signal_name, fake_hist_name)
+        matrix = self.get_mc_hist(self.signal_name, matrix_name)
+        return measurement, signal, signal_fake, bgs, matrix
 
     def pt_isr_unfold(self):
         def run_unfold(mass_window_index, is2d=False):
@@ -288,7 +278,7 @@ class ISRAnalyzer(Analyzer):
             # Create unfolded signal
             unfolded_signal_hist = signal_fake_hist.create(
                 hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=True),
-                hist_name="_", label='Truth DY'
+                hist_name="_", label='Truth DY',
             )
 
             if is2d:

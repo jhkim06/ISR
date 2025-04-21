@@ -78,7 +78,7 @@ class Hist(object):
                year='',
                ):
         if hist is None:
-            hist = self.raw_root_hist
+            hist = self.raw_root_hist.Clone("copy")
         if hist_name == '':
             hist_name = self.hist_name
         if label == '':
@@ -98,7 +98,17 @@ class Hist(object):
         return new_hist
 
     def bin_width_norm(self):
-        pass
+        new_hist = self.create()
+        new_hist.raw_root_hist.Scale(1, "width")
+
+        new_hist.systematic_raw_root_hists = copy.deepcopy(self.systematic_raw_root_hists)
+        for sys_name, variations in new_hist.systematic_raw_root_hists.items():
+            for var_name, hist in variations.items():
+                hist.Scale(1, "width")
+                new_hist.systematic_raw_root_hists[sys_name][var_name] = hist
+
+        new_hist.compute_systematic_rss_per_sysname()
+        return new_hist
 
     # for quick
     def draw(self, plotter=None, name_postfix='', **kwargs):

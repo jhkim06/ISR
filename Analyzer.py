@@ -9,6 +9,7 @@ labels = {
     "Data": "Data",
     "Data(unfolded)": "Data (unfolded)",
     "DYJetsToEE_MiNNLO": r"Drell-Yan",
+    "DYJetsToMuMu_MiNNLO": r"Drell-Yan",
     "GGLL": r"$\gamma\gamma$",
     "DYJetsToTauTau_MiNNLO": r'$\tau\tau$',
     "TTLL": r'$t\bar{t}$',
@@ -21,6 +22,7 @@ labels = {
 
 colors = {
     "DYJetsToEE_MiNNLO": "red",
+    "DYJetsToMuMu_MiNNLO": "red",
     "Data": "black",
     "Data(unfolded)": "black",
 }
@@ -28,8 +30,8 @@ colors = {
 
 def get_hist_kwargs(label):
     kwargs = {
-        "color": f'{colors[label]}',
-        "label": f'{labels[label]}'
+        "color": colors.get(label, 'red'),
+        "label": labels.get(label, 'Hist')
     }
     if 'Data' in label:
         kwargs.update({'histtype': 'errorbar'})
