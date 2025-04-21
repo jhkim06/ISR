@@ -196,10 +196,10 @@ class ISRAnalyzer(Analyzer):
         self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix(
             plot_postfix_channel+"_"+plot_postfix_year))
 
-    def setup_isr_hists(self, year, channel, event_selection, is_2d_pt=True, bin_width_norm=False):
+    def setup_isr_hists(self, year, channel, event_selection, is_2d=True, bin_width_norm=False):
         self.set_data_info(year, channel, event_selection)
 
-        if is_2d_pt:
+        if is_2d:
             unfolded_bin, folded_bin = self.get_unfold_bin_maps(
                 self.pt_mass_unfolded_bin_name,
                 self.pt_mass_detector_bin_name
@@ -230,21 +230,20 @@ class ISRAnalyzer(Analyzer):
     def get_isr_hist(self, is_pt=True, is_2d=True, bin_width_norm=False, mass_window_index=0):
         if is_pt:
             if is_2d:
-                measurement = self.get_measurement_hist(self.pt_mass_hist_name, bin_width_norm=False)
-                signal = self.get_mc_hist(self.signal_name, self.pt_mass_hist_name, bin_width_norm=False)
-                bgs = self.get_background_hists(self.pt_mass_hist_name, bin_width_norm=False)
-                signal_fake = self.get_mc_hist(self.signal_name, self.pt_mass_fake_hist_name,
-                                               bin_width_norm=False)
-                matrix = self.get_mc_hist(self.signal_name, self.pt_mass_matrix_name)
+                hist_name = self.pt_mass_hist_name
+                fake_hist_name = self.pt_mass_fake_hist_name
+                matrix_name = self.pt_mass_matrix_name
             else:
-                # return list of hists
                 mass_bin_postfix = '_' + str(self.mass_bins[mass_window_index][0]) + 'to' + str(self.mass_bins[mass_window_index][1])
-                measurement = self.get_measurement_hist(self.pt_hist_name_prefix+mass_bin_postfix, bin_width_norm=False)
-                signal = self.get_mc_hist(self.signal_name, self.pt_hist_name_prefix+mass_bin_postfix, bin_width_norm=False)
-                bgs = self.get_background_hists(self.pt_hist_name_prefix+mass_bin_postfix, bin_width_norm=False)
-                signal_fake = self.get_mc_hist(self.signal_name, self.pt_fake_hist_name_prefix+mass_bin_postfix,
-                                               bin_width_norm=False)
-                matrix = self.get_mc_hist(self.signal_name, self.pt_matrix_name_prefix+mass_bin_postfix)
+                hist_name = self.pt_hist_name_prefix+mass_bin_postfix
+                fake_hist_name = self.pt_fake_hist_name_prefix+mass_bin_postfix
+                matrix_name = self.pt_matrix_name_prefix+mass_bin_postfix
+
+            measurement = self.get_measurement_hist(hist_name, bin_width_norm=False)
+            signal = self.get_mc_hist(self.signal_name, hist_name, bin_width_norm=False)
+            bgs = self.get_background_hists(hist_name, bin_width_norm=False)
+            signal_fake = self.get_mc_hist(self.signal_name, fake_hist_name, bin_width_norm=False)
+            matrix = self.get_mc_hist(self.signal_name, matrix_name)
             return measurement, signal, signal_fake, bgs, matrix
         else:
             postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
@@ -258,62 +257,52 @@ class ISRAnalyzer(Analyzer):
             matrix = self.get_mc_hist(self.signal_name, matrix_name)
             return measurement, signal, signal_fake, bgs, matrix
 
-    def pt_isr_unfold(self, mass_window_index=-1):
-        # Note that self.isr_pt is expected to be already ready
-        if self.isr_pt.is_2d:
-            # get
-            input_hist, signal_fake_hist, background_hists, matrix = self.isr_pt.get_isr_hists()
+    def pt_isr_unfold(self):
+        def run_unfold(mass_window_index, is2d=False):
+            # Fetch ISR inputs
+            input_hist, signal_fake_hist, background_hists, matrix = (
+                self.isr_pt.get_isr_hists() if is2d else self.isr_pt.get_isr_hists(mass_window_index=mass_window_index)
+            )
 
-            unfolded_bin = self.isr_pt.unfolded_tunfold_bin
-            folded_bin = self.isr_pt.folded_tunfold_bin
-            # central
-            unfold = TUnFolder(matrix,
-                               input_hist,
-                               signal_fake_hist,
-                               bg_hists=background_hists, unfolded_bin=unfolded_bin, folded_bin=folded_bin,
+            unfolded_bin = self.isr_pt.unfolded_tunfold_bin if is2d else None
+            folded_bin = self.isr_pt.folded_tunfold_bin if is2d else None
+
+            # Perform unfolding
+            unfold = TUnFolder(matrix, input_hist, signal_fake_hist,
+                               bg_hists=background_hists,
+                               unfolded_bin=unfolded_bin,
+                               folded_bin=folded_bin,
                                variable_name='')
             unfold.unfold()
+
             self.isr_pt.isr_hists[mass_window_index].tunfolder = unfold
-            unfolded_hist = input_hist.create(hist=unfold.get_unfolded_hist(use_axis_binning=False),
-                                              label=input_hist.label+'(unfolded)')
-            # loop over systematics on hists
-            sys_unfolded_raw_hist = unfold.sys_unfold()
-            unfolded_hist.systematic_raw_root_hists = sys_unfolded_raw_hist
+
+            # Create unfolded measurement
+            unfolded_hist = input_hist.create(
+                hist=unfold.get_unfolded_hist(use_axis_binning=False),
+                label=input_hist.label + '(unfolded)'
+            )
+            unfolded_hist.systematic_raw_root_hists = unfold.sys_unfold()
             unfolded_hist.compute_systematic_rss_per_sysname()
 
+            # Create unfolded signal
             unfolded_signal_hist = signal_fake_hist.create(
-                #hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=False),
-                hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=True), # use_axis_binning has no effect here
-                hist_name="_", label='Truth DY')
+                hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=True),
+                hist_name="_", label='Truth DY'
+            )
 
-            self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = ISR2DHist(unfolded_hist, unfolded_bin)
-            self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = ISR2DHist(unfolded_signal_hist, unfolded_bin)
+            if is2d:
+                self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = ISR2DHist(unfolded_hist, unfolded_bin)
+                self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = ISR2DHist(unfolded_signal_hist, unfolded_bin)
+            else:
+                self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = unfolded_hist
+                self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = unfolded_signal_hist
+
+        if self.isr_pt.is_2d:
+            run_unfold(0, is2d=True)
         else:
             for index, _ in enumerate(self.mass_bins):
-                input_hist, signal_fake_hist, background_hists, matrix = self.isr_pt.get_isr_hists(mass_window_index=index)
-
-                unfold = TUnFolder(matrix,
-                                   input_hist,
-                                   signal_fake_hist,
-                                   bg_hists=background_hists,
-                                   variable_name='')
-
-                unfold.unfold()
-                self.isr_pt.isr_hists[index].tunfolder = unfold
-                unfolded_hist = input_hist.create(hist=unfold.get_unfolded_hist(use_axis_binning=False),
-                                                  label=input_hist.label + '(unfolded)')
-                # loop over systematics on hists
-                sys_unfolded_raw_hist = unfold.sys_unfold()
-                unfolded_hist.systematic_raw_root_hists = sys_unfolded_raw_hist
-                unfolded_hist.compute_systematic_rss_per_sysname()
-
-                unfolded_signal_hist = signal_fake_hist.create(
-                    # hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=False),
-                    hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=True),
-                    hist_name="_", label='Truth DY')
-
-                self.isr_pt.isr_hists[index].unfolded_measurement_hist = unfolded_hist
-                self.isr_pt.isr_hists[index].unfolded_signal_hist = unfolded_signal_hist
+                run_unfold(index)
 
     def mass_isr_unfold(self):
         input_hist, signal_fake_hist, background_hists, matrix = self.isr_mass.get_isr_hists()
@@ -343,42 +332,43 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass.isr_hists[0].unfolded_measurement_hist = unfolded_hist
         self.isr_mass.isr_hists[0].unfolded_signal_hist = unfolded_signal_hist
 
-    def pt_isr_acceptance_correction(self, mass_window_index=-1):
-        if self.isr_pt.is_2d:
-            mc_hist_full_phase = self.get_acceptance_hist(self.pt_mass_hist_full_phase_name)
+    def pt_isr_acceptance_correction(self):
+        def run_acceptance_correction(index=0, is2d=False):
+            if is2d:
+                mc_hist_full_phase = self.get_acceptance_hist(self.pt_mass_hist_full_phase_name)
+            else:
+                mass_bin_postfix = f'_{self.mass_bins[index][0]}to{self.mass_bins[index][1]}'
+                mc_hist_full_phase = self.get_acceptance_hist(self.pt_hist_full_phase_name_prefix + mass_bin_postfix)
 
-            unfolded_hist = self.isr_pt.isr_hists[0].unfolded_measurement_hist
-            mc_acceptance_hist = self.isr_pt.isr_hists[0].unfolded_signal_hist
+            unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist
+            mc_acceptance_hist = self.isr_pt.isr_hists[index].unfolded_signal_hist
 
             acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
             acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
 
-            unfolded_bin = self.isr_pt.unfolded_tunfold_bin
+            if is2d:
+                unfolded_bin = self.isr_pt.unfolded_tunfold_bin
+                self.isr_pt.set_acceptance_corrected_hist(
+                    ISR2DHist(acceptance_corrected, unfolded_bin),
+                    ISR2DHist(mc_hist_full_phase, unfolded_bin)
+                )
+            else:
+                self.isr_pt.set_acceptance_corrected_hist(
+                    acceptance_corrected,
+                    mc_hist_full_phase,
+                    mass_window_index=index
+                )
 
-            self.isr_pt.set_acceptance_corrected_hist(ISR2DHist(acceptance_corrected, unfolded_bin),
-                                                      ISR2DHist(mc_hist_full_phase, unfolded_bin))
-
-            # get_correction_factors(self, space_name, bin_name)
-            self.isr_pt.binned_mean_correction_factors = (
-                self.get_correction_factors(self.unfolded_space_name, self.unfolded_bin_name))
+        if self.isr_pt.is_2d:
+            run_acceptance_correction(index=0, is2d=True)
         else:
-            for index, _ in enumerate(self.mass_bins):
-                mass_bin_postfix = '_' + str(self.mass_bins[index][0]) + 'to' + str(
-                    self.mass_bins[index][1])
-                mc_hist_full_phase = self.get_acceptance_hist(self.pt_hist_full_phase_name_prefix + mass_bin_postfix)
+            for index in range(len(self.mass_bins)):
+                run_acceptance_correction(index=index, is2d=False)
 
-                unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist
-                mc_acceptance_hist = self.isr_pt.isr_hists[index].unfolded_signal_hist
-
-                acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
-                acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
-
-                self.isr_pt.set_acceptance_corrected_hist(acceptance_corrected,
-                                                          mc_hist_full_phase, index)
-
-                # get_correction_factors(self, space_name, bin_name)
-            self.isr_pt.binned_mean_correction_factors = (
-                self.get_correction_factors(self.unfolded_space_name, self.unfolded_bin_name))
+        # This is common in both 1D and 2D cases
+        self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(
+            self.unfolded_space_name, self.unfolded_bin_name
+        )
 
     def mass_isr_acceptance_correction(self):
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
@@ -392,6 +382,19 @@ class ISRAnalyzer(Analyzer):
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
 
         self.isr_mass.set_acceptance_corrected_hist(acceptance_corrected, mc_hist_full_phase)
+
+    def get_correction_factors(self, space_name, bin_name):
+        pt_hist_full_phase_name_prefix = ('dipt_[gen_' + space_name +
+                                          '_acceptance__' + bin_name + ']_dimass')
+        correction_factors = []
+        for index, mass_bin in enumerate(self.mass_bins):
+            mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
+            mc_hist_full_phase = self.get_mc_hist(self.signal_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
+            correction_factor = (
+                    mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0])
+            correction_factors.append(correction_factor)
+
+        return correction_factors
 
     def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name=''):
         if unfolded_space_name == '':
@@ -425,19 +428,6 @@ class ISRAnalyzer(Analyzer):
         if correct_binned_mean:
             self.correction_to_unbinned_prefsr_mean(pt_data, unfolded_space_name, unfolded_bin_name)
         return pt_data
-
-    def get_correction_factors(self, space_name, bin_name):
-        pt_hist_full_phase_name_prefix = ('dipt_[gen_' + space_name +
-                                          '_acceptance__' + bin_name + ']_dimass')
-        correction_factors = []
-        for index, mass_bin in enumerate(self.mass_bins):
-            mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            mc_hist_full_phase = self.get_mc_hist(self.signal_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
-            correction_factor = (
-                    mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0])
-            correction_factors.append(correction_factor)
-
-        return correction_factors
 
     def extract_mean_pt_from_2d_hist(self, pt_2d_hist, unfold_bin):
         pt_data = []
