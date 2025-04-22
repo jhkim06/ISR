@@ -153,7 +153,7 @@ class ISRHists:
         for index, _ in enumerate(self.mass_bins):
             pass
 
-    def get(self, hist_type='signal', mass_window_index=-1, bin_width_norm=False):
+    def get(self, hist_type='signal', mass_window_index=-1, bin_width_norm=False, scale=1):
         # Choose the relevant ISR hist container
         if self.is_pt and not self.is_2d:
             isr_hist_to_draw = self.isr_hists[mass_window_index]
@@ -168,7 +168,7 @@ class ISRHists:
 
         # Helper to normalize and return
         def normalize(hist):
-            return hist.bin_width_norm() if bin_width_norm else hist
+            return hist.bin_width_norm(scale) if bin_width_norm else hist
 
         # Handle 2D case
         if self.is_2d:
@@ -194,7 +194,7 @@ class ISRHists:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
 
-    def draw_isr_plot(self, other, save_and_reset_plotter=True):
+    def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix=''):
         if self.is_pt and other.is_pt == False:
             isr_pt = self
             isr_mass = other
@@ -211,12 +211,11 @@ class ISRHists:
         plotter.set_experiment_label(**{'year': measurement_hist.year})
 
         mass=pd.concat(isr_mass.acceptance_corrected_measurement_mean_values, ignore_index=True)
-        # pt=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
-        pt_scaled=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
-        pt_scaled['mean'] = pt_scaled['mean'] * self.binned_mean_correction_factors
+        pt=pd.concat(isr_pt.acceptance_corrected_measurement_mean_values, ignore_index=True)
+        pt['mean'] = pt['mean'] * self.binned_mean_correction_factors
 
         # plotter.add_errorbar((mass, pt), color='black', marker='.')
-        plotter.add_errorbar((mass, pt_scaled), color='black', marker='.')
+        plotter.add_errorbar((mass, pt), color='black', marker='.')
         plotter.draw_errorbar()
 
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
@@ -224,7 +223,7 @@ class ISRHists:
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper left", })
 
         if save_and_reset_plotter:
-            plotter.save_and_reset_plotter("isr_test"+"_"+self.channel+self.year)
+            plotter.save_and_reset_plotter("isr_test"+"_"+self.channel+self.year+postfix)
 
     def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix=''):
         plotter = measurement_hist.plotter
@@ -235,7 +234,7 @@ class ISRHists:
         if background_hists:
             for bg_name, bg_hist in background_hists.items():
                 plotter.add_hist(bg_hist, as_stack=True, as_denominator=True,
-                                 **{'label': labels[bg_hist.get_label()]})
+                                 **{'label': labels.get(bg_hist.get_label(), bg_name)})
 
         # Add signal and measurement
         plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **get_hist_kwargs(signal_hist.get_label()))
@@ -287,3 +286,48 @@ class ISRHists:
         if self.is_2d:
             suffix = '_acceptance_corrected_'+str(mass_window_index)
         self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix='_acceptance_corrected')
+
+    def draw_pt_comparisons(self, *others, index=2):
+        reference_hist = self.get('acceptance_corrected_measurement', index, bin_width_norm=True, scale=-1)
+
+        plotter = reference_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.set_experiment_label(**{'year': reference_hist.year})
+
+        plotter.add_hist(reference_hist, as_denominator=True, location=-999)
+        for other in others:
+            hist = other.get('acceptance_corrected_measurement', index, bin_width_norm=True, scale=-1)
+            plotter.add_hist(hist, as_denominator=False, location=-999)
+
+        plotter.add_ratio_hists(location=(0, 0))
+        plotter.draw_hist()
+
+        plotter.get_axis(location=(0, 0)).set_ylim(0.5, 1.5)
+        plotter.set_common_ratio_plot_cosmetics(self.x_axis_label)
+
+        plotter.save_and_reset_plotter("test_" + self.channel + self.year)
+
+
+    def draw_pt_comparison(self):
+        # use Z peak mass reason as denominator
+        reference_hist = self.get('acceptance_corrected_measurement', 2, bin_width_norm=True, scale=-1)
+        hist0 = self.get('acceptance_corrected_measurement', 0, bin_width_norm=True, scale=-1)
+        hist1 = self.get('acceptance_corrected_measurement', 1, bin_width_norm=True, scale=-1)
+        hist3 = self.get('acceptance_corrected_measurement', 3, bin_width_norm=True, scale=-1)
+        hist4 = self.get('acceptance_corrected_measurement', 4, bin_width_norm=True, scale=-1)
+
+        plotter = reference_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.set_experiment_label(**{'year': reference_hist.year})
+
+        plotter.add_hist(reference_hist, as_denominator=True, location=-999)
+        plotter.add_hist(hist0, as_denominator=False, location=-999)
+        plotter.add_hist(hist1, as_denominator=False, location=-999)
+        plotter.add_hist(hist3, as_denominator=False, location=-999)
+        plotter.add_hist(hist4, as_denominator=False, location=-999)
+        plotter.add_ratio_hists(location=(0, 0))
+        plotter.draw_hist()
+
+        plotter.get_axis(location=(0, 0)).set_ylim(0, 3)
+
+        plotter.save_and_reset_plotter("test_" + self.channel + self.year)

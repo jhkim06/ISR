@@ -17,6 +17,8 @@ labels = {
     "ZZ": "$ZZ$",
     "WZ": "$WZ$",
     "WW": "$WW$",
+    "top": r"$tW$",
+    "antitop": r"$\bar{t}W$",
 }
 
 
@@ -49,7 +51,7 @@ def with_data_hist_info(func):
 
 class Analyzer:
     def __init__(self, sample_base_dir, signal='DY',
-                 backgrounds=['TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],
+                 backgrounds=[('top', 'antitop'), 'TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],
                  analysis_name=''):
 
         self.data = CMSData(sample_base_dir)
@@ -146,7 +148,12 @@ class Analyzer:
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background_names:
-            temp_dict[bg] = self.get_mc_hist(bg, hist_name, bin_width_norm=bin_width_norm,
+            # TODO set proper bg label
+            if isinstance(bg, tuple):
+                bg_key = '+'.join([k for k in bg])
+            else:
+                bg_key = bg
+            temp_dict[bg_key] = self.get_mc_hist(bg, hist_name, bin_width_norm=bin_width_norm,
                                              scale=bg_scale, norm=norm)
         return temp_dict
 

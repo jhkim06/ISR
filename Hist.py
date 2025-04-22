@@ -97,14 +97,18 @@ class Hist(object):
                         )
         return new_hist
 
-    def bin_width_norm(self):
+    def bin_width_norm(self, scale=1):
         new_hist = self.create()
-        new_hist.raw_root_hist.Scale(1, "width")
+        if scale == -1:
+            scale = 1 / self.raw_root_hist.Integral()
+        new_hist.raw_root_hist.Scale(scale, "width")
 
         new_hist.systematic_raw_root_hists = copy.deepcopy(self.systematic_raw_root_hists)
         for sys_name, variations in new_hist.systematic_raw_root_hists.items():
             for var_name, hist in variations.items():
-                hist.Scale(1, "width")
+                if scale == -1:
+                    scale = 1 / hist.Integral()
+                hist.Scale(scale, "width")
                 new_hist.systematic_raw_root_hists[sys_name][var_name] = hist
 
         new_hist.compute_systematic_rss_per_sysname()

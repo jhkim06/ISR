@@ -14,4 +14,3 @@ class Acceptance:
         # input_hist from unfolder
         out_hist = input_hist.multiply(self.acceptance_hist)
         return out_hist
-

@@ -296,6 +296,10 @@ class Plotter:
 
     def set_isr_plot_cosmetics(self, channel, ):
 
+        plt.grid(True, which='both', axis='x', linestyle='--', linewidth=0.7)
+        plt.grid(True, which='major', axis='y', linestyle='--', linewidth=0.7)
+
+        self.get_axis(location=(0, 0)).set_xlim(54, 300)
         self.get_axis(location=(0, 0)).set_ylim(15, 29)
         self.get_axis(location=(0, 0)).set_xscale("log")
 

@@ -24,6 +24,7 @@ class ISRAnalyzer(Analyzer):
                  sample_base_dir,
                  mass_bins,
                  pt_bins,
+                 signal = "DY",
                  acceptance = None,  # DY for acceptance correction
 
                  folded_bin_name='fine', unfolded_bin_name='coarse',
@@ -32,12 +33,12 @@ class ISRAnalyzer(Analyzer):
                  mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',):
 
         super(ISRAnalyzer, self).__init__(sample_base_dir,
-                                          signal='DY', )
+                                          signal=signal, )
 
         if acceptance is None:
-            self.acceptance = self.signal_name
+            self.acceptance_name = self.signal_name
         else:
-            self.acceptance = acceptance
+            self.acceptance_name = acceptance
         self.mass_bins = mass_bins
         self.pt_bins = pt_bins
 
@@ -326,12 +327,20 @@ class ISRAnalyzer(Analyzer):
         def run_acceptance_correction(index=0, is2d=False):
             if is2d:
                 mc_hist_full_phase = self.get_acceptance_hist(self.pt_mass_hist_full_phase_name)
+                matrix_name = self.pt_mass_matrix_name
             else:
                 mass_bin_postfix = f'_{self.mass_bins[index][0]}to{self.mass_bins[index][1]}'
                 mc_hist_full_phase = self.get_acceptance_hist(self.pt_hist_full_phase_name_prefix + mass_bin_postfix)
 
+                mass_bin_postfix = '_' + str(self.mass_bins[index][0]) + 'to' + str(self.mass_bins[index][1])
+                matrix_name = self.pt_matrix_name_prefix+mass_bin_postfix
+
+            raw_response_matrix = self.get_acceptance_hist(matrix_name)
+            mc_acceptance_hist = Hist(
+                self.isr_pt.isr_hists[index].tunfolder.extract_truth_from_2d_hist_using_bin_definition(
+                    raw_response_matrix.raw_root_hist))
+
             unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist
-            mc_acceptance_hist = self.isr_pt.isr_hists[index].unfolded_signal_hist
 
             acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
             acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
@@ -379,7 +388,7 @@ class ISRAnalyzer(Analyzer):
         correction_factors = []
         for index, mass_bin in enumerate(self.mass_bins):
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            mc_hist_full_phase = self.get_mc_hist(self.signal_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
+            mc_hist_full_phase = self.get_mc_hist(self.acceptance_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
             correction_factor = (
                     mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0])
             correction_factors.append(correction_factor)
@@ -430,4 +439,4 @@ class ISRAnalyzer(Analyzer):
         return pt_data
 
     def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        return self.get_mc_hist(self.signal_name, hist_name, bin_width_norm=bin_width_norm)
+        return self.get_mc_hist(self.acceptance_name, hist_name, bin_width_norm=bin_width_norm)
