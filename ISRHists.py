@@ -298,6 +298,24 @@ class ISRHists:
 
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
+    def draw_fake_hists(self, mass_window_index=-1, bin_width_norm=False):
+        signal_fake_hist = self.get(hist_type='signal_fake', mass_window_index=mass_window_index,
+                                    bin_width_norm=bin_width_norm)
+
+        plotter = signal_fake_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.set_experiment_label(**{'year': signal_fake_hist.year})
+
+        plotter.add_hist(signal_fake_hist, as_stack=True, as_denominator=True,
+                         **get_hist_kwargs(signal_fake_hist.get_label()))
+
+        plotter.draw_hist()
+        suffix = '_fake_DY'
+        if self.is_2d:
+            suffix = '_fake_DY_'+str(mass_window_index)
+        plotter.save_and_reset_plotter(signal_fake_hist.hist_name + suffix + "_" + self.channel + self.year)
+
+
     def draw_background_fractions(self, mass_window_index=-1):
 
         signal_hist = self.get('signal', mass_window_index)
