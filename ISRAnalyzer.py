@@ -1,22 +1,9 @@
 from Analyzer import Analyzer
-from Hist import Hist
 from Acceptance import Acceptance
-import pandas as pd
-import numpy as np
 from Hist import Hist, change_to_greek
 from ISRHists import ISRHists
 from ISR2DHist import ISR2DHist
 from TUnFolder import TUnFolder
-
-
-# TODO check if this is needed here
-def calculate_squared_root_sum(raw_df, reg_expression, new_col_name="total error"):
-
-    selected_cols = raw_df.filter(regex=reg_expression)
-    squared_sum = (selected_cols ** 2).sum(axis=1)
-    root_of_squared_sum = np.sqrt(squared_sum)
-
-    raw_df[new_col_name] = root_of_squared_sum
 
 
 class ISRAnalyzer(Analyzer):
@@ -30,7 +17,8 @@ class ISRAnalyzer(Analyzer):
                  folded_bin_name='fine', unfolded_bin_name='coarse',
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
 
-                 mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse', mass_unfolded_space_name='dressed',):
+                 mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse',
+                 mass_unfolded_space_name='dressed',):
 
         super(ISRAnalyzer, self).__init__(sample_base_dir,
                                           signal=signal, )
@@ -159,45 +147,7 @@ class ISRAnalyzer(Analyzer):
 
         return custom_x_labels, custom_x_locates, vlines
 
-    # basic plots
-    def draw_isr_measurement_comparison_plot_dimass(self, *setups):
-
-        bin_postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
-        hist_name = self.mass_hist_name_prefix + bin_postfix
-
-        x_log_scale = True
-        bin_width_norm = True
-        norm = True
-        channels = [ch for _, ch, _ in setups]
-        if len(set(channels)) != 1:
-            x_axis_label = r"$m^{ll}$"
-            text = str(r"$p_{T}^{ll}<$"+str(int(self.pt_bins[1]))+" (GeV)")
-            plot_postfix_channel = 'll'
-        else:
-            x_axis_label = r"$m^{" + change_to_greek(channels[0]) + "}$"
-            text = str(r"$p_{T}^{" + change_to_greek(channels[0]) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
-            plot_postfix_channel = channels[0]
-
-        # TODO show systematic band
-        # error band for reference hist (denominator)
-        self.draw_measurement_comparison_plot(*setups,
-                                              hist_name=hist_name,
-                                              bin_width_norm=bin_width_norm,
-                                              norm=norm,
-                                              x_axis_label=x_axis_label,
-                                              x_log_scale=x_log_scale,
-                                              save_and_reset=False)
-        self.plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "lower left", },
-                              do_magic=False)
-        years = [year for year, _, _ in setups]
-        if len(set(years)) > 2:
-            plot_postfix_year = 'years'
-        else:
-            plot_postfix_year = "_".join(years)
-        self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix(
-            plot_postfix_channel+"_"+plot_postfix_year))
-
-    def setup_isr_hists(self, year, channel, event_selection, is_2d=True):
+    def setup_isr_detector_hists(self, year, channel, event_selection, is_2d=True):
         self.set_data_info(year, channel, event_selection)
         if is_2d:
             unfolded_bin, folded_bin = self.get_unfold_bin_maps(
@@ -224,6 +174,42 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False,
                                  year=year, channel=channel)
         self.isr_mass.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
+
+    def setup_isr_acceptance_hists(self, year, channel, event_selection, is_2d=True, mass_bins=None,
+                                   binned_mean=True, range_min=None, range_max=None,):
+        self.set_data_info(year, channel, event_selection)
+
+        if mass_bins is None:
+            mass_bins = self.mass_bins
+
+        # pt
+        if is_2d:
+            pass
+        else:
+            pt_hist_full_phase_name_prefix = ('dipt_[gen_' + self.unfolded_space_name +
+                                              '_acceptance__' +self. unfolded_bin_name + ']_dimass')
+            print(pt_hist_full_phase_name_prefix)
+            self.isr_pt = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=True,
+                                   year=year, channel=channel, )
+            for index, mass_bin in enumerate(mass_bins):
+                mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
+
+                mc_hist_full_phase = self.get_mc_hist(self.signal_name,
+                                                      pt_hist_full_phase_name_prefix + mass_bin_postfix)
+                self.isr_pt.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
+                self.isr_pt.set_acceptance_corrected_mean_values(mass_window_index=index, key='simulation',
+                                                                 binned_mean=binned_mean,
+                                                                 range_min=range_min, range_max=range_max)
+
+        # mass
+        postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
+        hist_full_phase_name = self.mass_hist_full_phase_name_prefix + postfix
+        mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
+
+        self.isr_mass = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=False,
+                                 year=year, channel=channel)
+        self.isr_mass.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
+        self.isr_mass.set_acceptance_corrected_mean_values(key='simulation')
 
     def get_isr_hist(self, is_pt=True, is_2d=True, mass_window_index=0):
         if is_pt:
@@ -348,15 +334,16 @@ class ISRAnalyzer(Analyzer):
             if is2d:
                 unfolded_bin = self.isr_pt.unfolded_tunfold_bin
                 self.isr_pt.set_acceptance_corrected_hist(
-                    ISR2DHist(acceptance_corrected, unfolded_bin),
-                    ISR2DHist(mc_hist_full_phase, unfolded_bin)
-                )
+                    hist=ISR2DHist(acceptance_corrected, unfolded_bin))
+                self.isr_pt.set_acceptance_corrected_hist(
+                    hist=ISR2DHist(mc_hist_full_phase, unfolded_bin), key='simulation')
             else:
                 self.isr_pt.set_acceptance_corrected_hist(
-                    acceptance_corrected,
-                    mc_hist_full_phase,
-                    mass_window_index=index
-                )
+                    hist=acceptance_corrected,
+                    mass_window_index=index)
+                self.isr_pt.set_acceptance_corrected_hist(
+                    hist=mc_hist_full_phase,
+                    mass_window_index=index, key='simulation')
 
         if self.isr_pt.is_2d:
             run_acceptance_correction(index=0, is2d=True)
@@ -380,7 +367,8 @@ class ISRAnalyzer(Analyzer):
         acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
 
-        self.isr_mass.set_acceptance_corrected_hist(acceptance_corrected, mc_hist_full_phase)
+        self.isr_mass.set_acceptance_corrected_hist(hist=acceptance_corrected)
+        self.isr_mass.set_acceptance_corrected_hist(hist=mc_hist_full_phase, key='simulation')
 
     def get_correction_factors(self, space_name, bin_name):
         pt_hist_full_phase_name_prefix = ('dipt_[gen_' + space_name +
@@ -395,9 +383,9 @@ class ISRAnalyzer(Analyzer):
 
         return correction_factors
 
-    def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name=''):
+    def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name='', mass_bins=None):
         if unfolded_space_name == '':
-            unfolded_space_name = self.unfolded_space_name
+            unfolded_space_name = self.unfolded_space_name  # dressed,
         if unfolded_bin_name == '':
             unfolded_bin_name = self.unfolded_bin_name
         pt_hist_full_phase_name_prefix = ('dipt_[gen_' + unfolded_space_name +
@@ -406,7 +394,7 @@ class ISRAnalyzer(Analyzer):
         for mass_bin in self.mass_bins:
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
 
-            mc_hist_full_phase = self.get_signal_hist(pt_hist_full_phase_name_prefix + mass_bin_postfix)
+            mc_hist_full_phase = self.get_mc_hist(self.signal_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
             pt_data.append(mc_hist_full_phase.get_mean(binned_mean=False))
         return pt_data
 
@@ -419,7 +407,7 @@ class ISRAnalyzer(Analyzer):
         pt_mass_unfolded_bin_name = "[tunfold-bin]_[dipt-dimass]_[" + unfolded_bin_name + "_O-window_v1_UO]"
         pt_mass_hist_full_phase_name = ("[tunfold-hist]_[dipt-dimass]_[gen_" + unfolded_space_name +
                                         "_acceptance__" + unfolded_bin_name + "_O-window_v1_UO]")
-        mc_hist_full_phase = self.get_signal_hist(pt_mass_hist_full_phase_name)
+        mc_hist_full_phase = self.get_signal_hist(self.signal_name, pt_mass_hist_full_phase_name)
 
         unfolded_bin, _ = self.get_unfold_bin_maps(pt_mass_unfolded_bin_name, self.pt_mass_detector_bin_name)
 

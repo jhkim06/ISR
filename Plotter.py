@@ -362,7 +362,11 @@ class Plotter:
     def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)
         #plt.rcParams['text.usetex'] = True
-        at = AnchoredText(text, prop=dict(size=20), **kwargs)
+        color='black'
+        if 'color' in kwargs:
+            color = kwargs['color']
+            del kwargs['color']
+        at = AnchoredText(text, prop=dict(size=20, color=color), **kwargs)
         self.current_axis.add_artist(at)
         if do_magic:
             hep.plot.mpl_magic(self.current_axis)  # error without legend?

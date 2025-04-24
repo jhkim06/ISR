@@ -138,6 +138,7 @@ class Analyzer:
         if process_name == self.signal_name:
             is_signal = True
 
+        print(hist_name)
         hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm,
                                                   is_signal=is_signal,
                                                   scale=scale)
