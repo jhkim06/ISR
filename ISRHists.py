@@ -13,7 +13,7 @@ class ISRHistSet:
                  signal_fake_hist=None,
                  background_hists=None,
                  response_matrix=None,
-                 unfolded_signal_hist=None,
+                 truth_signal_hist=None,
                  acceptance_corrected_signal_hist=None):
         # detector hist
         self.measurement_hist = measurement_hist
@@ -26,9 +26,11 @@ class ISRHistSet:
         self.tunfolder = None
         self.unfold_input_hist = None  #
         self.unfolded_measurement_hist = None
-        self.unfolded_signal_hist = unfolded_signal_hist  # request to tunfolder
+        self.unfolded_signal_hist = None  # simple closure
+        self.truth_signal_hist = truth_signal_hist  # request to tunfolder
 
-        self.acceptance_corrected_hist = {"measurement": None, "simulation": acceptance_corrected_signal_hist}
+        self.acceptance_corrected_hist = {"measurement": None,
+                                          "simulation": acceptance_corrected_signal_hist}
 
 
 # ISRPtHists ISRMassHists
@@ -65,9 +67,8 @@ class ISRHists:
         self.unfolded_measurement_mean_values = None
         self.unfolded_signal_mean_values = None
 
-        self.acceptance_corrected_measurement_mean_values = []
-        self.acceptance_corrected_signal_mean_values = []
-        self.acceptance_corrected_mean_values = {"measurement": [], "simulation": []}
+        self.acceptance_corrected_mean_values = {"measurement": [],
+                                                 "simulation": []}
 
         self.binned_mean_correction_factors = None
 
@@ -161,6 +162,7 @@ class ISRHists:
         else:
             isr_hist = self.isr_hists[mass_window_index]
         return (isr_hist.measurement_hist,
+                isr_hist.signal_hist,
                 isr_hist.signal_fake_hist,
                 isr_hist.background_hist,
                 isr_hist.response_matrix)
@@ -262,6 +264,19 @@ class ISRHists:
         else:
             return plotter
 
+    def draw_unfold_closure(self, mass_window_index=-1, bin_width_norm=False):
+        unfolded_signal_hist = self.get(hist_type='unfolded_signal', mass_window_index=mass_window_index,
+                                        bin_width_norm=bin_width_norm)
+        truth_signal_hist = self.get(hist_type='truth_signal', mass_window_index=mass_window_index,
+                                     bin_width_norm=bin_width_norm)
+
+        text = self.get_additional_text_on_plot(mass_window_index)
+
+        suffix = '_closure'
+        if self.is_2d:
+            suffix = '_closure_'+str(mass_window_index)
+        self._draw_comparison_plot(unfolded_signal_hist, truth_signal_hist, text=text, suffix=suffix)
+
     def draw_unfold_inputs(self, mass_window_index=-1, bin_width_norm=False):
         unfold_input_hist = self.get(hist_type='unfold_input', mass_window_index=mass_window_index,
                                      bin_width_norm=bin_width_norm)
@@ -314,7 +329,6 @@ class ISRHists:
         if self.is_2d:
             suffix = '_fake_DY_'+str(mass_window_index)
         plotter.save_and_reset_plotter(signal_fake_hist.hist_name + suffix + "_" + self.channel + self.year)
-
 
     def draw_background_fractions(self, mass_window_index=-1):
 
@@ -400,7 +414,7 @@ class ISRHists:
 
     def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False):
         measurement_hist = self.get('unfolded_measurement', mass_window_index, bin_width_norm=bin_width_norm)
-        signal_hist = self.get('unfolded_signal', mass_window_index, bin_width_norm=bin_width_norm)
+        signal_hist = self.get('truth_signal', mass_window_index, bin_width_norm=bin_width_norm)
         text = self.get_additional_text_on_plot(mass_window_index)
 
         suffix = '_unfolded'

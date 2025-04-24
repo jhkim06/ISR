@@ -137,9 +137,12 @@ class TUnFolder:
         self.n_iterative = n_iterative
 
         if self.unfold_method is None:
-            tunfolder.DoUnfold(self.reg_strength)
+            # FIXME
             if sys_tunfolder is None:
-                self.reg_strength = tunfolder.GetTau()
+                tunfolder.DoUnfold(self.reg_strength)  # TODO understand what it does!
+                # print(self.reg_strength)
+            else:
+                tunfolder.DoUnfold(self.reg_strength)
         elif self.unfold_method == 'scan_sure':
             i_best = tunfolder.ScanSURE(n_iterative,
                                              ctypes.c_double(0),
@@ -147,7 +150,6 @@ class TUnFolder:
                                              self.graphSURE,
                                              self.df_deviance,
                                              self.lcurve)
-
             if sys_tunfolder is None:
                 self.reg_strength = pow(10, self.graphSURE.GetX()[i_best])
         else:
@@ -214,14 +216,14 @@ class TUnFolder:
             data_hist = self.folded_bin.ExtractHistogram("unfold_input_extracted",
                                                          data_hist,
                                                          0,  # error matrix
-                                                         use_axis_binning,
+                                                         False,
                                                          projection_mode)
         else:
             data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
-                                                use_axis_binning)
+                                                True)
 
         return data_hist
 

@@ -446,7 +446,7 @@ class Plotter:
     def save_fig(self, out_name=''):
         out_file_name = out_name
 
-        print(f"save plot... {out_file_name}")
+        # print(f"save plot... {out_file_name}")
         self.fig.savefig(self.base_output_dir + "/" + out_file_name + ".pdf")
         # self.reset()
         plt.close()

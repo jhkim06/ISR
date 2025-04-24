@@ -33,7 +33,7 @@ colors = {
 def get_hist_kwargs(label):
     kwargs = {
         "color": colors.get(label, 'red'),
-        "label": labels.get(label, 'Hist')
+        "label": labels.get(label, label)
     }
     if 'Data' in label:
         kwargs.update({'histtype': 'errorbar'})
@@ -138,7 +138,6 @@ class Analyzer:
         if process_name == self.signal_name:
             is_signal = True
 
-        print(hist_name)
         hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm,
                                                   is_signal=is_signal,
                                                   scale=scale)
