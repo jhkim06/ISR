@@ -76,9 +76,12 @@ class Hist(object):
                hist_name='',
                label='',  # to be used in legend of histogram
                year='',
+               reset_hist=False,
                ):
         if hist is None:
             hist = self.raw_root_hist.Clone("copy")
+            if reset_hist:
+                hist.Reset()
         if hist_name == '':
             hist_name = self.hist_name
         if label == '':

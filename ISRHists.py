@@ -24,6 +24,7 @@ class ISRHistSet:
         self.response_matrix = response_matrix
 
         self.tunfolder = None
+        self.unfold_input_hist = None  #
         self.unfolded_measurement_hist = None
         self.unfolded_signal_hist = unfolded_signal_hist  # request to tunfolder
 
@@ -72,9 +73,9 @@ class ISRHists:
 
         # common plot cosmetics
         if is_pt:
-            self.x_axis_label = r"$p_{T}^{"+change_to_greek(self.channel)+"}$"
+            self.x_axis_label = r"$p_{T}^{"+change_to_greek(self.channel)+"}$ [GeV]"
         else:
-            self.x_axis_label = r"$m^{"+change_to_greek(self.channel)+"}$"
+            self.x_axis_label = r"$m^{"+change_to_greek(self.channel)+"}$ [GeV]"
 
     # TODO update hist also
     def update_mean_values(self, other, sys_name):
@@ -199,7 +200,7 @@ class ISRHists:
 
         # Handle 2D case
         if self.is_2d:
-            if 0 <= mass_window_index < len(self.mass_bins):
+            if 0 <= mass_window_index < len(self.mass_bins):  # -1 for 2D
                 if hist_type == 'background':
                     return {k: normalize(v.extract_1d_hist(mass_window_index)) for k, v in target_hist.items()}
                 return normalize(target_hist.extract_1d_hist(mass_window_index))
@@ -214,9 +215,12 @@ class ISRHists:
         text = ''
         if self.is_pt:
             if self.is_2d:
-                text = (str(int(self.mass_bins[mass_window_index][0]))+
-                        "$<m^{"+change_to_greek(self.channel)+"}<$"+
-                        str(int(self.mass_bins[mass_window_index][1])) + " GeV")
+                if mass_window_index == -1:
+                    return ""
+                else:
+                    text = (str(int(self.mass_bins[mass_window_index][0]))+
+                            "$<m^{"+change_to_greek(self.channel)+"}<$"+
+                            str(int(self.mass_bins[mass_window_index][1])) + " GeV")
         else:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
@@ -258,6 +262,42 @@ class ISRHists:
         else:
             return plotter
 
+    def draw_unfold_inputs(self, mass_window_index=-1, bin_width_norm=False):
+        unfold_input_hist = self.get(hist_type='unfold_input', mass_window_index=mass_window_index,
+                                     bin_width_norm=bin_width_norm)
+        measurement_hist = self.get(hist_type='measurement', mass_window_index=mass_window_index,
+                                    bin_width_norm=bin_width_norm)
+        signal_fake_hist = self.get(hist_type='signal_fake', mass_window_index=mass_window_index,
+                                    bin_width_norm=bin_width_norm)
+        background_hists = self.get(hist_type='background', mass_window_index=mass_window_index,
+                                    bin_width_norm=bin_width_norm)
+
+        dummy_hist = measurement_hist.create(reset_hist=True)
+        total_bg = sum(background_hists.values(), dummy_hist)
+        measurement_hist = measurement_hist-total_bg-signal_fake_hist
+
+        suffix = '_unfold_input'
+        draw_as_2d = False
+        if self.is_2d:
+            if mass_window_index == -1:
+                draw_as_2d = True
+                suffix = '_unfold_input_pt_mass'
+            else:
+                suffix = '_unfold_input_'+str(mass_window_index)
+        plotter = measurement_hist.plotter
+        plotter.init_plotter(rows=2, cols=1)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
+
+        kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"color": "black"}
+        plotter.add_hist(unfold_input_hist, **kwargs)
+        kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"mfc": "none", "color": "gray"}
+        plotter.add_hist(measurement_hist, as_denominator=True, **kwargs)
+
+        plotter.add_ratio_hists(location=(1, 0))
+        plotter.draw_hist()
+
+        plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+
     def draw_background_fractions(self, mass_window_index=-1):
 
         signal_hist = self.get('signal', mass_window_index)
@@ -289,7 +329,8 @@ class ISRHists:
                                                 y_min=0, y_max=0.5)
         plotter.save_and_reset_plotter(signal_hist.hist_name + suffix + "_" + self.channel + self.year)
 
-    def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix=''):
+    def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix='',
+                              draw_as_2d=False,):
         plotter = measurement_hist.plotter
         plotter.init_plotter(rows=2, cols=1)
         plotter.set_experiment_label(**{'year': measurement_hist.year})
@@ -312,9 +353,11 @@ class ISRHists:
         if self.is_pt:
             x_log_scale = y_log_scale = False
 
-        plotter.set_common_comparison_plot_cosmetics(self.x_axis_label, x_log_scale=x_log_scale,
+        x_axis_label = self.x_axis_label
+        if self.is_2d and draw_as_2d:
+            x_axis_label = 'Bin index'
+        plotter.set_common_comparison_plot_cosmetics(x_axis_label, x_log_scale=x_log_scale,
                                                      y_log_scale=y_log_scale)
-
         if text:
             plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left"})
 
@@ -327,9 +370,15 @@ class ISRHists:
         text = self.get_additional_text_on_plot(mass_window_index)
 
         suffix = '_detector'
+        draw_as_2d = False
         if self.is_2d:
-            suffix = '_detector_'+str(mass_window_index)
-        self._draw_comparison_plot(measurement_hist, signal_hist, background_hists, text, suffix=suffix)
+            if mass_window_index == -1:
+                draw_as_2d = True
+                suffix = '_detector_pt_mass'
+            else:
+                suffix = '_detector_'+str(mass_window_index)
+        self._draw_comparison_plot(measurement_hist, signal_hist, background_hists, text, suffix=suffix,
+                                   draw_as_2d=draw_as_2d)
 
     def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False):
         measurement_hist = self.get('unfolded_measurement', mass_window_index, bin_width_norm=bin_width_norm)

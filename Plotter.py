@@ -320,7 +320,7 @@ class Plotter:
         # self.adjust_y_scale()
 
         self.get_axis(location=(0, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
-        self.get_axis(location=(0, 0)).set_xlabel(x_variable_name + " [GeV]")
+        self.get_axis(location=(0, 0)).set_xlabel(x_variable_name)
         self.get_axis(location=(0, 0)).set_ylim(y_min, y_max)
 
     def set_common_comparison_plot_cosmetics(self,
@@ -352,7 +352,7 @@ class Plotter:
         self.get_axis(location=(1, 0)).set_ylim(ratio_min, ratio_max)
         self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
         self.get_axis(location=(1, 0)).set_ylabel(ratio_name)
-        self.get_axis(location=(1, 0)).set_xlabel(x_variable_name + " [GeV]")
+        self.get_axis(location=(1, 0)).set_xlabel(x_variable_name)
 
     def adjust_y_scale(self, location=(0, 0)):
         self.set_current_axis(location)

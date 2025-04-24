@@ -254,6 +254,12 @@ class ISRAnalyzer(Analyzer):
 
             self.isr_pt.isr_hists[mass_window_index].tunfolder = unfold
 
+            # create unfold input
+            unfold_input_hist = input_hist.create(
+                hist=unfold.get_input_hist(use_axis_binning=False),
+                label=input_hist.label + '(unfold input)'
+            )
+
             # Create unfolded measurement
             unfolded_hist = input_hist.create(
                 hist=unfold.get_unfolded_hist(use_axis_binning=False),
@@ -269,9 +275,14 @@ class ISRAnalyzer(Analyzer):
             )
 
             if is2d:
-                self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = ISR2DHist(unfolded_hist, unfolded_bin)
-                self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = ISR2DHist(unfolded_signal_hist, unfolded_bin)
+                self.isr_pt.isr_hists[mass_window_index].unfold_input_hist = (
+                    ISR2DHist(unfold_input_hist, folded_bin))
+                self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = (
+                    ISR2DHist(unfolded_hist, unfolded_bin))
+                self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = (
+                    ISR2DHist(unfolded_signal_hist, unfolded_bin))
             else:
+                self.isr_pt.isr_hists[mass_window_index].unfold_input_hist = unfold_input_hist
                 self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = unfolded_hist
                 self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = unfolded_signal_hist
 
