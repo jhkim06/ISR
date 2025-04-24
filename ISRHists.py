@@ -19,7 +19,7 @@ class ISRHistSet:
         self.measurement_hist = measurement_hist
         self.signal_hist = signal_hist
         self.signal_fake_hist = signal_fake_hist
-        self.background_hist = background_hists  # Note this is dictionary of hists
+        self.background_hist = background_hists  # Note this is a dictionary of hists
 
         self.response_matrix = response_matrix
 
@@ -258,6 +258,37 @@ class ISRHists:
         else:
             return plotter
 
+    def draw_background_fractions(self, mass_window_index=-1):
+
+        signal_hist = self.get('signal', mass_window_index)
+        background_hists = self.get('background', mass_window_index)
+        total_mc_hist = None
+        for bg_name, bg_hist in background_hists.items():
+            total_mc_hist = bg_hist + total_mc_hist
+        total_mc_hist = total_mc_hist + signal_hist
+
+        plotter = signal_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.set_experiment_label(label='Simulation', **{'year': signal_hist.year})
+
+        # set fractions
+        for bg_name, bg_hist in background_hists.items():
+            background_hists[bg_name] = bg_hist.divide(total_mc_hist)
+            plotter.add_hist(background_hists[bg_name], as_stack=False, as_denominator=True,
+                             **{'label': labels.get(bg_hist.get_label(), bg_name)})
+
+        suffix = '_bg_fraction_detector'
+        if self.is_2d:
+            suffix = '_bg_fraction_detector_'+str(mass_window_index)
+
+        plotter.draw_hist()
+        text = self.get_additional_text_on_plot(mass_window_index)
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right"})
+
+        plotter.set_common_ratio_plot_cosmetics(self.x_axis_label, y_axis_name='Fractions',
+                                                y_min=0, y_max=0.5)
+        plotter.save_and_reset_plotter(signal_hist.hist_name + suffix + "_" + self.channel + self.year)
+
     def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix=''):
         plotter = measurement_hist.plotter
         plotter.init_plotter(rows=2, cols=1)
@@ -341,7 +372,7 @@ class ISRHists:
 
         plotter.save_and_reset_plotter("test_" + self.channel + self.year)
 
-
+    # comparisons between different mass windows
     def draw_pt_comparison(self):
         # use Z peak mass reason as denominator
         reference_hist = self.get('acceptance_corrected', 2, bin_width_norm=True, scale=-1)

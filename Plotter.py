@@ -311,13 +311,12 @@ class Plotter:
                                         x_log_scale=False,
                                         y_axis_name='Data',
                                         y_min=0.4,
-                                        y_max=1.6
-                                        ):
+                                        y_max=1.6):
 
         if x_log_scale:
             self.get_axis(location=(0, 0)).set_xscale("log")
         self.get_axis(location=(0, 0)).set_ylabel(y_axis_name)
-        self.show_legend(location=(0, 0))
+        self.show_legend(location=(0, 0), )
         # self.adjust_y_scale()
 
         self.get_axis(location=(0, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
