@@ -226,9 +226,12 @@ class ISRAnalyzer(Analyzer):
             postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
             hist_name, matrix_name, fake_hist_name, _ = self.get_hist_names_for_1d_dimass(postfix)
 
-        measurement = self.get_measurement_hist(hist_name)
-        signal = self.get_mc_hist(self.signal_name, hist_name)
-        bgs = self.get_background_hists(hist_name)
+        #hist_prefix = "ss_"
+        hist_prefix = ""
+        measurement = self.get_measurement_hist(hist_name, hist_name_prefix=hist_prefix)
+        signal = self.get_mc_hist(self.signal_name, hist_name, hist_name_prefix=hist_prefix)
+        bgs = self.get_background_hists(hist_name, hist_name_prefix=hist_prefix)
+
         signal_fake = self.get_mc_hist(self.signal_name, fake_hist_name)
         matrix = self.get_mc_hist(self.signal_name, matrix_name)
         return measurement, signal, signal_fake, bgs, matrix

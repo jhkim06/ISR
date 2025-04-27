@@ -287,6 +287,14 @@ class Hist(object):
                 hist.Scale(1. / hist.Integral())
                 self.systematic_raw_root_hists[sys_name][var_name] = hist
 
+    def scale(self, scale=1.):
+        self.raw_root_hist.Scale(scale)
+
+        for sys_name, variations in self.systematic_raw_root_hists.items():
+            for var_name, hist in variations.items():
+                hist.Scale(scale)
+                self.systematic_raw_root_hists[sys_name][var_name] = hist
+
 
     def get_mean(self, binned_mean=True, range_min=None, range_max=None, target_hist=None):
         if target_hist:

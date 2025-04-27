@@ -266,7 +266,10 @@ class Plotter:
     def show_legend(self, location=(0, 0), **kwargs):
         self.set_current_axis(location=location)
         self.current_axis.legend(self.legend_handles, self.legend_labels, loc='best', fontsize=17)
-        hep.plot.yscale_legend(self.current_axis)
+        try:
+            hep.plot.yscale_legend(self.current_axis)
+        except RuntimeError:
+            pass
 
     def draw_error_boxes(self, default_value, bins, errors,
                          location=(0,0), sys_name='', **kwargs):

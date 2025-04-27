@@ -51,7 +51,8 @@ def with_data_hist_info(func):
 
 class Analyzer:
     def __init__(self, sample_base_dir, signal='DY',
-                 backgrounds=[('top', 'antitop'), 'TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],
+                 # 'QCD'
+                 backgrounds=['qcd', ('top', 'antitop'), 'TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],
                  analysis_name=''):
 
         self.data = CMSData(sample_base_dir)
@@ -99,7 +100,8 @@ class Analyzer:
     def get_mc(self, process_name, label=''):
         return self.data.get_mc(process_name, self.year, self.channel, label=label)
 
-    def set_systematics_on_hist(self, file_group, hist, hist_name, bin_width_norm=False):
+    def set_systematics_on_hist(self, file_group, hist, hist_name, hist_name_prefix='',
+                                bin_width_norm=False):
         is_measurement = hist.is_measurement
         is_signal = hist.is_mc_signal
 
@@ -124,74 +126,111 @@ class Analyzer:
                     # FIXME option to use systematic root file
                     sys_hist = file_group.get_combined_root_hists(hist_name,
                                                                   event_selection=self.event_selection,
+                                                                  hist_name_prefix=hist_name_prefix,
                                                                   scale=sys_config[2],
                                                                   sys_dir_name=sys_config[0],
                                                                   bin_width_norm=bin_width_norm)
                 else:
                     sys_hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
+                                                                  hist_name_prefix=hist_name_prefix,
                                                                   bin_width_norm=bin_width_norm)
 
                 hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
 
     # Methods to get Hist
-    def get_measurement_hist(self, hist_name, bin_width_norm=False, norm=False):
+    def get_measurement_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
         file_group = self.get_measurement()
 
-        hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
+        hist = file_group.get_combined_root_hists(hist_name,
+                                                  event_selection=self.event_selection,
+                                                  hist_name_prefix=hist_name_prefix,
                                                   bin_width_norm=bin_width_norm, norm=norm)
-        self.set_systematics_on_hist(file_group, hist, hist_name, bin_width_norm=bin_width_norm)  # Analyzer knows systematics
+        self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
+                                     bin_width_norm=bin_width_norm)  # Analyzer knows systematics
         return hist
 
-    def get_mc_hist(self, process_name, hist_name, bin_width_norm=False, scale=1.0, norm=False):
+    def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False):
         file_group = self.get_mc(process_name)
         is_signal = False
         if process_name == self.signal_name:
             is_signal = True
 
         hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
+                                                  hist_name_prefix=hist_name_prefix,
                                                   bin_width_norm=bin_width_norm, norm=norm,
                                                   is_signal=is_signal,
                                                   scale=scale)
-        self.set_systematics_on_hist(file_group, hist, hist_name, bin_width_norm=bin_width_norm)
+        self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
+                                     bin_width_norm=bin_width_norm)
         return hist
 
-    def get_background_hists(self, hist_name, bin_width_norm=False, bg_scale=1.0, norm=False):
+    def get_qcd_hist(self, hist_name, bin_width_norm=False, bg_scale=1.0, norm=False):
+        data_ss = self.get_measurement_hist(hist_name, hist_name_prefix='ss_',
+                                            bin_width_norm=bin_width_norm, norm=False)
+        data_ss.label='QCD'
+        # FIXME temporary subtract signal mc only
+        #total_mc_ss = self.get_total_expectation_hist(hist_name, hist_name_prefix='ss_',
+        #                                             bin_width_norm=bin_width_norm, norm=False)
+        total_mc_ss = self.get_mc_hist(self.signal_name, hist_name, hist_name_prefix='ss_',
+                                       bin_width_norm=bin_width_norm, norm=False)
+        # total_mc_ss.scale(1.4)
+        qcd_hist = data_ss - total_mc_ss
+        qcd_hist.scale(bg_scale)
+
+        return qcd_hist
+
+    def get_background_hists(self, hist_name, hist_name_prefix='', bin_width_norm=False, bg_scale=1.0, norm=False):
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background_names:
             # TODO set proper bg label
-            if isinstance(bg, tuple):
-                bg_key = '+'.join([k for k in bg])
+            if bg == 'qcd':
+                bg_key = 'qcd'
+                bg_hist = self.get_qcd_hist(hist_name, bin_width_norm=bin_width_norm, bg_scale=bg_scale, norm=norm)
             else:
-                bg_key = bg
-            temp_dict[bg_key] = self.get_mc_hist(bg, hist_name,
-                                                 bin_width_norm=bin_width_norm,
-                                                 scale=bg_scale, norm=norm)
+                if isinstance(bg, tuple):
+                    bg_key = '+'.join([k for k in bg])
+                else:
+                    bg_key = bg
+                bg_hist = self.get_mc_hist(bg, hist_name,
+                                           hist_name_prefix=hist_name_prefix,
+                                           bin_width_norm=bin_width_norm,
+                                           scale=bg_scale, norm=norm)
+            temp_dict[bg_key] = bg_hist
         return temp_dict
 
-    def get_total_bg_hist(self, hist_name, bin_width_norm=False, norm=False):
+    def get_total_bg_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
         total_bg = None
         for name in self.background_names:
-            bg = self.get_mc_hist(name, hist_name, bin_width_norm=bin_width_norm)
+            if name == 'qcd': continue
+            bg = self.get_mc_hist(name, hist_name, hist_name_prefix=hist_name_prefix, bin_width_norm=bin_width_norm)
+            # FIXME continue if not found?
             total_bg = bg + total_bg
 
         if norm:
             total_bg.normalize()
         return total_bg
 
-    def get_total_expectation_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        file_group = self.get_measurement(self.signal_name)
-        total_expectation_hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
-        total_expectation_hist = (self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm) +
-                                  total_expectation_hist)
+    def get_total_expectation_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
+        file_group = self.get_mc(self.signal_name)
+        total_expectation_hist = file_group.get_combined_root_hists(hist_name,
+                                                                    event_selection=self.event_selection,
+                                                                    hist_name_prefix=hist_name_prefix,
+                                                                    bin_width_norm=bin_width_norm)
+        total_expectation_hist = (self.get_total_bg_hist(hist_name,
+                                                         hist_name_prefix=hist_name_prefix,
+                                                         bin_width_norm=bin_width_norm) + total_expectation_hist)
 
         if norm:
             total_expectation_hist.normalize()
         return total_expectation_hist
 
-    def get_bg_subtracted_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
-        raw_data = self.get_measurement_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
-        total_bg = self.get_total_bg_hist(hist_name, hist_path, bin_width_norm=bin_width_norm)
+    def get_bg_subtracted_measurement_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
+        raw_data = self.get_measurement_hist(hist_name,
+                                             hist_name_prefix=hist_name_prefix, bin_width_norm=bin_width_norm)
+        total_bg = self.get_total_bg_hist(hist_name,
+                                          hist_name_prefix=hist_name_prefix, bin_width_norm=bin_width_norm)
+        # here, scale total_bg to mitigate the normalization effect of total_bg
         raw_data = raw_data-total_bg
 
         if norm:

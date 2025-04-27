@@ -384,6 +384,7 @@ class ISRHists:
         x_log_scale = y_log_scale = True
         if self.is_pt:
             x_log_scale = y_log_scale = False
+            y_log_scale = True
 
         x_axis_label = self.x_axis_label
         if self.is_2d and draw_as_2d:
@@ -391,7 +392,7 @@ class ISRHists:
         plotter.set_common_comparison_plot_cosmetics(x_axis_label, x_log_scale=x_log_scale,
                                                      y_log_scale=y_log_scale)
         if text:
-            plotter.add_text(text=text, location=(0, 0), **{"frameon": False, "loc": "upper left"})
+            plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper left"})
 
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 

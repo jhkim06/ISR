@@ -57,15 +57,19 @@ class ROOTHistGrouper:
 
     def get_combined_root_hists(self,
                                 hist_name,
-                                # FIXME it's better allow abstract options here or hide these options
                                 event_selection,
                                 sys_dir_name='default',
+                                hist_name_prefix='',
                                 is_signal=False,
                                 bin_width_norm=False,
                                 norm=False,
                                 scale=1.0, raw_hist=False):
 
         hist_path = self.hist_path_prefix + event_selection + "/"
+        # hist_name_prefix related to the event selection
+        if hist_name_prefix != '':
+            hist_name = hist_name_prefix + hist_name
+        # hist_name_prefix related to the mc sample
         if self.hist_name_prefix != '':
             hist_name = self.hist_name_prefix + hist_name
         hist_total = None
