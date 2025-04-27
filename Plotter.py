@@ -30,8 +30,8 @@ class PlottableHist(Hist):
         super(PlottableHist, self).__init__(hist.raw_root_hist,
                                             label=hist.label,
                                             channel=hist.channel,
-                                            year=hist.year,
-                                            is_measurement=hist.is_measurement,)
+                                            period_name=hist.period_name,
+                                            is_measurement=hist.is_measurement, )
 
         self.systematic_raw_root_hists = copy.deepcopy(hist.systematic_raw_root_hists)
         self.systematics = copy.deepcopy(hist.systematics)

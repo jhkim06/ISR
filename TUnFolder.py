@@ -44,7 +44,7 @@ class TUnFolder:
                  efficiency_correction=True,
                  variable_name=''):
 
-        self.year = input_hist.year
+        self.year = input_hist.period_name
         self.channel = input_hist.channel
         self.variable_name = variable_name
 

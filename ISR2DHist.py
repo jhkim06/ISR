@@ -12,9 +12,9 @@ class ISR2DHist(Hist):
                                         experiment=hist.experiment,
                                         label=hist.label,
                                         channel=hist.channel,
-                                        year=hist.year,
+                                        period_name=hist.period_name,
                                         is_measurement=hist.is_measurement,
-                                        is_mc_signal=hist.is_mc_signal,)
+                                        is_mc_signal=hist.is_mc_signal, )
 
         self.systematic_raw_root_hists = copy.deepcopy(hist.systematic_raw_root_hists)
         self.systematics = copy.deepcopy(hist.systematics)
@@ -42,7 +42,7 @@ class ISR2DHist(Hist):
             hist_name=self.hist_name,
             label=self.label,
             channel=self.channel,
-            year=self.year,
+            period_name=self.period_name,
             is_measurement=self.is_measurement,
             is_mc_signal=self.is_mc_signal
         )

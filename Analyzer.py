@@ -72,9 +72,12 @@ class Analyzer:
 
         self.systematics = {
             # apply only to background Hist
-            "bg_normalization:background": {"up": ("", 1.05), "down": ("", 0.95)},
+            "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
+            "dummy:signal": {"up": ("pdf", "", 1.0), "down": ("pdf", "", 1.0)},
+            #"pdf:signal": {"99": ("pdf", "pdf99", 1.0), "98": ("pdf", "pdf98", 1.0)},
+                                  # directory, postfix scale
+            #"pdf:alphaS": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
         }
-        #self.systematics = {}
 
     def set_data_info(self, year, channel, event_selection):
         self.year = year
@@ -91,12 +94,12 @@ class Analyzer:
         return postfix + self.channel + "_" + self.year
 
     def get_measurement(self):
-        return self.data.get_measurement(self.year, self.channel, self.event_selection)
+        return self.data.get_measurement(self.year, self.channel)
 
     def get_mc(self, process_name, label=''):
-        return self.data.get_mc(process_name, self.year, self.channel, self.event_selection, label)
+        return self.data.get_mc(process_name, self.year, self.channel, label=label)
 
-    def set_systematics_on_hist(self, hist, file_group, hist_name, bin_width_norm=False):
+    def set_systematics_on_hist(self, file_group, hist, hist_name, bin_width_norm=False):
         is_measurement = hist.is_measurement
         is_signal = hist.is_mc_signal
 
@@ -115,36 +118,44 @@ class Analyzer:
                 use_sys_config = False  # fallback if unknown apply_to
 
             for variation_name, sys_config in value.items():
+
                 if use_sys_config:
-                    hist_name = hist_name+"_"+sys_config[0] if sys_config[0] else hist_name
+                    hist_name = hist_name+"_"+sys_config[1] if sys_config[1] else hist_name
+                    # FIXME option to use systematic root file
                     sys_hist = file_group.get_combined_root_hists(hist_name,
-                                                                  scale=sys_config[1],
+                                                                  event_selection=self.event_selection,
+                                                                  scale=sys_config[2],
+                                                                  sys_dir_name=sys_config[0],
                                                                   bin_width_norm=bin_width_norm)
                 else:
-                    sys_hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm)
+                    sys_hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
+                                                                  bin_width_norm=bin_width_norm)
+
                 hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
 
     # Methods to get Hist
-    def get_measurement_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+    def get_measurement_hist(self, hist_name, bin_width_norm=False, norm=False):
         file_group = self.get_measurement()
 
-        hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
-        self.set_systematics_on_hist(hist, file_group, hist_name, bin_width_norm=bin_width_norm)  # Analyzer knows systematics
+        hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
+                                                  bin_width_norm=bin_width_norm, norm=norm)
+        self.set_systematics_on_hist(file_group, hist, hist_name, bin_width_norm=bin_width_norm)  # Analyzer knows systematics
         return hist
 
-    def get_mc_hist(self, process_name, hist_name, hist_path='', bin_width_norm=False, scale=1.0, norm=False):
+    def get_mc_hist(self, process_name, hist_name, bin_width_norm=False, scale=1.0, norm=False):
         file_group = self.get_mc(process_name)
         is_signal = False
         if process_name == self.signal_name:
             is_signal = True
 
-        hist = file_group.get_combined_root_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm,
+        hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
+                                                  bin_width_norm=bin_width_norm, norm=norm,
                                                   is_signal=is_signal,
                                                   scale=scale)
-        self.set_systematics_on_hist(hist, file_group, hist_name, bin_width_norm=bin_width_norm)
+        self.set_systematics_on_hist(file_group, hist, hist_name, bin_width_norm=bin_width_norm)
         return hist
 
-    def get_background_hists(self, hist_name, hist_path='', bin_width_norm=False, bg_scale=1.0, norm=False):
+    def get_background_hists(self, hist_name, bin_width_norm=False, bg_scale=1.0, norm=False):
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background_names:
@@ -153,11 +164,12 @@ class Analyzer:
                 bg_key = '+'.join([k for k in bg])
             else:
                 bg_key = bg
-            temp_dict[bg_key] = self.get_mc_hist(bg, hist_name, bin_width_norm=bin_width_norm,
-                                             scale=bg_scale, norm=norm)
+            temp_dict[bg_key] = self.get_mc_hist(bg, hist_name,
+                                                 bin_width_norm=bin_width_norm,
+                                                 scale=bg_scale, norm=norm)
         return temp_dict
 
-    def get_total_bg_hist(self, hist_name, hist_path='', bin_width_norm=False, norm=False):
+    def get_total_bg_hist(self, hist_name, bin_width_norm=False, norm=False):
         total_bg = None
         for name in self.background_names:
             bg = self.get_mc_hist(name, hist_name, bin_width_norm=bin_width_norm)

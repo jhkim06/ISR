@@ -41,9 +41,9 @@ class Hist(object):
                  experiment='CMS',
                  label='',  # to be used in legend of histogram
                  channel='',
-                 year='',
+                 period_name='',
                  is_measurement=True,
-                 is_mc_signal=False,):
+                 is_mc_signal=False, ):
 
         self.raw_root_hist = hist
         # TODO how to handle systematic of TH2
@@ -52,7 +52,7 @@ class Hist(object):
         self.hist_name = hist_name
         self.experiment = experiment
         self.label = label
-        self.year = year
+        self.period_name = period_name
         self.channel = channel
         self.is_measurement = is_measurement
         self.is_mc_signal = is_mc_signal
@@ -87,12 +87,12 @@ class Hist(object):
         if label == '':
             label = self.label
         if year == '':
-            year = self.year
+            year = self.period_name
 
         new_hist = Hist(hist,
                         hist_name=hist_name,
                         label=label,
-                        year=year,
+                        period_name=year,
                         channel=self.channel,
                         experiment=self.experiment,
                         is_measurement=self.is_measurement,

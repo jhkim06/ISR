@@ -242,9 +242,9 @@ class ISRHists:
 
         plotter.init_plotter(figsize=(10,8), rows=1, cols=1)
         if key == 'simulation':
-            plotter.set_experiment_label(**{'year': measurement_hist.year, 'label': 'Simulation'})
+            plotter.set_experiment_label(**{'year': measurement_hist.period_name, 'label': 'Simulation'})
         else:
-            plotter.set_experiment_label(**{'year': measurement_hist.year})
+            plotter.set_experiment_label(**{'year': measurement_hist.period_name,})
 
         mass=pd.concat(isr_mass.acceptance_corrected_mean_values[key], ignore_index=True)
         pt=pd.concat(isr_pt.acceptance_corrected_mean_values[key], ignore_index=True)
@@ -301,7 +301,7 @@ class ISRHists:
                 suffix = '_unfold_input_'+str(mass_window_index)
         plotter = measurement_hist.plotter
         plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.year})
+        plotter.set_experiment_label(**{'year': measurement_hist.period_name})
 
         kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"color": "black"}
         plotter.add_hist(unfold_input_hist, **kwargs)
@@ -319,7 +319,7 @@ class ISRHists:
 
         plotter = signal_fake_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(**{'year': signal_fake_hist.year})
+        plotter.set_experiment_label(**{'year': signal_fake_hist.period_name})
 
         plotter.add_hist(signal_fake_hist, as_stack=True, as_denominator=True,
                          **get_hist_kwargs(signal_fake_hist.get_label()))
@@ -341,7 +341,7 @@ class ISRHists:
 
         plotter = signal_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(label='Simulation', **{'year': signal_hist.year})
+        plotter.set_experiment_label(label='Simulation', **{'year': signal_hist.period_name})
 
         # set fractions
         for bg_name, bg_hist in background_hists.items():
@@ -365,7 +365,7 @@ class ISRHists:
                               draw_as_2d=False,):
         plotter = measurement_hist.plotter
         plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.year})
+        plotter.set_experiment_label(**{'year': measurement_hist.period_name})
 
         # Add backgrounds if any
         if background_hists:
@@ -438,7 +438,7 @@ class ISRHists:
 
         plotter = reference_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(**{'year': reference_hist.year})
+        plotter.set_experiment_label(**{'year': reference_hist.period_name})
 
         plotter.add_hist(reference_hist, as_denominator=True, location=-999)
         for other in others:
@@ -464,7 +464,7 @@ class ISRHists:
 
         plotter = reference_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(**{'year': reference_hist.year})
+        plotter.set_experiment_label(**{'year': reference_hist.period_name})
 
         plotter.add_hist(reference_hist, as_denominator=True, location=-999)
         plotter.add_hist(hist0, as_denominator=False, location=-999)
