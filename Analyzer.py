@@ -51,8 +51,7 @@ def with_data_hist_info(func):
 
 class Analyzer:
     def __init__(self, sample_base_dir, signal='DY',
-                 # 'QCD'
-                 backgrounds=['qcd', ('top', 'antitop'), 'TTLL', 'GGLL', 'ZZ', 'WZ', 'WW', 'DYJetsToTauTau_MiNNLO'],
+                 backgrounds=['qcd', ('top', 'antitop'), 'TTLL', 'GGLL', ('ZZ', 'WZ', 'WW'), 'DYJetsToTauTau_MiNNLO'],
                  analysis_name=''):
 
         self.data = CMSData(sample_base_dir)
@@ -75,6 +74,7 @@ class Analyzer:
             # apply only to background Hist
             "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
             "dummy:signal": {"up": ("pdf", "", 1.0), "down": ("pdf", "", 1.0)},
+            "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
             #"pdf:signal": {"99": ("pdf", "pdf99", 1.0), "98": ("pdf", "pdf98", 1.0)},
                                   # directory, postfix scale
             #"pdf:alphaS": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
@@ -138,18 +138,21 @@ class Analyzer:
                 hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
 
     # Methods to get Hist
-    def get_measurement_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
+    def get_measurement_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False,
+                             sys_on=True):
         file_group = self.get_measurement()
 
         hist = file_group.get_combined_root_hists(hist_name,
                                                   event_selection=self.event_selection,
                                                   hist_name_prefix=hist_name_prefix,
                                                   bin_width_norm=bin_width_norm, norm=norm)
-        self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
-                                     bin_width_norm=bin_width_norm)  # Analyzer knows systematics
+        if sys_on:
+            self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
+                                         bin_width_norm=bin_width_norm)  # Analyzer knows systematics
         return hist
 
-    def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False):
+    def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False,
+                    sys_on=True):
         file_group = self.get_mc(process_name)
         is_signal = False
         if process_name == self.signal_name:
@@ -160,22 +163,29 @@ class Analyzer:
                                                   bin_width_norm=bin_width_norm, norm=norm,
                                                   is_signal=is_signal,
                                                   scale=scale)
-        self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
-                                     bin_width_norm=bin_width_norm)
+        if sys_on:
+            self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
+                                         bin_width_norm=bin_width_norm)
         return hist
 
     def get_qcd_hist(self, hist_name, bin_width_norm=False, bg_scale=1.0, norm=False):
         data_ss = self.get_measurement_hist(hist_name, hist_name_prefix='ss_',
-                                            bin_width_norm=bin_width_norm, norm=False)
+                                            bin_width_norm=bin_width_norm, norm=False, sys_on=True)
         data_ss.label='QCD'
-        # FIXME temporary subtract signal mc only
-        #total_mc_ss = self.get_total_expectation_hist(hist_name, hist_name_prefix='ss_',
-        #                                             bin_width_norm=bin_width_norm, norm=False)
-        total_mc_ss = self.get_mc_hist(self.signal_name, hist_name, hist_name_prefix='ss_',
-                                       bin_width_norm=bin_width_norm, norm=False)
-        # total_mc_ss.scale(1.4)
+        total_mc_ss = self.get_total_expectation_hist(hist_name, hist_name_prefix='ss_',
+                                                     bin_width_norm=bin_width_norm, norm=False, sys_on=True)
+        #total_mc_ss = self.get_mc_hist(self.signal_name, hist_name, hist_name_prefix='ss_',
+        #                               bin_width_norm=bin_width_norm, norm=False)
         qcd_hist = data_ss - total_mc_ss
-        qcd_hist.scale(bg_scale)
+
+        qcd_hist_up = qcd_hist.create()
+        qcd_hist_up.scale(1.5)
+        qcd_hist_down = qcd_hist.create()
+        qcd_hist_down.scale(0.5)
+
+        qcd_hist.set_systematic_hist("qcd", "up", qcd_hist_up.get_raw_hist())
+        qcd_hist.set_systematic_hist("qcd", "down", qcd_hist_down.get_raw_hist())
+        # apply 50% normalization uncertainty
 
         return qcd_hist
 
@@ -185,6 +195,7 @@ class Analyzer:
         for bg in self.background_names:
             # TODO set proper bg label
             if bg == 'qcd':
+                if self.channel == 'ee': continue
                 bg_key = 'qcd'
                 bg_hist = self.get_qcd_hist(hist_name, bin_width_norm=bin_width_norm, bg_scale=bg_scale, norm=norm)
             else:
@@ -199,11 +210,13 @@ class Analyzer:
             temp_dict[bg_key] = bg_hist
         return temp_dict
 
-    def get_total_bg_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
+    def get_total_bg_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False,
+                          sys_on=True,):
         total_bg = None
         for name in self.background_names:
-            if name == 'qcd': continue
-            bg = self.get_mc_hist(name, hist_name, hist_name_prefix=hist_name_prefix, bin_width_norm=bin_width_norm)
+            if name == 'qcd' or name == 'GGLL': continue
+            bg = self.get_mc_hist(name, hist_name, hist_name_prefix=hist_name_prefix, bin_width_norm=bin_width_norm,
+                                  sys_on=sys_on,)
             # FIXME continue if not found?
             total_bg = bg + total_bg
 
@@ -211,15 +224,15 @@ class Analyzer:
             total_bg.normalize()
         return total_bg
 
-    def get_total_expectation_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
-        file_group = self.get_mc(self.signal_name)
-        total_expectation_hist = file_group.get_combined_root_hists(hist_name,
-                                                                    event_selection=self.event_selection,
-                                                                    hist_name_prefix=hist_name_prefix,
-                                                                    bin_width_norm=bin_width_norm)
+    def get_total_expectation_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False,
+                                   sys_on=True,):
+        total_expectation_hist = self.get_mc_hist(self.signal_name, hist_name,
+                                                  hist_name_prefix=hist_name_prefix,
+                                                  bin_width_norm=bin_width_norm, sys_on=sys_on,)
         total_expectation_hist = (self.get_total_bg_hist(hist_name,
                                                          hist_name_prefix=hist_name_prefix,
-                                                         bin_width_norm=bin_width_norm) + total_expectation_hist)
+                                                         bin_width_norm=bin_width_norm, sys_on=sys_on)
+                                  + total_expectation_hist)
 
         if norm:
             total_expectation_hist.normalize()
