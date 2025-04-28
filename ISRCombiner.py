@@ -1,9 +1,11 @@
 from Combiner import Combiner
 import pandas as pd
+import numpy as np
+
 
 def make_combiner_input(df, i):
-    index_name = df.iloc[i].index[1:-1]  # drop mass_window and total error
-    values = df.iloc[i].values[1:-1]
+    index_name = df.iloc[i].index[:-1]  # drop total error
+    values = df.iloc[i].values[:-1]
 
     combiner_input = [(index_name[index], values[index]) for index in range(len(index_name))]
     combiner_input = (combiner_input[0], combiner_input[1:])
@@ -32,8 +34,9 @@ class ISRCombiner:
 
         # create DF
         number_of_rows = mass_df.shape[0]
-        combined_mass_df = pd.DataFrame(mass_df["mass_window"], columns=mass_df.columns)
-        combined_pt_df = pd.DataFrame(pt_df["mass_window"], columns=pt_df.columns)
+
+        combined_mass_df = pd.DataFrame(np.nan, index=mass_df.index, columns=mass_df.columns)
+        combined_pt_df = pd.DataFrame(np.nan, index=pt_df.index, columns=pt_df.columns)
 
         # loop over mass windows
         for i in range(number_of_rows):

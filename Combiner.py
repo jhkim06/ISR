@@ -25,16 +25,20 @@ class Combiner:
                  use_rho_same_channel=True,
                  solve=False):
         self.rho_same_channel = {
-            "stat error": 0.0,
+            "stat": 0.0,
             "IDsf": 0.0,
-            "bg normalization error": 1.0,
-            "alternative matrix error": 1.0
+            "bg_normalization": 1.0,
+            "alternative matrix": 1.0,
+            "dummy": 1.0,
+            "qcd": 1.0,
         }
         self.rho_same_period = {
             "stat error": 0.0,
             "IDsf": 1.0,
-            "bg normalization error": 0.0,
-            "alternative matrix error": 1.0
+            "bg_normalization": 0.0,
+            "alternative matrix": 1.0,
+            "dummy": 1.0,
+            "qcd": 1.0,
         }
 
         self.n_est = len(estimation_info)

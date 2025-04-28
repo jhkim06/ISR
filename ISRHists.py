@@ -71,7 +71,6 @@ class ISRHists:
                                                  "simulation": []}
 
         self.binned_mean_correction_factors = None
-
         # common plot cosmetics
         if is_pt:
             self.x_axis_label = r"$p_{T}^{"+change_to_greek(self.channel)+"}$ [GeV]"
@@ -227,7 +226,33 @@ class ISRHists:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
 
-    def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement'):
+    def get_df(self, key='measurement', other=None):
+        if other:
+            df = pd.concat(other.acceptance_corrected_mean_values[key], ignore_index=True)
+            is_pt = other.is_pt
+            binned_mean_correction_factors = other.binned_mean_correction_factors
+        else:
+            df = pd.concat(self.acceptance_corrected_mean_values[key], ignore_index=True)
+            is_pt = self.is_pt
+            binned_mean_correction_factors = self.binned_mean_correction_factors
+        if is_pt:
+            df['mean'] = df['mean'] * binned_mean_correction_factors
+        return df
+
+    def add_isr_plot(self, plotter, mass, pt, key='measurement', **kwargs):
+
+        if isinstance(mass, pd.DataFrame):
+            mass_mean = mass
+        else:
+            mass_mean = self.get_df(key=key, other=mass)
+        if isinstance(pt, pd.DataFrame):
+            pt_mean = pt
+        else:
+            pt_mean = self.get_df(key=key, other=pt)
+
+        plotter.add_errorbar((mass_mean, pt_mean), **kwargs)
+
+    def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement', **kwargs):
         if self.is_pt and other.is_pt == False:
             isr_pt = self
             isr_mass = other
@@ -246,19 +271,15 @@ class ISRHists:
         else:
             plotter.set_experiment_label(**{'year': measurement_hist.period_name,})
 
-        mass=pd.concat(isr_mass.acceptance_corrected_mean_values[key], ignore_index=True)
-        pt=pd.concat(isr_pt.acceptance_corrected_mean_values[key], ignore_index=True)
-        # pt['mean'] = pt['mean'] * self.binned_mean_correction_factors
-
-        # plotter.add_errorbar((mass, pt), color='black', marker='.')
-        plotter.add_errorbar((mass, pt), color='black', marker='.', linestyle='none')
-        plotter.draw_errorbar()
+        self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, label=self.year,
+                          **kwargs,)
 
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
         text = isr_mass.get_additional_text_on_plot()
-        #plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper left", })
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right", })
 
         if save_and_reset_plotter:
+            plotter.draw_errorbar()
             plotter.save_and_reset_plotter("isr_test"+"_"+self.channel+self.year+postfix)
             return None
         else:

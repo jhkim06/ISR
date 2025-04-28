@@ -319,7 +319,7 @@ class Plotter:
         if x_log_scale:
             self.get_axis(location=(0, 0)).set_xscale("log")
         self.get_axis(location=(0, 0)).set_ylabel(y_axis_name)
-        self.show_legend(location=(0, 0), )
+        self.show_legend(location=(0, 0),)
         # self.adjust_y_scale()
 
         self.get_axis(location=(0, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
@@ -441,6 +441,12 @@ class Plotter:
             self.set_current_axis(location=self.errorbar_loc[index])
             self.current_axis.errorbar(x_value, y_value, xerr=x_error, yerr=y_error,
                                        **self.errorbar_kwargs[index])
+
+            handles, labels = self.current_axis.get_legend_handles_labels()
+            label = self.errorbar_kwargs[index].get("label", None)
+            if label:
+                self.legend_handles.append(handles[-1])
+                self.legend_labels.append(labels[-1])
 
     def draw_vlines(self, vlines, location=(0, 0), **kwargs):
         for line in vlines:

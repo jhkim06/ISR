@@ -20,14 +20,14 @@ class ISRSystematic:
         ]
         self.pt_bins = (0.0, 100.0)
 
-        self.sample_base_dir = '/Users/junhokim/Work/cms_snu/data/Ultralegacy/default/'
+        self.sample_base_dir = '/Users/junhokim/Work/cms_snu/data/Ultralegacy/'
         # Default data, analyzer
         self.cms_data = CMSData(self.sample_base_dir)
         self.data, self.signal, self.bg = self.cms_data.get_isr_samples(self.period,
                                                          self.channel,
                                                          self.lepton_selection)
 
-        self.default_analyzer = ISRAnalyzer(self.data, self.signal, self.bg,
+        self.default_analyzer = ISRAnalyzer(self.sample_base_dir,
                                             self.mass_bins, self.pt_bins)
 
         self.default_mean_pt = self.default_analyzer.get_unfolded_mean_pt_2d(do_acceptance_correction=True,

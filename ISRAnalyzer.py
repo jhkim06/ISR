@@ -147,14 +147,15 @@ class ISRAnalyzer(Analyzer):
 
         return custom_x_labels, custom_x_locates, vlines
 
-    def setup_isr_detector_hists(self, year, channel, event_selection, is_2d=True):
+    def setup_isr_detector_hists(self, year, channel, event_selection, is_2d=True,
+                                 hist_prefix=''):
         self.set_data_info(year, channel, event_selection)
         if is_2d:
             unfolded_bin, folded_bin = self.get_unfold_bin_maps(
                 self.pt_mass_unfolded_bin_name,
                 self.pt_mass_detector_bin_name
             )
-            measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist()
+            measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(hist_prefix=hist_prefix)
 
             self.isr_pt = ISRHists(self.mass_bins, self.pt_bins, is_2d=True, is_pt=True,
                                    year=year, channel=channel,
@@ -166,11 +167,12 @@ class ISRAnalyzer(Analyzer):
                                    year=year, channel=channel, )
             for index, _ in enumerate(self.mass_bins):
                 measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=True, is_2d=False,
-                                                                                  mass_window_index=index)
+                                                                                  mass_window_index=index,
+                                                                                  hist_prefix=hist_prefix)
                 self.isr_pt.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
 
         # for mass, always 1D
-        measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=False)
+        measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=False, hist_prefix=hist_prefix)
         self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False,
                                  year=year, channel=channel)
         self.isr_mass.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
@@ -210,7 +212,8 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
         self.isr_mass.set_acceptance_corrected_mean_values(key='simulation')
 
-    def get_isr_hist(self, is_pt=True, is_2d=True, mass_window_index=0):
+    def get_isr_hist(self, is_pt=True, is_2d=True, mass_window_index=0,
+                     hist_prefix=''):
         if is_pt:
             if is_2d:
                 hist_name = self.pt_mass_hist_name
@@ -226,8 +229,6 @@ class ISRAnalyzer(Analyzer):
             postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
             hist_name, matrix_name, fake_hist_name, _ = self.get_hist_names_for_1d_dimass(postfix)
 
-        #hist_prefix = "ss_"
-        hist_prefix = ""
         measurement = self.get_measurement_hist(hist_name, hist_name_prefix=hist_prefix)
         signal = self.get_mc_hist(self.signal_name, hist_name, hist_name_prefix=hist_prefix)
         bgs = self.get_background_hists(hist_name, hist_name_prefix=hist_prefix)
