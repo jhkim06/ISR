@@ -371,7 +371,8 @@ class ISRHists:
         if background_hists:
             for bg_name, bg_hist in background_hists.items():
                 plotter.add_hist(bg_hist, as_stack=True, as_denominator=True,
-                                 **{'label': labels.get(bg_hist.get_label(), bg_name)})
+                                 **get_hist_kwargs(bg_hist.get_label()))
+                                 #**{'label': labels.get(bg_hist.get_label(), bg_name)})
 
         # Add signal and measurement
         plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **get_hist_kwargs(signal_hist.get_label()))
