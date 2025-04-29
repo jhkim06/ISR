@@ -263,9 +263,10 @@ class Plotter:
 
         self.add_hist(ratio_hist, location=location, **kwargs)
 
-    def show_legend(self, location=(0, 0), **kwargs):
+    def show_legend(self, location=(0, 0), **kwargs_):
         self.set_current_axis(location=location)
-        self.current_axis.legend(self.legend_handles, self.legend_labels, loc='best', fontsize=17)
+        kwargs = {"loc": 'best', 'fontsize': 17} | kwargs_
+        self.current_axis.legend(self.legend_handles, self.legend_labels, **kwargs)
         try:
             hep.plot.yscale_legend(self.current_axis)
         except RuntimeError:

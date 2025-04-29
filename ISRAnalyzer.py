@@ -202,6 +202,10 @@ class ISRAnalyzer(Analyzer):
                                                                  binned_mean=binned_mean,
                                                                  range_min=range_min, range_max=range_max)
 
+            self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(
+                self.unfolded_space_name, self.unfolded_bin_name
+            )
+
         # mass
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
         hist_full_phase_name = self.mass_hist_full_phase_name_prefix + postfix

@@ -1,3 +1,5 @@
+from traceback import print_tb
+
 from Hist import Hist, change_to_greek
 from Analyzer import labels, colors, get_hist_kwargs
 from ISR2DHist import ISR2DHist
@@ -226,7 +228,7 @@ class ISRHists:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
 
-    def get_df(self, key='measurement', other=None):
+    def get_df(self, key='measurement', other=None, binned_mean_correction=True,):
         if other:
             df = pd.concat(other.acceptance_corrected_mean_values[key], ignore_index=True)
             is_pt = other.is_pt
@@ -235,7 +237,8 @@ class ISRHists:
             df = pd.concat(self.acceptance_corrected_mean_values[key], ignore_index=True)
             is_pt = self.is_pt
             binned_mean_correction_factors = self.binned_mean_correction_factors
-        if is_pt:
+
+        if is_pt and binned_mean_correction:
             df['mean'] = df['mean'] * binned_mean_correction_factors
         return df
 
