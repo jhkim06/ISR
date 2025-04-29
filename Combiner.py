@@ -31,6 +31,8 @@ class Combiner:
             "alternative matrix": 1.0,
             "dummy": 1.0,
             "qcd": 1.0,
+            "1d_2d": 1.0,
+            "matrix": 1.0,
         }
         self.rho_same_period = {
             "stat error": 0.0,
@@ -39,6 +41,8 @@ class Combiner:
             "alternative matrix": 1.0,
             "dummy": 1.0,
             "qcd": 1.0,
+            "1d_2d": 1.0,
+            "matrix": 1.0,
         }
 
         self.n_est = len(estimation_info)

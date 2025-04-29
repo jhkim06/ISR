@@ -237,6 +237,10 @@ class ISRAnalyzer(Analyzer):
         matrix = self.get_mc_hist(self.signal_name, matrix_name)
         return measurement, signal, signal_fake, bgs, matrix
 
+    def isr_unfolds(self):
+        self.pt_isr_unfold()
+        self.mass_isr_unfold()
+
     def pt_isr_unfold(self):
         def run_unfold(mass_window_index, is2d=False):
             # Fetch ISR inputs
@@ -354,6 +358,10 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass.isr_hists[0].truth_signal_hist = truth_signal_hist
         self.isr_mass.isr_hists[0].unfolded_signal_hist = unfolded_signal_hist
 
+    def isr_acceptance_corrections(self):
+        self.pt_isr_acceptance_correction()
+        self.mass_isr_acceptance_correction()
+
     def pt_isr_acceptance_correction(self):
         def run_acceptance_correction(index=0, is2d=False):
             if is2d:
@@ -393,8 +401,8 @@ class ISRAnalyzer(Analyzer):
         if self.isr_pt.is_2d:
             run_acceptance_correction(index=0, is2d=True)
         else:
-            for index in range(len(self.mass_bins)):
-                run_acceptance_correction(index=index, is2d=False)
+            for i in range(len(self.mass_bins)):
+                run_acceptance_correction(index=i, is2d=False)
 
         # This is common in both 1D and 2D cases
         self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(
