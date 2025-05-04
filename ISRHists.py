@@ -269,10 +269,6 @@ class ISRHists:
         plotter = measurement_hist.plotter
 
         plotter.init_plotter(figsize=(10,8), rows=1, cols=1)
-        if key == 'simulation':
-            plotter.set_experiment_label(**{'year': measurement_hist.period_name, 'label': 'Simulation'})
-        else:
-            plotter.set_experiment_label(**{'year': measurement_hist.period_name,})
 
         self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, label=self.year,
                           **kwargs,)
@@ -282,6 +278,10 @@ class ISRHists:
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right", })
 
         if save_and_reset_plotter:
+            if key == 'simulation':
+                plotter.set_experiment_label(**{'year': measurement_hist.year, 'label': 'Simulation'})
+            else:
+                plotter.set_experiment_label(**{'year': measurement_hist.year, })
             plotter.draw_errorbar()
             plotter.save_and_reset_plotter("isr_test"+"_"+self.channel+self.year+postfix)
             return None
@@ -325,15 +325,15 @@ class ISRHists:
                 suffix = '_unfold_input_'+str(mass_window_index)
         plotter = measurement_hist.plotter
         plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.period_name})
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
 
         kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"color": "black"}
         plotter.add_hist(unfold_input_hist, **kwargs)
         kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"mfc": "none", "color": "gray"}
         plotter.add_hist(measurement_hist, as_denominator=True, **kwargs)
 
-        plotter.add_ratio_hists(location=(1, 0))
         plotter.draw_hist()
+        plotter.draw_ratio_hists(location=(1, 0))
 
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
@@ -343,7 +343,7 @@ class ISRHists:
 
         plotter = signal_fake_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(**{'year': signal_fake_hist.period_name})
+        plotter.set_experiment_label(**{'year': signal_fake_hist.year})
 
         plotter.add_hist(signal_fake_hist, as_stack=True, as_denominator=True,
                          **get_hist_kwargs(signal_fake_hist.get_label()))
@@ -365,7 +365,7 @@ class ISRHists:
 
         plotter = signal_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(label='Simulation', **{'year': signal_hist.period_name})
+        plotter.set_experiment_label(label='Simulation', **{'year': signal_hist.year})
 
         # set fractions
         for bg_name, bg_hist in background_hists.items():
@@ -386,10 +386,10 @@ class ISRHists:
         plotter.save_and_reset_plotter(signal_hist.hist_name + suffix + "_" + self.channel + self.year)
 
     def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix='',
-                              draw_as_2d=False,):
+                              draw_as_2d=False, mc_denominator=True, save_and_reset=True, signal_as_stack=True):
         plotter = measurement_hist.plotter
         plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.period_name})
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
 
         # Add backgrounds if any
         if background_hists:
@@ -399,12 +399,11 @@ class ISRHists:
                                  #**{'label': labels.get(bg_hist.get_label(), bg_name)})
 
         # Add signal and measurement
-        plotter.add_hist(signal_hist, as_stack=True, as_denominator=True, **get_hist_kwargs(signal_hist.get_label()))
-        plotter.add_hist(measurement_hist, **get_hist_kwargs(measurement_hist.get_label()))
+        plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator, **get_hist_kwargs(signal_hist.get_label()))
+        plotter.add_hist(measurement_hist, as_denominator=not mc_denominator, **get_hist_kwargs(measurement_hist.get_label()))
 
-        # Add ratio + draw
-        plotter.add_ratio_hists(location=(1, 0))
         plotter.draw_hist()
+        plotter.draw_ratio_hists(location=(1, 0))
 
         x_log_scale = y_log_scale = True
         if self.is_pt:
@@ -414,12 +413,21 @@ class ISRHists:
         x_axis_label = self.x_axis_label
         if self.is_2d and draw_as_2d:
             x_axis_label = 'Bin index'
+
+        ratio_name="Data/MC"
+        if not mc_denominator:
+            ratio_name = "MC/Data"
         plotter.set_common_comparison_plot_cosmetics(x_axis_label, x_log_scale=x_log_scale,
-                                                     y_log_scale=y_log_scale)
+                                                     y_log_scale=y_log_scale, ratio_name=ratio_name)
+
         if text:
             plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper left"})
 
-        plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+        if save_and_reset:
+            plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+            return None
+        else:
+            return plotter
 
     def draw_detector_level(self, mass_window_index=-1, bin_width_norm=False):
         measurement_hist = self.get('measurement', mass_window_index, bin_width_norm=bin_width_norm)
@@ -448,7 +456,8 @@ class ISRHists:
             suffix = '_unfolded_'+str(mass_window_index)
         self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix)
 
-    def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False):
+    def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False,
+                                        mc_denominator=True, others=None):
         measurement_hist = self.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm)
         signal_hist = self.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm,
                                key='simulation')
@@ -457,22 +466,39 @@ class ISRHists:
         suffix = '_acceptance_corrected'
         if self.is_2d:
             suffix = '_acceptance_corrected_'+str(mass_window_index)
-        self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix)
+        save_and_reset = True
+        if others:
+            save_and_reset = False
+        plotter = self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
+                                             mc_denominator=mc_denominator, save_and_reset=save_and_reset,
+                                             signal_as_stack=False)
+        if others:
+            for index, other in enumerate(others):
+                other_hist = other.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm,
+                                       key='simulation')
+                plotter.add_hist(other_hist, as_denominator=False, **get_hist_kwargs(other_hist.get_label()))
+                plotter.add_hist(measurement_hist, as_denominator=True, not_to_draw=True,
+                                 **get_hist_kwargs(measurement_hist.get_label()))
+                plotter.draw_hist()
+                plotter.draw_ratio_hists(location=(1, 0))
+
+            plotter.show_legend()
+            plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
     def draw_pt_comparisons(self, *others, index=2):
         reference_hist = self.get('acceptance_corrected', index, bin_width_norm=True, scale=-1)
 
         plotter = reference_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(**{'year': reference_hist.period_name})
+        plotter.set_experiment_label(**{'year': reference_hist.year})
 
-        plotter.add_hist(reference_hist, as_denominator=True, location=-999)
+        plotter.add_hist(reference_hist, as_denominator=True, not_to_draw=True,)
         for other in others:
             hist = other.get('acceptance_corrected', index, bin_width_norm=True, scale=-1)
-            plotter.add_hist(hist, as_denominator=False, location=-999)
+            plotter.add_hist(hist, as_denominator=False, not_to_draw=True, label=other.year)
 
-        plotter.add_ratio_hists(location=(0, 0))
         plotter.draw_hist()
+        plotter.draw_ratio_hists(location=(0, 0))
 
         plotter.get_axis(location=(0, 0)).set_ylim(0.5, 1.5)
         plotter.set_common_ratio_plot_cosmetics(self.x_axis_label)
@@ -490,14 +516,14 @@ class ISRHists:
 
         plotter = reference_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(**{'year': reference_hist.period_name})
+        plotter.set_experiment_label(**{'year': reference_hist.year})
 
         plotter.add_hist(reference_hist, as_denominator=True, location=-999)
         plotter.add_hist(hist0, as_denominator=False, location=-999)
         plotter.add_hist(hist1, as_denominator=False, location=-999)
         plotter.add_hist(hist3, as_denominator=False, location=-999)
         plotter.add_hist(hist4, as_denominator=False, location=-999)
-        plotter.add_ratio_hists(location=(0, 0))
+        plotter.draw_ratio_hists(location=(0, 0))
         plotter.draw_hist()
 
         plotter.get_axis(location=(0, 0)).set_ylim(0, 3)

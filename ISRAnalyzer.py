@@ -91,7 +91,7 @@ class ISRAnalyzer(Analyzer):
         self.pt_mass_detector_bin_name = tunfold_prefix + "_[" + self.folded_bin_name + "_" + bin_definition + "]"
         self.pt_mass_unfolded_bin_name = tunfold_prefix + "_[" + self.unfolded_bin_name + "_" + bin_definition + "]"
 
-        # even if the same bin definition used different contents can be stored
+        # even if the same bin definition is used, different contents can be stored
         type_name = 'hist'
         tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
         self.pt_mass_hist_name = tunfold_prefix + "_" + self.pt_mass_detector_bin_postfix
@@ -188,15 +188,12 @@ class ISRAnalyzer(Analyzer):
         if is_2d:
             pass
         else:
-            pt_hist_full_phase_name_prefix = ('dipt_[gen_' + self.unfolded_space_name +
-                                              '_acceptance__' +self. unfolded_bin_name + ']_dimass')
             self.isr_pt = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=True,
                                    year=year, channel=channel, )
             for index, mass_bin in enumerate(mass_bins):
                 mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
 
-                mc_hist_full_phase = self.get_mc_hist(self.signal_name,
-                                                      pt_hist_full_phase_name_prefix + mass_bin_postfix)
+                mc_hist_full_phase = self.get_acceptance_hist(self.pt_hist_full_phase_name_prefix + mass_bin_postfix)
                 self.isr_pt.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
                 self.isr_pt.set_acceptance_corrected_mean_values(mass_window_index=index, key='simulation',
                                                                  binned_mean=binned_mean,

@@ -2,14 +2,42 @@ import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 import mplhep as hep
 import numpy as np
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 from matplotlib.ticker import FixedLocator, FixedFormatter
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
-from mplhep.plot import ErrorBarArtists
+from mplhep.plot import ErrorBarArtists, StairsArtists
 import math
 from Hist import Hist
 import copy
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
+from matplotlib.container import ErrorbarContainer
+
+
+def extract_color_from_handle(handle):
+    """Extracts color from various matplotlib/mplhep artist types."""
+
+    # Case 1: mplhep ErrorBarArtists
+    if isinstance(handle, ErrorBarArtists):
+        container = handle.errorbar
+        if isinstance(container, ErrorbarContainer):
+            return container.lines[0].get_color()
+
+    # Case 2: mplhep StairsArtists
+    elif isinstance(handle, StairsArtists):
+        return handle.stairs.get_edgecolor()
+
+    # Case 3: Line2D (e.g., for errorbar or line plot)
+    elif isinstance(handle, mlines.Line2D):
+        return handle.get_color()
+
+    # Case 4: Patch (e.g., from bar hist)
+    elif isinstance(handle, mpatches.Patch):
+        return handle.get_facecolor()
+
+    print(f"⚠️ Unknown handle type: {type(handle)}")
+    return None
 
 
 def find_non_negative_min(arr):
@@ -24,24 +52,26 @@ def find_non_negative_min(arr):
 
 
 class PlottableHist(Hist):
-    def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False, drawn=False, not_to_draw=False,
+    def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
+                 drawn=False, not_to_draw=False, use_for_ratio=True,
                  **kwargs):
 
         super(PlottableHist, self).__init__(hist.raw_root_hist,
                                             label=hist.label,
                                             channel=hist.channel,
-                                            period_name=hist.period_name,
+                                            year=hist.year,
                                             is_measurement=hist.is_measurement, )
 
         self.systematic_raw_root_hists = copy.deepcopy(hist.systematic_raw_root_hists)
         self.systematics = copy.deepcopy(hist.systematics)
 
         self.hist = hist
-        self.not_to_draw = not_to_draw
         self.location = location
         self.as_denominator = as_denominator
         self.as_stack = as_stack
         self.drawn = drawn
+        self.not_to_draw = not_to_draw
+        self.use_for_ratio = use_for_ratio
         self.plot_kwargs = kwargs
 
 class Plotter:
@@ -59,6 +89,7 @@ class Plotter:
         self.cols = 1
         self.fig = None
         self.axs = None
+        self._stack_bottoms: Dict[Tuple[int, int], np.ndarray] = {}
         self.current_axis = None
         self.base_output_dir = base_output_dir
         self.out_dir = ''
@@ -69,8 +100,8 @@ class Plotter:
         self.errorbar_loc = []
         self.errorbar_kwargs: List[Dict[str, Any]] = []
 
-        self.legend_handles = []
-        self.legend_labels = []
+        self.legend_handles: Dict[Tuple[int, int], list] = {}
+        self.legend_labels: Dict[Tuple[int, int], list] = {}
 
         self.y_minimum = 999.
 
@@ -79,6 +110,7 @@ class Plotter:
         self.cols = 1
         del self.fig
         del self.axs
+        self._stack_bottoms.clear()
         self.current_axis = None
         self.plottable_hists.clear()
         self.errorbar_list.clear()
@@ -99,6 +131,21 @@ class Plotter:
             # FIXME
             self.create_subplots(rows, cols, figsize=figsize,)
 
+        self._stack_bottoms.clear()
+        for r in range(rows):
+            for c in range(cols):
+                self._stack_bottoms[(r,c)] = 0
+                self.legend_handles[(r,c)] = []
+                self.legend_labels[(r,c)] = []
+
+    def create_subplots(self, rows=1, cols=1, figsize=(8, 8),
+                        left=0.1, right=0.95, bottom=0.1, top=0.9, hspace=0.2, wspace=0.2, **gridspec_kw):
+        self.rows = rows
+        self.cols = cols
+        self.fig, self.axs = plt.subplots(rows, cols, figsize=figsize, gridspec_kw=gridspec_kw)
+        plt.tight_layout()
+        plt.subplots_adjust(left=left, right=right, bottom=bottom, top=top, hspace=hspace, wspace=wspace)
+
     def save_and_reset_plotter(self, hist_name, postfix=''):
         self.save_fig(hist_name + postfix)
         self.reset()
@@ -112,14 +159,6 @@ class Plotter:
         hep.cms.label(label, data=is_data, fontsize=20, ax=self.current_axis, loc=0, pad=.0, **kwargs)
         plt.rcParams['text.usetex'] = True
 
-    def create_subplots(self, rows=1, cols=1, figsize=(8, 8),
-                        left=0.1, right=0.95, bottom=0.1, top=0.9, hspace=0.2, wspace=0.2, **gridspec_kw):
-        self.rows = rows
-        self.cols = cols
-        self.fig, self.axs = plt.subplots(rows, cols, figsize=figsize, gridspec_kw=gridspec_kw)
-        plt.tight_layout()
-        plt.subplots_adjust(left=left, right=right, bottom=bottom, top=top, hspace=hspace, wspace=wspace)
-
     def set_current_axis(self, location=(0, 0)):
         self.current_axis = self.get_axis(location=location)
 
@@ -132,8 +171,13 @@ class Plotter:
         else:
             return self.axs[row][col]
 
-    def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False, **kwargs):
-        p_hist = PlottableHist(hist, location=location, as_stack=as_stack, as_denominator=as_denominator, **kwargs)
+    def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
+                 not_to_draw=False,
+                 use_for_ratio=True,
+                 **kwargs):
+        p_hist = PlottableHist(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
+                               use_for_ratio=use_for_ratio, not_to_draw=not_to_draw,
+                               **kwargs)
         self.plottable_hists.append(p_hist)
         return len(self.plottable_hists) - 1
 
@@ -141,12 +185,13 @@ class Plotter:
         nominator_index = []
         denominator_index = []
         for i, p_hist in enumerate(self.plottable_hists):
-            if p_hist.drawn:
+            if not p_hist.use_for_ratio:
                 continue
             if p_hist.as_denominator:
                 denominator_index.append(i)
             else:
                 nominator_index.append(i)
+            p_hist.use_for_ratio = False  # do not use this histogram for ratio plot anymore
 
         if len(denominator_index) == 1 and len(nominator_index) > 1:
             return nominator_index, denominator_index[0]
@@ -156,117 +201,142 @@ class Plotter:
             return nominator_index[0], denominator_index[0]
         else:
             print('Something went wrong in ratio plot setting...')
+            print(f'# denominator {len(denominator_index)}, # nominator {len(nominator_index)}')
             exit(1)
 
     def draw_hist(self):
-        bottom = 0
         for p_hist in self.plottable_hists:
             if p_hist.drawn:
                 continue
-
             values, bins, errors = p_hist.to_numpy()
-            if p_hist.location == -999:  # FIXME
+            if p_hist.not_to_draw:  # FIXME
                 continue
 
             self.set_current_axis(location=p_hist.location)
             # self.y_minimum = min(self.y_minimum, find_non_negative_min(values)) if self.y_minimum else find_non_negative_min(values)
             self.y_minimum = find_non_negative_min(values)
 
-            if not p_hist.as_stack:
-                if p_hist.plot_kwargs.get('yerr') is False:
-                    errors = False
-                    del p_hist.plot_kwargs['yerr']
-                xerr = p_hist.plot_kwargs.pop('xerr', False)
-                artists = hep.histplot((values, bins), ax=self.current_axis,
-                                       yerr=errors, xerr=xerr, **p_hist.plot_kwargs)
-                handle = artists[0] if isinstance(artists[0], ErrorBarArtists) or artists[0].legend_artist else (
-                    artists[0].stairs)
+            if p_hist.as_stack:
+                handle = self._draw_stack(p_hist, values, bins)
+                this_color = handle.get_facecolor()
             else:
-                _, _, patches = self.current_axis.hist(bins[:-1], bins, weights=values,
-                                                       histtype='bar', bottom=bottom, **p_hist.plot_kwargs)
-                bottom += values
-                handle = patches[0]
+                handle = self._draw_single(p_hist, values, bins, errors)
+                this_color = extract_color_from_handle(handle)
+            # check if kwargs has color, if not, draw and then get the color and set the color in the kwargs
+            if 'color' not in p_hist.plot_kwargs and this_color is not None:
+                p_hist.plot_kwargs['color'] = this_color
 
             label = p_hist.plot_kwargs.get("label", None)
             if label:
-                self.legend_handles.append(handle)
-                self.legend_labels.append(label)
+                #self.legend_handles.append(handle)
+                #self.legend_labels.append(label)
+                self.legend_handles[p_hist.location].append(handle)
+                self.legend_labels[p_hist.location].append(label)
 
             self.current_axis.set_xlim(bins[0], bins[-1])
             p_hist.drawn = True
 
-    def add_ratio_hists(self, location=(0, 0), **kwargs):
-        nominator_index, denominator_index = self.set_ratio_hist()
-        use_year_as_ratio_label = all(p.location == -999 for p in self.plottable_hists)
+    def _draw_stack(self, item, values, bins):
+        bottom = self._stack_bottoms[item.location]
+        _, _, patches = self.current_axis.hist(bins[:-1], bins, weights=values,
+                                histtype='bar', bottom=bottom, **item.plot_kwargs)
+        self._stack_bottoms[item.location] += values
+        return patches[0]
 
-        def get_hist(index):
-            if isinstance(index, int):
-                return self.plottable_hists[index].hist
-            return sum((self.plottable_hists[i].hist for i in index[1:]),
-                       self.plottable_hists[index[0]].hist)
-            #return sum((self.plottable_hists[i].hist for i in index))
+    def _draw_single(self, item,
+                     values, bins, errs):
+        yerr = item.plot_kwargs.pop('yerr', errs)
+        xerr = item.plot_kwargs.pop('xerr', False)
+
+        artist = hep.histplot((values, bins), ax=self.current_axis, yerr=yerr, xerr=xerr,
+                              **item.plot_kwargs)[0]
+        if isinstance(artist, ErrorBarArtists) or artist.legend_artist:
+            return artist
+        if isinstance(artist, StairsArtists):
+            return artist.stairs
+        return artist
+
+    def get_hist(self, index):
+        if isinstance(index, int):
+            return self.plottable_hists[index].hist
+        return sum((self.plottable_hists[i].hist for i in index[1:]),
+                   self.plottable_hists[index[0]].hist)
+
+    def draw_ratio_hists(self, location=(0, 0)):
+        nominator_index, denominator_index = self.set_ratio_hist()
 
         def is_stackable(indices):
             return all(self.plottable_hists[i].as_stack for i in indices)
 
-        def compute_error_band(hist):
-            return hist.divide(hist)
-
-        error_band = None
-
-        if isinstance(nominator_index, int):
-            reference_index = nominator_index
+        # Case 1: Both nominator and denominator are index
+        if isinstance(nominator_index, int) and isinstance(denominator_index, int):
             nom_hist = self.plottable_hists[nominator_index].hist
-            denom_hist = get_hist(denominator_index)
+            denom_hist = self.plottable_hists[denominator_index].hist
             ratio_hist = nom_hist.divide(denom_hist)
             error_band = denom_hist.create_ratio_error_band_hist()
+            ratio_index = self.add_ratio_hist(ratio_hist, location=location,
+                                              **self.plottable_hists[nominator_index].plot_kwargs)
 
+        # Case 2: Only nominator is index (denominator is list)
+        elif isinstance(nominator_index, int):
+            nom_hist = self.plottable_hists[nominator_index].hist
+            denom_hist = self.get_hist(denominator_index)
+            ratio_hist = nom_hist.divide(denom_hist)
+            error_band = denom_hist.create_ratio_error_band_hist()
+            ratio_index = self.add_ratio_hist(ratio_hist, location=location,
+                                              **self.plottable_hists[nominator_index].plot_kwargs)
+
+        # Case 3: Only denominator is index (nominator is list)
         elif isinstance(denominator_index, int):
             denom_hist = self.plottable_hists[denominator_index].hist
             error_band = denom_hist.create_ratio_error_band_hist()
+
             if is_stackable(nominator_index):
-                reference_index = denominator_index
-                nom_hist = sum((self.plottable_hists[i].hist for i in nominator_index))
+                nom_hist = self.get_hist(nominator_index)
                 ratio_hist = nom_hist.divide(denom_hist)
+                ratio_index = self.add_ratio_hist(ratio_hist, location=location)
             else:
                 for idx in nominator_index:
+                    print(self.plottable_hists[idx].hist.year)
                     ratio_hist = self.plottable_hists[idx].hist.divide(denom_hist)
-                    self.add_ratio_hist(ratio_hist, idx, location=location,
-                                        use_year_as_ratio_label=use_year_as_ratio_label, **kwargs)
+                    self.add_ratio_hist(ratio_hist, location=location,
+                                        **self.plottable_hists[idx].plot_kwargs)
+                    self.draw_hist()
                 self.draw_error_boxes(error_band.to_numpy()[0],
                                       error_band.to_numpy()[1],
                                       error_band.total_sym_sys,
                                       location=location,
                                       **{"facecolor": 'none', "alpha": 0.5, "fill": True, 'hatch': '///'})
                 return
+
         else:
             print("❌ Invalid nominator/denominator config")
             exit(1)
 
-        self.add_ratio_hist(ratio_hist, reference_index, location=location,
-                            use_year_as_ratio_label=use_year_as_ratio_label, **kwargs)
-
+        self.draw_hist()
+        # Draw error bands
+        self.draw_error_boxes(ratio_hist.to_numpy()[0],
+                              ratio_hist.to_numpy()[1],
+                              ratio_hist.total_sym_sys,
+                              location=location,
+                              **{"facecolor": self.plottable_hists[ratio_index].plot_kwargs['color'],
+                                 "alpha": 0.2, "fill": True, 'hatch': None})
+        # TODO add on/off option
         self.draw_error_boxes(error_band.to_numpy()[0],
                               error_band.to_numpy()[1],
                               error_band.total_sym_sys,
                               location=location,
                               **{"facecolor": 'none', "alpha": 0.5, "fill": True, 'hatch': '///'})
 
-    def add_ratio_hist(self, ratio_hist, reference_index, location=(0, 0), use_year_as_ratio_label=False, **kwargs):
-        ref_hist = self.plottable_hists[reference_index]
-        if use_year_as_ratio_label:
-            kwargs['label'] = getattr(ratio_hist, 'year', '')
-        if 'color' in ref_hist.plot_kwargs:
-            kwargs['color'] = ref_hist.plot_kwargs['color']
-        if 'histtype' in ref_hist.plot_kwargs:
-            kwargs['histtype'] = ref_hist.plot_kwargs['histtype']
-
-        self.add_hist(ratio_hist, location=location, **kwargs)
+    def add_ratio_hist(self, ratio_hist, location=(0, 0),
+                       **kwargs):
+        return self.add_hist(ratio_hist, location=location, use_for_ratio=False, **kwargs)
 
     def show_legend(self, location=(0, 0), **kwargs_):
         self.set_current_axis(location=location)
         kwargs = {"loc": 'best', 'fontsize': 17} | kwargs_
-        self.current_axis.legend(self.legend_handles, self.legend_labels, **kwargs)
+        self.current_axis.legend(self.legend_handles[location],
+                                 self.legend_labels[location], **kwargs)
         try:
             hep.plot.yscale_legend(self.current_axis)
         except RuntimeError:
@@ -380,7 +450,7 @@ class Plotter:
                             nominator_args, denominator_args):
         self.add_hist(nominator_hist, location=location, as_denominator=False, **nominator_args)
         self.add_hist(denominator_hist, location=location, as_denominator=True, **denominator_args)
-        self.add_ratio_hists(location=ratio_location)
+        self.draw_ratio_hists(location=ratio_location)
 
     def draw_matrix(self, rm_np, variable_name, **kwargs):
 
@@ -446,8 +516,11 @@ class Plotter:
             handles, labels = self.current_axis.get_legend_handles_labels()
             label = self.errorbar_kwargs[index].get("label", None)
             if label:
-                self.legend_handles.append(handles[-1])
-                self.legend_labels.append(labels[-1])
+                #self.legend_handles.append(handles[-1])
+                #self.legend_labels.append(labels[-1])
+
+                self.legend_handles[self.errorbar_loc[index]].append(handles[-1])
+                self.legend_labels[self.errorbar_loc[index]].append(labels[-1])
 
     def draw_vlines(self, vlines, location=(0, 0), **kwargs):
         for line in vlines:

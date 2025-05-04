@@ -79,7 +79,6 @@ class ROOTHistGrouper:
         file_dict = self.get_file_dict(sys_dir_name)
         # TODO systematic?
         for file_label, file_path in file_dict.items():
-
             file = ROOT.TFile.Open(file_path, 'r')
             hist = file.Get(hist_path + hist_name)
             hist.GetNbinsX()
@@ -109,6 +108,6 @@ class ROOTHistGrouper:
                         hist_name=hist_name,
                         label=self.group_name,
                         channel=self.channel_name,
-                        period_name=self.period_name,
+                        year=self.period_name,
                         is_measurement=self.is_measurement,
                         is_mc_signal=is_signal)

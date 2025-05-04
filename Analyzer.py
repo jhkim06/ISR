@@ -10,6 +10,7 @@ labels = {
     "Data(unfolded)": "Data (unfolded)",
     "DYJetsToEE_MiNNLO": r"Drell-Yan",
     "DYJetsToMuMu_MiNNLO": r"Drell-Yan",
+    "DYJets": r"Drell-Yan (aMC@NLO)",
     "GGLL": r"$\gamma\gamma$",
     "DYJetsToTauTau_MiNNLO": r'$\tau\tau$',
     "TTLL": r'$t\bar{t}$',
@@ -37,10 +38,11 @@ colors = {
 
 
 def get_hist_kwargs(label):
-    kwargs = {
-        "color": colors.get(label, 'red'),
-        "label": labels.get(label, label)
-    }
+    kwargs = {}
+    kwargs.update({'label': labels.get(label, label)})
+    if label in colors:
+        kwargs.update({'color': colors[label]})
+
     if 'Data' in label:
         kwargs.update({'histtype': 'errorbar'})
 
@@ -307,7 +309,7 @@ class Analyzer:
         self.add_data_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, subtract_bg=True)
         self.add_signal_hist_to_plotter(hist_name, bin_width_norm=bin_width_norm, as_stack=True)
 
-        self.plotter.add_ratio_hists(location=(1, 0))
+        self.plotter.draw_ratio_hists(location=(1, 0))
         self.plotter.draw_hist()
 
         if save_and_reset:
@@ -330,7 +332,7 @@ class Analyzer:
         self.add_measurement_and_expectation_hists_to_plotter(hist_name,
                                                               bin_width_norm=bin_width_norm,)
         # TODO add option to reverse label order
-        self.plotter.add_ratio_hists(location=(1, 0))
+        self.plotter.draw_ratio_hists(location=(1, 0))
 
         # draw hists
         self.plotter.draw_hist()
@@ -376,7 +378,7 @@ class Analyzer:
                                           color=f"C{i}")
             self.reset_data_info()
 
-        self.plotter.add_ratio_hists(location=(0, 0))
+        self.plotter.draw_ratio_hists(location=(0, 0))
         self.plotter.draw_hist()
 
         ratio_name = f"{','.join(s[0] for s in setups[1:])}/{year_ref}"

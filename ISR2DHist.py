@@ -12,7 +12,7 @@ class ISR2DHist(Hist):
                                         experiment=hist.experiment,
                                         label=hist.label,
                                         channel=hist.channel,
-                                        period_name=hist.period_name,
+                                        year=hist.year,
                                         is_measurement=hist.is_measurement,
                                         is_mc_signal=hist.is_mc_signal, )
 
@@ -42,7 +42,7 @@ class ISR2DHist(Hist):
             hist_name=self.hist_name,
             label=self.label,
             channel=self.channel,
-            period_name=self.period_name,
+            year=self.year,
             is_measurement=self.is_measurement,
             is_mc_signal=self.is_mc_signal
         )

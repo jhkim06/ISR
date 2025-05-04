@@ -14,14 +14,20 @@ def unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True):
     return analyzer.get_isr_results()
 
 
+soft_blue = (86 / 255, 180 / 255, 233 / 255)
+soft_orange =  (230 / 255, 159 / 255, 0 / 255)
+soft_green = (0 / 255, 158 / 255, 115 / 255)
+red =  (213 / 255, 94 / 255, 0 / 255)
+
+
 mass_bins_1d = [(55.0, 64.0),
              (55.0, 68.0),
-             (55.0, 81.0),
+             #(55.0, 81.0),
              (64.0, 81.0),
              (72.0, 91.0),
              (81.0, 101.0),
              (91.0, 110.0),
-             (101.0, 150.0),
+             #(101.0, 150.0),
              (101.0, 200.0),
              (106.0, 220.0),
              (110.0, 243.0),
@@ -51,9 +57,19 @@ key='simulation'
 
 test_nlo = ISRAnalyzer(sample_base_dir,
                        mass_bins_1d,
-                       pt_bins_, signal="DY:aMCNLO", acceptance="DY")  # change only response matrix
+                       pt_bins_, signal="DY:aMCNLO")
 test_nlo.setup_isr_acceptance_hists(period, channel, event_selection, is_2d=False)
 pt_nlo_1d, mass_nlo_1d = test_nlo.get_isr_results()
+
+period = "2016a"
+channel = "mm"
+event_selection = ""
+
+test_lo = ISRAnalyzer(sample_base_dir,
+                       mass_bins_1d,
+                       pt_bins_, signal="DY:MG")
+test_lo.setup_isr_acceptance_hists(period, channel, event_selection, is_2d=False)
+pt_lo_1d, mass_lo_1d = test_lo.get_isr_results()
 
 
 def draw_isr_plot_from_df(mass, pt, save_and_reset_plotter=True, postfix='', **kwargs):
@@ -64,8 +80,12 @@ def draw_isr_plot_from_df(mass, pt, save_and_reset_plotter=True, postfix='', **k
         plotter.set_experiment_label(year='Run 2')
 
         plotter.add_errorbar((mass, pt), **kwargs)
-        plotter.add_errorbar((mass_1d.get_df(key=key), pt_1d.get_df(key=key)), label='NNLO')
-        plotter.add_errorbar((mass_nlo_1d.get_df(key=key), pt_nlo_1d.get_df(key=key)), label='NLO')
+        plotter.add_errorbar((mass_1d.get_df(key=key), pt_1d.get_df(key=key)),
+                             color=red, label='NNLO', linestyle='dashdot', linewidth=1.)
+        plotter.add_errorbar((mass_nlo_1d.get_df(key=key), pt_nlo_1d.get_df(key=key)),
+                             color=soft_blue, label='NLO', linestyle='dashdot', linewidth=1.)
+        plotter.add_errorbar((mass_lo_1d.get_df(key=key), pt_lo_1d.get_df(key=key)),
+                             color=soft_orange, label='LO', linestyle='dashdot', linewidth=1.)
 
         plotter.set_isr_plot_cosmetics(channel='ll',)
         text = r"$p_{T}^{ll}<$ 100 GeV"
@@ -125,6 +145,57 @@ def main():
         mass.update_mean_values(mass_1d, '1d_2d')
         mass.update_mean_values(mass_nlo, 'matrix')
 
+        pt_others = []
+        test_aMCNLO = ISRAnalyzer(sample_base_dir,
+                            mass_bins,
+                            pt_bins, signal="DY:aMCNLO")
+        test_aMCNLO.setup_isr_acceptance_hists(period, channel, event_selection, is_2d=False)
+        pt_aMCNLO, mass_aMCNLO = test_aMCNLO.get_isr_results()
+        pt_others.append(pt_aMCNLO)
+
+        if period == "2016a":
+            test_LO = ISRAnalyzer(sample_base_dir,
+                                  mass_bins,
+                                  pt_bins, signal="DY:MG")
+            test_LO.setup_isr_acceptance_hists(period, channel, "", is_2d=False)
+            pt_LO, mass_LO = test_LO.get_isr_results()
+            pt_others.append(pt_LO)
+        pt.draw_isr_plot(mass)
+
+        for index in range(len(mass_bins)):
+            pt.draw_detector_level(index, bin_width_norm=True)
+            pt.draw_background_fractions(index)
+            pt.draw_unfold_inputs(index, bin_width_norm=True)  # check unfold inputs
+            pt.draw_fake_hists(index, bin_width_norm=True)
+            pt.draw_unfold_closure(index, bin_width_norm=True)
+            pt.draw_unfolded_level(index, bin_width_norm=True)
+            # TODO draw LO also
+            pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=False,
+                                               others=pt_others)
+
+        pt.draw_unfold_inputs(-1, bin_width_norm=False)
+        pt.draw_detector_level(-1, bin_width_norm=False)
+        pt.draw_fake_hists(-1, bin_width_norm=False)
+        mass.draw_background_fractions(index)
+        mass.draw_detector_level(bin_width_norm=True)
+        pt.draw_unfold_closure(-1, bin_width_norm=False)
+        mass.draw_unfolded_level(bin_width_norm=True)
+        mass.draw_acceptance_corrected_level(bin_width_norm=True)
+
+        # Same-sign
+        ss_test = ISRAnalyzer(sample_base_dir,
+                           mass_bins,
+                           pt_bins)
+        ss_test.background_names = [('top', 'antitop'),
+                                    'TTLL', 'GGLL', ('ZZ', 'WZ', 'WW'), 'DYJetsToTauTau_MiNNLO']
+
+        ss_test.setup_isr_detector_hists(period, channel, event_selection, is_2d=True, hist_prefix='ss_')
+        ss_pt, ss_mass = ss_test.get_isr_results()
+
+        for index in range(len(mass_bins)):
+            ss_pt.draw_detector_level(index, bin_width_norm=True)
+        ss_mass.draw_detector_level(bin_width_norm=True)
+
         # Save to dict
         key = f"{period}_{channel}"
         mass_dict[key] = mass
@@ -164,8 +235,7 @@ def main():
         "2016a": (86 / 255, 180 / 255, 233 / 255),
         "2016b": (230 / 255, 159 / 255, 0 / 255),
         "2017": (0 / 255, 158 / 255, 115 / 255),
-        "2018": (213 / 255, 94 / 255, 0 / 255),
-    }
+        "2018": (213 / 255, 94 / 255, 0 / 255),}
 
     marker_map = {
         "2016a": 'o',
@@ -207,6 +277,7 @@ def main():
             linestyle='none',
             mfc='none'
         )
+        plotter.set_experiment_label(year='Run 2')
 
         for period in periods[1:]:
             period_key = f"{period}_{channel}"
