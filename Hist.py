@@ -195,7 +195,7 @@ class Hist(object):
                 normalized.Divide(raw_hist)
                 self.systematic_raw_root_hists[sys_name][var_name] = normalized
 
-    def create_ratio_error_band_hist(self):
+    def create_normalized_error_band(self):
         norm_default = self.raw_root_hist.Clone("norm_default")
         norm_default.Divide(norm_default)
         ratio_error_band = self.create(hist=norm_default,)

@@ -51,16 +51,16 @@ def find_non_negative_min(arr):
         return 1e-2
 
 
-class PlottableHist(Hist):
+class PlotItem(Hist):
     def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  drawn=False, not_to_draw=False, use_for_ratio=True,
                  **kwargs):
 
-        super(PlottableHist, self).__init__(hist.raw_root_hist,
-                                            label=hist.label,
-                                            channel=hist.channel,
-                                            year=hist.year,
-                                            is_measurement=hist.is_measurement, )
+        super(PlotItem, self).__init__(hist.raw_root_hist,
+                                       label=hist.label,
+                                       channel=hist.channel,
+                                       year=hist.year,
+                                       is_measurement=hist.is_measurement, )
 
         self.systematic_raw_root_hists = copy.deepcopy(hist.systematic_raw_root_hists)
         self.systematics = copy.deepcopy(hist.systematics)
@@ -94,7 +94,7 @@ class Plotter:
         self.base_output_dir = base_output_dir
         self.out_dir = ''
 
-        self.plottable_hists: List[PlottableHist] = []
+        self.plot_items: List[PlotItem] = []
 
         self.errorbar_list = []
         self.errorbar_loc = []
@@ -112,7 +112,7 @@ class Plotter:
         del self.axs
         self._stack_bottoms.clear()
         self.current_axis = None
-        self.plottable_hists.clear()
+        self.plot_items.clear()
         self.errorbar_list.clear()
         self.errorbar_loc.clear()
         self.errorbar_kwargs.clear()
@@ -175,16 +175,16 @@ class Plotter:
                  not_to_draw=False,
                  use_for_ratio=True,
                  **kwargs):
-        p_hist = PlottableHist(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
-                               use_for_ratio=use_for_ratio, not_to_draw=not_to_draw,
-                               **kwargs)
-        self.plottable_hists.append(p_hist)
-        return len(self.plottable_hists) - 1
+        p_hist = PlotItem(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
+                          use_for_ratio=use_for_ratio, not_to_draw=not_to_draw,
+                          **kwargs)
+        self.plot_items.append(p_hist)
+        return len(self.plot_items) - 1
 
     def set_ratio_hist(self):
         nominator_index = []
         denominator_index = []
-        for i, p_hist in enumerate(self.plottable_hists):
+        for i, p_hist in enumerate(self.plot_items):
             if not p_hist.use_for_ratio:
                 continue
             if p_hist.as_denominator:
@@ -205,7 +205,7 @@ class Plotter:
             exit(1)
 
     def draw_hist(self):
-        for p_hist in self.plottable_hists:
+        for p_hist in self.plot_items:
             if p_hist.drawn:
                 continue
             values, bins, errors = p_hist.to_numpy()
@@ -228,8 +228,6 @@ class Plotter:
 
             label = p_hist.plot_kwargs.get("label", None)
             if label:
-                #self.legend_handles.append(handle)
-                #self.legend_labels.append(label)
                 self.legend_handles[p_hist.location].append(handle)
                 self.legend_labels[p_hist.location].append(label)
 
@@ -258,38 +256,35 @@ class Plotter:
 
     def get_hist(self, index):
         if isinstance(index, int):
-            return self.plottable_hists[index].hist
-        return sum((self.plottable_hists[i].hist for i in index[1:]),
-                   self.plottable_hists[index[0]].hist)
+            return self.plot_items[index].hist
+        return sum((self.plot_items[i].hist for i in index[1:]),
+                   self.plot_items[index[0]].hist)
 
     def draw_ratio_hists(self, location=(0, 0)):
         nominator_index, denominator_index = self.set_ratio_hist()
 
         def is_stackable(indices):
-            return all(self.plottable_hists[i].as_stack for i in indices)
+            return all(self.plot_items[i].as_stack for i in indices)
 
         # Case 1: Both nominator and denominator are index
         if isinstance(nominator_index, int) and isinstance(denominator_index, int):
-            nom_hist = self.plottable_hists[nominator_index].hist
-            denom_hist = self.plottable_hists[denominator_index].hist
+            nom_hist = self.plot_items[nominator_index].hist
+            denom_hist = self.plot_items[denominator_index].hist
             ratio_hist = nom_hist.divide(denom_hist)
-            error_band = denom_hist.create_ratio_error_band_hist()
             ratio_index = self.add_ratio_hist(ratio_hist, location=location,
-                                              **self.plottable_hists[nominator_index].plot_kwargs)
+                                              **self.plot_items[nominator_index].plot_kwargs)
 
         # Case 2: Only nominator is index (denominator is list)
         elif isinstance(nominator_index, int):
-            nom_hist = self.plottable_hists[nominator_index].hist
+            nom_hist = self.plot_items[nominator_index].hist
             denom_hist = self.get_hist(denominator_index)
             ratio_hist = nom_hist.divide(denom_hist)
-            error_band = denom_hist.create_ratio_error_band_hist()
             ratio_index = self.add_ratio_hist(ratio_hist, location=location,
-                                              **self.plottable_hists[nominator_index].plot_kwargs)
+                                              **self.plot_items[nominator_index].plot_kwargs)
 
         # Case 3: Only denominator is index (nominator is list)
         elif isinstance(denominator_index, int):
-            denom_hist = self.plottable_hists[denominator_index].hist
-            error_band = denom_hist.create_ratio_error_band_hist()
+            denom_hist = self.plot_items[denominator_index].hist
 
             if is_stackable(nominator_index):
                 nom_hist = self.get_hist(nominator_index)
@@ -297,16 +292,11 @@ class Plotter:
                 ratio_index = self.add_ratio_hist(ratio_hist, location=location)
             else:
                 for idx in nominator_index:
-                    print(self.plottable_hists[idx].hist.year)
-                    ratio_hist = self.plottable_hists[idx].hist.divide(denom_hist)
+                    ratio_hist = self.plot_items[idx].hist.divide(denom_hist)
                     self.add_ratio_hist(ratio_hist, location=location,
-                                        **self.plottable_hists[idx].plot_kwargs)
+                                        **self.plot_items[idx].plot_kwargs)
                     self.draw_hist()
-                self.draw_error_boxes(error_band.to_numpy()[0],
-                                      error_band.to_numpy()[1],
-                                      error_band.total_sym_sys,
-                                      location=location,
-                                      **{"facecolor": 'none', "alpha": 0.5, "fill": True, 'hatch': '///'})
+                self.draw_normalized_error_band(denom_hist, location=location)
                 return
 
         else:
@@ -314,19 +304,27 @@ class Plotter:
             exit(1)
 
         self.draw_hist()
-        # Draw error bands
-        self.draw_error_boxes(ratio_hist.to_numpy()[0],
-                              ratio_hist.to_numpy()[1],
-                              ratio_hist.total_sym_sys,
-                              location=location,
-                              **{"facecolor": self.plottable_hists[ratio_index].plot_kwargs['color'],
-                                 "alpha": 0.2, "fill": True, 'hatch': None})
+        self.draw_error_box_for_plot_item(ratio_index, location=location)
         # TODO add on/off option
+        self.draw_normalized_error_band(denom_hist, location=location)
+
+    def draw_normalized_error_band(self, hist, location=(0, 0)):
+        error_band = hist.create_normalized_error_band()
         self.draw_error_boxes(error_band.to_numpy()[0],
                               error_band.to_numpy()[1],
                               error_band.total_sym_sys,
                               location=location,
                               **{"facecolor": 'none', "alpha": 0.5, "fill": True, 'hatch': '///'})
+
+    def draw_error_box_for_plot_item(self, index, location=(0, 0)):
+        plot_item = self.plot_items[index]
+
+        self.draw_error_boxes(plot_item.to_numpy()[0],
+                              plot_item.to_numpy()[1],
+                              plot_item.total_sym_sys,
+                              location=location,
+                              **{"facecolor": plot_item.plot_kwargs['color'],
+                                 "alpha": 0.2, "fill": True, 'hatch': None})
 
     def add_ratio_hist(self, ratio_hist, location=(0, 0),
                        **kwargs):
@@ -516,8 +514,6 @@ class Plotter:
             handles, labels = self.current_axis.get_legend_handles_labels()
             label = self.errorbar_kwargs[index].get("label", None)
             if label:
-                #self.legend_handles.append(handles[-1])
-                #self.legend_labels.append(labels[-1])
 
                 self.legend_handles[self.errorbar_loc[index]].append(handles[-1])
                 self.legend_labels[self.errorbar_loc[index]].append(labels[-1])
