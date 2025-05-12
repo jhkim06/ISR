@@ -14,11 +14,11 @@ class ISRAnalyzer(Analyzer):
                  signal = "DY",
                  acceptance = None,  # DY for acceptance correction
 
-                 folded_bin_name='fine', unfolded_bin_name='coarse',
+                 pt_folded_bin_name='fine_O', pt_unfolded_bin_name='coarse_O',
                  unfolded_space_name='dressed', acceptance_space_name='dressed',
 
-                 mass_folded_bin_name='fine', mass_unfolded_bin_name='coarse',
-                 mass_unfolded_space_name='dressed',):
+                 mass_folded_bin_name='fine_O', mass_unfolded_bin_name='coarse_O',
+                 mass_unfolded_space_name='dressed', ):
 
         super(ISRAnalyzer, self).__init__(sample_base_dir,
                                           signal=signal, )
@@ -36,8 +36,8 @@ class ISRAnalyzer(Analyzer):
         self.dimass_label = r'$M$^{'+change_to_greek(self.channel)+'}'
 
         # bin names for unfolding
-        self.folded_bin_name = folded_bin_name
-        self.unfolded_bin_name = unfolded_bin_name
+        self.pt_folded_bin_name = pt_folded_bin_name
+        self.pt_unfolded_bin_name = pt_unfolded_bin_name
         self.unfolded_space_name = unfolded_space_name
         self.acceptance_space_name = acceptance_space_name
 
@@ -60,45 +60,49 @@ class ISRAnalyzer(Analyzer):
     def _set_isr_1d_hist_names(self):
 
         # 1D case: set pt and mass histogram prefix
-        self.pt_hist_name_prefix = 'dipt_[reco__' + self.folded_bin_name + ']_dimass'
+        self.pt_hist_name_prefix = 'dipt_[reco__' + self.pt_folded_bin_name + ']_dimass'
         self.pt_fake_hist_name_prefix = ('dipt_[reco_gen_' + self.unfolded_space_name
-                                         + '_fake__' + self.folded_bin_name + ']_dimass')
+                                         + '_fake__' + self.pt_folded_bin_name + ']_dimass')
         self.pt_hist_full_phase_name_prefix = ('dipt_[gen_' + self.acceptance_space_name +
-                                               '_acceptance__' + self.unfolded_bin_name + ']_dimass')
+                                               '_acceptance__' + self.pt_unfolded_bin_name + ']_dimass')
+        self.pt_matrix_name_prefix = ('dipt_[reco__' + self.pt_folded_bin_name + ']_[gen_' +
+                                      self.unfolded_space_name + '__' + self.pt_unfolded_bin_name + ']_dimass')
 
-        self.pt_matrix_name_prefix = ('dipt_[reco__' + self.folded_bin_name + ']_[gen_' +
-                                      self.unfolded_space_name + '__' + self.unfolded_bin_name + ']_dimass')
+        self.pt_detector_bin_name = '[tunfold-bin]_dipt_[' + self.pt_folded_bin_name + ']'
+        self.pt_truth_bin_name = '[tunfold-bin]_dipt_[' + self.pt_unfolded_bin_name + ']'
 
         self.mass_hist_name_prefix = 'dimass_[reco__' + self.mass_folded_bin_name + ']_dipt'
         self.mass_fake_hist_name_prefix = ('dimass_[reco_gen_' + self.unfolded_space_name
                                            + '_fake__' + self.mass_folded_bin_name + ']_dipt')
         self.mass_hist_full_phase_name_prefix = ('dimass_[gen_' + self.acceptance_space_name +
                                                  '_acceptance__' + self.mass_unfolded_bin_name + ']_dipt')
-
         self.mass_matrix_name_prefix = ('dimass_[reco__' + self.mass_folded_bin_name + ']_[gen_' +
                                         self.unfolded_space_name + '__' + self.mass_unfolded_bin_name + ']_dipt')
+
+        self.mass_detector_bin_name = '[tunfold-bin]_dimass_['+self.mass_folded_bin_name+']'
+        self.mass_truth_bin_name = '[tunfold-bin]_dimass_[' + self.mass_unfolded_bin_name + ']'
 
     def _set_isr_2d_hist_names(self):
 
         type_name = 'bin'
         var_name = 'dipt-dimass'
         tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
-        bin_definition = 'O-window_v1_UO'
+        bin_definition = '-window_v1_UO'
         # 2D case: set pt and mass histogram name
-        self.pt_mass_detector_bin_postfix = "[reco__" + self.folded_bin_name + "_" + bin_definition + "]"
+        self.pt_mass_detector_bin_postfix = "[reco__" + self.pt_folded_bin_name + bin_definition + "]"
         self.pt_mass_unfolded_bin_postfix = (
-                "[gen_" + self.unfolded_space_name + "__" + self.unfolded_bin_name + "_" + bin_definition + "]")
-        self.pt_mass_detector_bin_name = tunfold_prefix + "_[" + self.folded_bin_name + "_" + bin_definition + "]"
-        self.pt_mass_unfolded_bin_name = tunfold_prefix + "_[" + self.unfolded_bin_name + "_" + bin_definition + "]"
+                "[gen_" + self.unfolded_space_name + "__" + self.pt_unfolded_bin_name + bin_definition + "]")
+        self.pt_mass_detector_bin_name = tunfold_prefix + "_[" + self.pt_folded_bin_name + bin_definition + "]"
+        self.pt_mass_truth_bin_name = tunfold_prefix + "_[" + self.pt_unfolded_bin_name + bin_definition + "]"
 
         # even if the same bin definition is used, different contents can be stored
         type_name = 'hist'
         tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
         self.pt_mass_hist_name = tunfold_prefix + "_" + self.pt_mass_detector_bin_postfix
         self.pt_mass_fake_hist_name = (tunfold_prefix + "_[reco_gen_" + self.unfolded_space_name
-                                       + "_fake__" + self.folded_bin_name + "_" + bin_definition + "]")
+                                       + "_fake__" + self.pt_folded_bin_name + bin_definition + "]")
         self.pt_mass_hist_full_phase_name = (tunfold_prefix + "_[gen_" + self.acceptance_space_name
-                                             + "_acceptance__" + self.unfolded_bin_name + "_" + bin_definition + "]")
+                                             + "_acceptance__" + self.pt_unfolded_bin_name + bin_definition + "]")
 
         type_name = 'matrix'
         tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
@@ -132,7 +136,7 @@ class ISRAnalyzer(Analyzer):
         vlines=None
 
         if '[tunfold-hist]' in hist_name:  # check if it is 2D
-            _, folded_bin = self.get_unfold_bin_maps(self.pt_mass_unfolded_bin_name,
+            _, folded_bin = self.get_unfold_bin_maps(self.pt_mass_truth_bin_name,
                                                      self.pt_mass_detector_bin_name)
             n_bins = folded_bin.GetDistributionNumberOfBins()
             custom_x_labels = []
@@ -147,34 +151,43 @@ class ISRAnalyzer(Analyzer):
 
         return custom_x_labels, custom_x_locates, vlines
 
-    def setup_isr_detector_hists(self, year, channel, event_selection, is_2d=True,
+    def setup_isr_detector_hists(self, year, channel, event_selection, use_2d_pt=True,
                                  hist_prefix=''):
         self.set_data_info(year, channel, event_selection)
-        if is_2d:
+        # if use_2d_pt, no need to loop over mass windows
+        if use_2d_pt:  # FIXME use_bin_map
             unfolded_bin, folded_bin = self.get_unfold_bin_maps(
-                self.pt_mass_unfolded_bin_name,
+                self.pt_mass_truth_bin_name,
                 self.pt_mass_detector_bin_name
             )
-            measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(hist_prefix=hist_prefix)
-
             self.isr_pt = ISRHists(self.mass_bins, self.pt_bins, is_2d=True, is_pt=True,
                                    year=year, channel=channel,
                                    folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
+            measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(hist_prefix=hist_prefix)
             self.isr_pt.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
-
         else:
+            unfolded_bin, folded_bin = self.get_unfold_bin_maps(
+                self.pt_truth_bin_name,
+                self.pt_detector_bin_name
+            )
             self.isr_pt = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=True,
-                                   year=year, channel=channel, )
+                                   year=year, channel=channel,
+                                   folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
             for index, _ in enumerate(self.mass_bins):
                 measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=True, is_2d=False,
                                                                                   mass_window_index=index,
                                                                                   hist_prefix=hist_prefix)
                 self.isr_pt.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
 
-        # for mass, always 1D
-        measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=False, hist_prefix=hist_prefix)
+        unfolded_bin, folded_bin = self.get_unfold_bin_maps(
+            self.mass_truth_bin_name,
+            self.mass_detector_bin_name
+        )
+        # for mass, always 1D unfolding
         self.isr_mass = ISRHists(self.mass_bins, self.pt_bins, is_2d=False, is_pt=False,
-                                 year=year, channel=channel)
+                                 year=year, channel=channel,
+                                 folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
+        measurement, signal, signal_fake, bgs, matrix = self.get_isr_hist(is_pt=False, hist_prefix=hist_prefix)
         self.isr_mass.set_isr_hists(measurement, signal, signal_fake, bgs, matrix)
 
     def setup_isr_acceptance_hists(self, year, channel, event_selection, is_2d=True, mass_bins=None,
@@ -200,7 +213,7 @@ class ISRAnalyzer(Analyzer):
                                                                  range_min=range_min, range_max=range_max)
 
             self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(
-                self.unfolded_space_name, self.unfolded_bin_name
+                self.unfolded_space_name, self.pt_unfolded_bin_name
             )
 
         # mass
@@ -246,11 +259,11 @@ class ISRAnalyzer(Analyzer):
         def run_unfold(mass_window_index, is2d=False):
             # Fetch ISR inputs
             input_hist, signal_hist, signal_fake_hist, background_hists, matrix = (
-                self.isr_pt.get_isr_hists() if is2d else self.isr_pt.get_isr_hists(mass_window_index=mass_window_index)
+                self.isr_pt.get_isr_hists(mass_window_index=mass_window_index)
             )
 
-            unfolded_bin = self.isr_pt.unfolded_tunfold_bin if is2d else None
-            folded_bin = self.isr_pt.folded_tunfold_bin if is2d else None
+            unfolded_bin = self.isr_pt.unfolded_tunfold_bin
+            folded_bin = self.isr_pt.folded_tunfold_bin
 
             # Perform unfolding
             unfold = TUnFolder(matrix, input_hist, signal_fake_hist,
@@ -273,7 +286,6 @@ class ISRAnalyzer(Analyzer):
                 hist=unfold.get_input_hist(),
                 label=input_hist.label + '(unfold input)'
             )
-
             # Create unfolded measurement
             unfolded_hist = input_hist.create(
                 hist=unfold.get_unfolded_hist(),
@@ -281,32 +293,24 @@ class ISRAnalyzer(Analyzer):
             )
             unfolded_hist.systematic_raw_root_hists = unfold.sys_unfold()
             unfolded_hist.compute_systematic_rss_per_sysname()
-
             # Create truth signal
             truth_signal_hist = signal_fake_hist.create(
-                hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=True),
+                hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=False),
                 hist_name="_", label='Truth DY',
             )
-
             unfolded_signal_hist = input_hist.create(
                 hist=closure.get_unfolded_hist(),
                 hist_name="_", label='Unfolded DY',
             )
 
-            if is2d:
-                self.isr_pt.isr_hists[mass_window_index].unfold_input_hist = (
-                    ISR2DHist(unfold_input_hist, folded_bin))
-                self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = (
-                    ISR2DHist(unfolded_hist, unfolded_bin))
-                self.isr_pt.isr_hists[mass_window_index].truth_signal_hist = (
-                    ISR2DHist(truth_signal_hist, unfolded_bin))
-                self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = (
-                    ISR2DHist(unfolded_signal_hist, unfolded_bin))
-            else:
-                self.isr_pt.isr_hists[mass_window_index].unfold_input_hist = unfold_input_hist
-                self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = unfolded_hist
-                self.isr_pt.isr_hists[mass_window_index].truth_signal_hist = truth_signal_hist
-                self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = unfolded_signal_hist
+            self.isr_pt.isr_hists[mass_window_index].unfold_input_hist = (
+                ISR2DHist(unfold_input_hist, folded_bin))
+            self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = (
+                ISR2DHist(unfolded_hist, unfolded_bin))
+            self.isr_pt.isr_hists[mass_window_index].truth_signal_hist = (
+                ISR2DHist(truth_signal_hist, unfolded_bin))
+            self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = (
+                ISR2DHist(unfolded_signal_hist, unfolded_bin))
 
         if self.isr_pt.is_2d:
             run_unfold(0, is2d=True)
@@ -314,19 +318,26 @@ class ISRAnalyzer(Analyzer):
             for index, _ in enumerate(self.mass_bins):
                 run_unfold(index)
 
-    def mass_isr_unfold(self):
+    def mass_isr_unfold(self, tau=0.0):
         input_hist, signal_hist, signal_fake_hist, background_hists, matrix = self.isr_mass.get_isr_hists()
 
+        unfolded_bin = self.isr_mass.unfolded_tunfold_bin
+        folded_bin = self.isr_mass.folded_tunfold_bin
+
+        # TODO set bin map
         unfold = TUnFolder(matrix,
                            input_hist,
                            signal_fake_hist,
-                           bg_hists=background_hists, variable_name='')
-        unfold.unfold()
+                           bg_hists=background_hists, variable_name='',
+                           folded_bin=folded_bin, unfolded_bin=unfolded_bin)
+
+        unfold.unfold(tau=tau)
         self.isr_mass.isr_hists[0].tunfolder = unfold
 
         # closure (simple)
         closure = TUnFolder(matrix, signal_hist, signal_fake_hist,
-                            variable_name='')
+                            variable_name='',
+                            folded_bin=folded_bin, unfolded_bin=unfolded_bin)
         closure.unfold()
 
         unfold_input_hist = input_hist.create(
@@ -347,17 +358,17 @@ class ISRAnalyzer(Analyzer):
             hist_name="_", label='Unfolded DY',
         )
 
-        raw_hist = unfold.get_mc_truth_from_response_matrix(use_axis_binning=True)
+        raw_hist = unfold.get_mc_truth_from_response_matrix(use_axis_binning=False)
         # raw_hist.Scale(1, "width")
         truth_signal_hist = signal_fake_hist.create(
             hist=raw_hist,
             hist_name='_',
             label='Truth DY'
         )
-        self.isr_mass.isr_hists[0].unfold_input_hist = unfold_input_hist
-        self.isr_mass.isr_hists[0].unfolded_measurement_hist = unfolded_hist
-        self.isr_mass.isr_hists[0].truth_signal_hist = truth_signal_hist
-        self.isr_mass.isr_hists[0].unfolded_signal_hist = unfolded_signal_hist
+        self.isr_mass.isr_hists[0].unfold_input_hist =  ISR2DHist(unfold_input_hist, folded_bin)
+        self.isr_mass.isr_hists[0].unfolded_measurement_hist = ISR2DHist(unfolded_hist, unfolded_bin)
+        self.isr_mass.isr_hists[0].truth_signal_hist = ISR2DHist(truth_signal_hist, unfolded_bin)
+        self.isr_mass.isr_hists[0].unfolded_signal_hist = ISR2DHist(unfolded_signal_hist, unfolded_bin)
 
     def isr_acceptance_corrections(self):
         self.pt_isr_acceptance_correction()
@@ -385,19 +396,11 @@ class ISRAnalyzer(Analyzer):
             acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
             acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
 
-            if is2d:
-                unfolded_bin = self.isr_pt.unfolded_tunfold_bin
-                self.isr_pt.set_acceptance_corrected_hist(
-                    hist=ISR2DHist(acceptance_corrected, unfolded_bin))
-                self.isr_pt.set_acceptance_corrected_hist(
-                    hist=ISR2DHist(mc_hist_full_phase, unfolded_bin), key='simulation')
-            else:
-                self.isr_pt.set_acceptance_corrected_hist(
-                    hist=acceptance_corrected,
-                    mass_window_index=index)
-                self.isr_pt.set_acceptance_corrected_hist(
-                    hist=mc_hist_full_phase,
-                    mass_window_index=index, key='simulation')
+            unfolded_bin = self.isr_pt.unfolded_tunfold_bin
+            self.isr_pt.set_acceptance_corrected_hist(
+                hist=ISR2DHist(acceptance_corrected, unfolded_bin), mass_window_index=index)
+            self.isr_pt.set_acceptance_corrected_hist(
+                hist=ISR2DHist(mc_hist_full_phase, unfolded_bin), mass_window_index=index, key='simulation')
 
         if self.isr_pt.is_2d:
             run_acceptance_correction(index=0, is2d=True)
@@ -407,7 +410,7 @@ class ISRAnalyzer(Analyzer):
 
         # This is common in both 1D and 2D cases
         self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(
-            self.unfolded_space_name, self.unfolded_bin_name
+            self.unfolded_space_name, self.pt_unfolded_bin_name
         )
 
     def mass_isr_acceptance_correction(self):
@@ -421,18 +424,18 @@ class ISRAnalyzer(Analyzer):
         acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
 
-        self.isr_mass.set_acceptance_corrected_hist(hist=acceptance_corrected)
-        self.isr_mass.set_acceptance_corrected_hist(hist=mc_hist_full_phase, key='simulation')
+        unfolded_bin = self.isr_mass.unfolded_tunfold_bin
+        self.isr_mass.set_acceptance_corrected_hist(hist=ISR2DHist(acceptance_corrected, unfolded_bin))
+        self.isr_mass.set_acceptance_corrected_hist(hist=ISR2DHist(mc_hist_full_phase, unfolded_bin), key='simulation')
 
     def get_correction_factors(self, space_name, bin_name):
-        pt_hist_full_phase_name_prefix = ('dipt_[gen_' + space_name +
-                                          '_acceptance__' + bin_name + ']_dimass')
+        pt_hist_full_phase_name_prefix = ('dipt_gen_' + space_name +
+                                          '_acceptance_dipt_0.0to100.0_dimass')
         correction_factors = []
         for index, mass_bin in enumerate(self.mass_bins):
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
             mc_hist_full_phase = self.get_mc_hist(self.acceptance_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
-            correction_factor = (
-                    mc_hist_full_phase.get_mean(binned_mean=False)[0]/mc_hist_full_phase.get_mean(binned_mean=True)[0])
+            correction_factor = mc_hist_full_phase.get_mean(binned_mean=False)[0]
             correction_factors.append(correction_factor)
 
         return correction_factors
@@ -441,7 +444,7 @@ class ISRAnalyzer(Analyzer):
         if unfolded_space_name == '':
             unfolded_space_name = self.unfolded_space_name  # dressed,
         if unfolded_bin_name == '':
-            unfolded_bin_name = self.unfolded_bin_name
+            unfolded_bin_name = self.pt_unfolded_bin_name
         pt_hist_full_phase_name_prefix = ('dipt_[gen_' + unfolded_space_name +
                                           '_acceptance__' + unfolded_bin_name + ']_dimass')
         pt_data = []
@@ -457,7 +460,7 @@ class ISRAnalyzer(Analyzer):
         if unfolded_space_name == '':
             unfolded_space_name = self.unfolded_space_name
         if unfolded_bin_name == '':
-            unfolded_bin_name = self.unfolded_bin_name
+            unfolded_bin_name = self.pt_unfolded_bin_name
         pt_mass_unfolded_bin_name = "[tunfold-bin]_[dipt-dimass]_[" + unfolded_bin_name + "_O-window_v1_UO]"
         pt_mass_hist_full_phase_name = ("[tunfold-hist]_[dipt-dimass]_[gen_" + unfolded_space_name +
                                         "_acceptance__" + unfolded_bin_name + "_O-window_v1_UO]")

@@ -4,6 +4,7 @@ from types import MappingProxyType
 from Hist import Hist
 import numpy as np
 from Plotter import Plotter
+from array import array
 
 
 REG_MODE = MappingProxyType(
@@ -35,13 +36,14 @@ class TUnFolder:
                  input_fake_hist=None, bg_hists=None,
                  label='default',
                  unfolded_bin=None, folded_bin=None,
-                 use_bin_map=False,
-
-                 reg_mode='None', ex_constraint='None', density_mode='None',
+                 # TODO allow dynamic unfold setup
+                 reg_mode='None', ex_constraint='None', density_mode='BinWidth',
                  unfold_method=None, n_iterative=100,
+
                  analysis_name='',
                  iterative=False,
                  efficiency_correction=True,
+
                  variable_name=''):
 
         self.year = input_hist.year
@@ -57,9 +59,11 @@ class TUnFolder:
         #
         self.bg_hists = bg_hists  # dictionary of background hists
 
+        self.use_tunfoldbinning = False
         self.unfolded_bin = unfolded_bin
         self.folded_bin = folded_bin
-        self.use_bin_map = use_bin_map
+        if self.folded_bin is not None and self.unfolded_bin is None:
+            self.use_tunfoldbinning = True
 
         self.label = label
 
@@ -82,19 +86,19 @@ class TUnFolder:
 
     # FIXME check if use_bin_map really needed
     def _create_tunfolder(self):
-        if self.use_bin_map:  # Use bin map
+        if self.use_tunfoldbinning:  # Use bin map
             return ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
-                                                 ROOT.TUnfold.kHistMapOutputHoriz,
-                                                 REG_MODE[self.reg_mode],
-                                                 EX_CONSTRAINTS[self.ex_constraint],
-                                                 DENSITY_MODE[self.density_mode],
-                                                 self.unfolded_bin, self.folded_bin)
+                                       ROOT.TUnfold.kHistMapOutputHoriz,
+                                       REG_MODE[self.reg_mode],
+                                       EX_CONSTRAINTS[self.ex_constraint],
+                                       DENSITY_MODE[self.density_mode],
+                                       self.unfolded_bin, self.folded_bin)
         else:
             return ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
-                                                 ROOT.TUnfold.kHistMapOutputHoriz,
-                                                 REG_MODE[self.reg_mode],
-                                                 EX_CONSTRAINTS[self.ex_constraint],
-                                                 DENSITY_MODE[self.density_mode])
+                                       ROOT.TUnfold.kHistMapOutputHoriz,
+                                       REG_MODE[self.reg_mode],
+                                       EX_CONSTRAINTS[self.ex_constraint],
+                                       DENSITY_MODE[self.density_mode])
 
     def _set_tunfolder_input(self, sys_name='', var_name='', sys_tunfolder=None):
 
@@ -121,7 +125,11 @@ class TUnFolder:
                 else:
                     self.tunfolder.SubtractBackground(hist.get_raw_hist(), name)
 
-    def unfold(self, unfold_method=None, n_iterative=100, sys_tunfolder=None):
+    def unfold(self, unfold_method=None,
+               n_iterative=100,
+               tau=0,
+               sys_tunfolder=None):
+
         # FIXME
         if sys_tunfolder:
             tunfolder = sys_tunfolder
@@ -137,21 +145,24 @@ class TUnFolder:
         self.n_iterative = n_iterative
 
         if self.unfold_method is None:
-            # FIXME
             if sys_tunfolder is None:
-                tunfolder.DoUnfold(self.reg_strength)  # TODO understand what it does!
+                # tunfolder.RegularizeCurvature(5, 7, 10)  # t=0.0001 looks best, for 1D mass unfold
+                tunfolder.RegularizeCurvature(5, 7, 10)
+                tunfolder.DoUnfold(tau)  # TODO understand what it does!
+            else:
+                tunfolder.DoUnfold(tau)
+        elif self.unfold_method == 'scan_sure':
+            if sys_tunfolder is None:
+                i_best = tunfolder.ScanSURE(n_iterative,
+                                            ctypes.c_double(0.0),
+                                            ctypes.c_double(0.0),
+                                            self.graphSURE,
+                                            self.df_deviance,
+                                            self.lcurve)
+                self.reg_strength = pow(10, self.graphSURE.GetX()[i_best])
                 # print(self.reg_strength)
             else:
-                tunfolder.DoUnfold(self.reg_strength)
-        elif self.unfold_method == 'scan_sure':
-            i_best = tunfolder.ScanSURE(n_iterative,
-                                             ctypes.c_double(0),
-                                             ctypes.c_double(0),
-                                             self.graphSURE,
-                                             self.df_deviance,
-                                             self.lcurve)
-            if sys_tunfolder is None:
-                self.reg_strength = pow(10, self.graphSURE.GetX()[i_best])
+                tunfolder.DoUnfold(0.0)
         else:
             print(unfold_method, ' is not supported unfolding method.')
 
@@ -162,11 +173,12 @@ class TUnFolder:
         for sys_name, variations in sys_hist.items():
             sys_unfolded_hist[sys_name] = {}
             for var_name, hist in variations.items():
-                tunfolder = self._create_tunfolder()  # create with default response matrix
+                tunfolder = self._create_tunfolder()  # create tunfolder with the matrix
                 self._set_tunfolder_input(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self._subtract_backgrounds(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self.unfold(sys_tunfolder=tunfolder)
-                sys_unfolded_hist[sys_name][var_name] = self.get_unfolded_hist(use_axis_binning=False, tunfolder=tunfolder)
+                sys_unfolded_hist[sys_name][var_name] = self.get_unfolded_hist(use_axis_binning=False,
+                                                                               tunfolder=tunfolder)
 
         # TODO different response matrix?
 
@@ -181,43 +193,42 @@ class TUnFolder:
         else:
             tunfolder = tunfolder
 
-        if self.unfolded_bin is not None:
-            # 2D unfolding
+        if self.use_tunfoldbinning:
             # it seems parameter axis steering not passed properly so use ExtractHistogram()
             unfolded_hist = tunfolder.GetOutput("unfolded_hist",
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
                                                 False)
+
             # for "*[*]", use_axis_binning=True, makes no sense?
-            unfolded_hist = self.unfolded_bin.ExtractHistogram("unfolded_hist_extracted",
-                                                               unfolded_hist,
-                                                               0,  # error matrix
-                                                               False,
-                                                               projection_mode)
+            #unfolded_hist = self.unfolded_bin.ExtractHistogram("unfolded_hist_extracted",
+            #                                                   unfolded_hist,
+            #                                                   0,  # error matrix
+            #                                                   False,
+            #                                                   projection_mode)
         else:
-            # 1D unfolding
             unfolded_hist = tunfolder.GetOutput("unfolded_hist",
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
-                                                True)  # for 1D, False, True makes no difference?
+                                                True)  # for 1D, False/True makes no difference?
 
         return unfolded_hist
 
     def get_input_hist(self, projection_mode="*[*]", use_axis_binning=True):
-        if self.folded_bin is not None:
+        if self.use_tunfoldbinning:
             # it seems parameter axis steering not passed properly so use ExtractHistogram()
             data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
                                                 ctypes.c_char_p(0),
                                                 False)
-            data_hist = self.folded_bin.ExtractHistogram("unfold_input_extracted",
-                                                         data_hist,
-                                                         0,  # error matrix
-                                                         False,
-                                                         projection_mode)
+            #data_hist = self.folded_bin.ExtractHistogram("unfold_input_extracted",
+            #                                             data_hist,
+            #                                             0,  # error matrix
+            #                                             False,
+            #                                             projection_mode)
         else:
             data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
                                                 ctypes.c_char_p(0),
@@ -227,6 +238,7 @@ class TUnFolder:
 
         return data_hist
 
+    # TODO understand what is required by this chi2 test
     def get_chi2(self, folded=True, projection_mode="*[*]", use_axis_binning=True):
         if folded:
             data_hist = self.get_input_hist(projection_mode, use_axis_binning)
@@ -243,7 +255,8 @@ class TUnFolder:
         expectation_values = Hist(expectation_hist).to_numpy()[0]
         data_errors = Hist(data_hist).to_numpy()[2]
 
-        chi2 = np.sum(np.square((data_values - expectation_values) / data_errors))  # TODO maybe need to handle non-diagonal errors
+        # TODO maybe need to handle non-diagonal errors
+        chi2 = np.sum(np.square((data_values - expectation_values) / data_errors))
 
         return chi2
 
@@ -261,6 +274,85 @@ class TUnFolder:
         print("Matrix condition: " + str(decomp.Condition()))
         return decomp.Condition()
 
+    def rebin_y_to_match_x(self):
+        """
+        Return a new TH2D whose X‐ and Y‐axes both use h2’s X‐axis bin edges.
+        The contents are summed (and errors propagated in quadrature) along Y.
+        """
+        # 1) Grab the X‐axis bin edges
+        raw_matrix = self.response_matrix.get_raw_hist().Clone("rebin_y_axis")
+        xa = raw_matrix.GetXaxis()
+        nbx = xa.GetNbins()
+        # we'll need nbx+1 edges
+        edges = array('d', (xa.GetBinLowEdge(i) for i in range(1, nbx + 2)))
+
+        # 2) Create the new histogram
+        name = raw_matrix.GetName() + "_rebin"
+        title = raw_matrix.GetTitle()
+        hnew = ROOT.TH2D(name, title, nbx, edges, nbx, edges)
+        # detach from any file
+        ROOT.TH1.AddDirectory(False)
+
+        # 3) Loop over all original bins, re‐assign them to new Y‐bins
+        ya = raw_matrix.GetYaxis()
+        for ix in range(1, raw_matrix.GetNbinsX() + 1):
+            xval = xa.GetBinCenter(ix)
+            for iy in range(1, raw_matrix.GetNbinsY() + 1):
+                yval = ya.GetBinCenter(iy)
+                c = raw_matrix.GetBinContent(ix, iy)
+                e = raw_matrix.GetBinError(ix, iy)
+                if c == 0 and e == 0:
+                    continue
+
+                # find which new Y‐bin this yval falls into
+                new_iy = hnew.GetYaxis().FindBin(yval)
+
+                # sum the content and propagate error in quadrature
+                old_c = hnew.GetBinContent(ix, new_iy)
+                old_e = hnew.GetBinError(ix, new_iy)
+                hnew.SetBinContent(ix, new_iy, old_c + c)
+                hnew.SetBinError(ix, new_iy, (old_e ** 2 + e ** 2) ** 0.5)
+
+        return hnew
+
+    def get_purity_hist(self):
+        rebinned_matrix = self.rebin_y_to_match_x()
+        hist_purity = rebinned_matrix.ProjectionX("hist_purity", 0, -1, "")
+        hist_purity.Reset()
+
+        for iy in range(1, rebinned_matrix.GetNbinsY() + 1):
+            sum_ = 0.
+            for ix in range(1, rebinned_matrix.GetNbinsX() + 1):
+                sum_ += rebinned_matrix.GetBinContent(ix, iy)
+            purity = 0.
+            if sum_ > 0.:
+                purity = rebinned_matrix.GetBinContent(iy, iy) / sum_
+            hist_purity.SetBinContent(iy, purity)
+
+        return Hist(hist_purity, 'hist_purity')
+
+    def draw_bin_efficiency(self, x_log=True):
+        ROOT.TH1.SetDefaultSumw2()  # FIXME
+        prob_matrix = self.tunfolder.GetProbabilityMatrix("histProb", ";P_T(gen);P_T(rec)")
+        bin_efficiency_hist = Hist(prob_matrix.ProjectionX("histEfficiency"), "bin_efficiency")
+        # extract 1D
+        # FIXME update for 2D unfold
+        bin_purity_hist = self.get_purity_hist()
+        # bin_purity_hist = Hist(prob_matrix.ProjectionY("histEfficiency"), "bin_purity")
+
+        plotter = bin_efficiency_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.set_experiment_label(year=self.input_hist.year)
+        plotter.add_hist(bin_efficiency_hist, as_denominator=False)
+        plotter.add_hist(bin_purity_hist, as_denominator=False)
+        plotter.draw_hist()
+        plotter.get_axis(location=(0, 0)).set_ylim(0., 1.05)
+        plotter.get_axis(location=(0, 0)).grid(True, which='both', axis='x', linestyle='--', linewidth=0.7)
+        plotter.get_axis(location=(0, 0)).grid(True, which='major', axis='y', linestyle='--', linewidth=0.7)
+        if x_log:
+            plotter.get_axis(location=(0, 0)).set_xscale("log")
+        plotter.save_and_reset_plotter("bin_efficiency")
+
     def draw_response_matrix(self, out_name=''):
         plotter = Plotter('CMS',
                           '/Users/junhokim/Work/cms_snu/ISR/Plots')  # FIXME use self.plotter
@@ -271,6 +363,7 @@ class TUnFolder:
         rm_np = Hist(self.tunfolder.GetProbabilityMatrix(ctypes.c_char_p(0),
                                                          ctypes.c_char_p(0),
                                                          True)).to_numpy_2d()
+
         plotter.draw_matrix(rm_np, "ll")
         plotter.add_text("condition number: " + str(round(self.condition_number(), 2)),
                          location=(0,0), do_magic=False,
@@ -282,6 +375,7 @@ class TUnFolder:
                                                         ctypes.c_char_p(0),
                                                         True))
 
+    # FIXME
     # general comparison template?
     def bottom_line_test(self, projection_mode="*[*]", use_axis_binning=True, draw_plot=False,
                          out_name=''):
@@ -344,20 +438,17 @@ class TUnFolder:
         return folded_chi2 > unfolded_chi2
 
     def get_mc_truth_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
-        return self.extract_truth_from_2d_hist_using_bin_definition(self.response_matrix.get_raw_hist(),
-                                                                    projection_mode=projection_mode,
-                                                                    use_axis_binning=use_axis_binning)
+        return self.extract_truth_from_2d_hist_using_bin_definition(self.response_matrix.get_raw_hist())
 
-    def extract_truth_from_2d_hist_using_bin_definition(self, raw_2d_hist, projection_mode="*[*]",
-                                                        use_axis_binning=True):
+    def extract_truth_from_2d_hist_using_bin_definition(self, raw_2d_hist,):
         projected_hist = raw_2d_hist.ProjectionX("histMCTruth", 0, -1, "e")
 
-        if projection_mode != "*[*]":
-            projected_hist = self.unfolded_bin.ExtractHistogram("truth_extracted",
-                                                                projected_hist,
-                                                                0,  # error matrix
-                                                                use_axis_binning,
-                                                                projection_mode)
+        #if projection_mode != "*[*]":
+        #projected_hist = self.unfolded_bin.ExtractHistogram("truth_extracted",
+        #                                                    projected_hist,
+        #                                                    0,  # error matrix
+        #                                                    use_axis_binning,
+        #                                                    projection_mode)
         return projected_hist
 
     def get_mc_reco_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):

@@ -79,8 +79,11 @@ class ROOTHistGrouper:
         file_dict = self.get_file_dict(sys_dir_name)
         # TODO systematic?
         for file_label, file_path in file_dict.items():
+            #print(file_path)
+            #print(hist_path + hist_name)
             file = ROOT.TFile.Open(file_path, 'r')
             hist = file.Get(hist_path + hist_name)
+
             hist.GetNbinsX()
             file.Close()
 

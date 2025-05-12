@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True):
-    analyzer.setup_isr_detector_hists(period, channel, event_selection, is_2d=is_2d)
+    analyzer.setup_isr_detector_hists(period, channel, event_selection, use_tunfoldbinning=is_2d)
     analyzer.isr_unfolds()
     analyzer.isr_acceptance_corrections()
     return analyzer.get_isr_results()
@@ -133,7 +133,7 @@ def main():
 
         pt, mass = unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True)
 
-        analyzer.setup_isr_detector_hists(period, channel, event_selection, is_2d=False)
+        analyzer.setup_isr_detector_hists(period, channel, event_selection, use_tunfoldbinning=False)
         pt_1d, mass_1d = unfold_and_correct(analyzer, period, channel, event_selection, is_2d=False)
 
         analyzer_nlo = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, signal="DY:aMCNLO", acceptance="DY")
@@ -189,7 +189,7 @@ def main():
         ss_test.background_names = [('top', 'antitop'),
                                     'TTLL', 'GGLL', ('ZZ', 'WZ', 'WW'), 'DYJetsToTauTau_MiNNLO']
 
-        ss_test.setup_isr_detector_hists(period, channel, event_selection, is_2d=True, hist_prefix='ss_')
+        ss_test.setup_isr_detector_hists(period, channel, event_selection, use_tunfoldbinning=True, hist_prefix='ss_')
         ss_pt, ss_mass = ss_test.get_isr_results()
 
         for index in range(len(mass_bins)):

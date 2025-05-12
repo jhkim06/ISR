@@ -328,6 +328,7 @@ class Plotter:
 
     def add_ratio_hist(self, ratio_hist, location=(0, 0),
                        **kwargs):
+        kwargs |= {"yerr": False}  # do not draw y errors for ratio hists (error band will be drawn instead)
         return self.add_hist(ratio_hist, location=location, use_for_ratio=False, **kwargs)
 
     def show_legend(self, location=(0, 0), **kwargs_):
@@ -464,18 +465,20 @@ class Plotter:
             # self.current_axis.set_xlim(0.2, rm_np[1][-1])
             # self.current_axis.set_ylim(0.2, rm_np[2][-1])
 
-        for x in range(len(rm_np[1]) - 1):
-            for y in range(len(rm_np[2]) - 1):
-                c = rm_np[0][x][y]
-                if math.isnan(c):
-                    continue
-                if c < 0.1:
-                    continue
-                x_half_width = (rm_np[1][x + 1] - rm_np[1][x]) / 2
-                y_half_width = (rm_np[2][y + 1] - rm_np[2][y]) / 2
-                self.current_axis.text(rm_np[1][x] + x_half_width,
-                                       rm_np[2][y] + y_half_width,
-                                       f'{c:.2f}', va='center', ha='center', fontsize=15, color='red')
+        show_number = False
+        if show_number:
+            for x in range(len(rm_np[1]) - 1):
+                for y in range(len(rm_np[2]) - 1):
+                    c = rm_np[0][x][y]
+                    if math.isnan(c):
+                        continue
+                    if c < 0.1:
+                        continue
+                    x_half_width = (rm_np[1][x + 1] - rm_np[1][x]) / 2
+                    y_half_width = (rm_np[2][y + 1] - rm_np[2][y]) / 2
+                    self.current_axis.text(rm_np[1][x] + x_half_width,
+                                           rm_np[2][y] + y_half_width,
+                                           f'{c:.2f}', va='center', ha='center', fontsize=15, color='red')
 
         self.current_axis.set_ylabel(variable_name + "(Reco) [GeV]", fontsize=30)
         self.current_axis.set_xlabel(variable_name + "(Gen) [GeV]", fontsize=30)
@@ -508,6 +511,7 @@ class Plotter:
             y_error = y_data.T[-1]
 
             self.set_current_axis(location=self.errorbar_loc[index])
+            #print(len(x_value), len(y_value))
             self.current_axis.errorbar(x_value, y_value, xerr=x_error, yerr=y_error,
                                        **self.errorbar_kwargs[index])
 

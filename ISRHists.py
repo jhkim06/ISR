@@ -40,7 +40,10 @@ class ISRHists:
     def __init__(self,
                  mass_bins,  # mass windows
                  pt_bins,
-                 is_2d, is_pt,
+
+                 is_2d,
+                 is_pt,
+
                  year='', channel='',
                  folded_tunfold_bin=None, unfolded_tunfold_bin=None):  # pt cut
 
@@ -57,9 +60,11 @@ class ISRHists:
         self.isr_hists = []
         self.isr_hists_1d = []  #
 
+        self.use_tunfoldbinning = False
         self.folded_tunfold_bin = folded_tunfold_bin
         self.unfolded_tunfold_bin = unfolded_tunfold_bin
-
+        if folded_tunfold_bin and unfolded_tunfold_bin:
+            self.use_tunfoldbinning = True
         #
         self.measurement_mean_values = None
         self.measurement_bg_subtracted_mean_values = None
@@ -100,7 +105,7 @@ class ISRHists:
             print('Check the number of mass bins and the number of ISR hists...')
             return
         else:
-            if self.is_2d:
+            if self.use_tunfoldbinning:
                 new_background_hists = {}
                 if background_hists:
                     for key, value in background_hists.items():
@@ -137,7 +142,8 @@ class ISRHists:
     def set_acceptance_corrected_mean_values(self, mass_window_index=0, key='measurement',
                                              binned_mean=True, range_min=None, range_max=None,):
         hist = self.isr_hists[mass_window_index].acceptance_corrected_hist[key]
-        # set mean values
+
+        # is_pt
         if self.is_2d or self.is_pt==False:
             # loop over mass bins
             if self.is_pt:
@@ -147,14 +153,16 @@ class ISRHists:
                     self.acceptance_corrected_mean_values[key].append(mean)
             else:
                 # mass
+                extracted_hist = hist.extract_hist()
                 for low, high in self.mass_bins:
-                    mean = hist.get_mean_df(range_min=low, range_max=high)
+                    mean = extracted_hist.get_mean_df(range_min=low, range_max=high)
                     self.acceptance_corrected_mean_values[key].append(mean)
         else:
             # set mean for mass_window_index
             # TODO 1D case self.is_pt == True, self.is_2d == False
             if self.is_pt:
-                mean = hist.get_mean_df(binned_mean=binned_mean, range_min=range_min, range_max=range_max)
+                extracted_hist = hist.extract_hist()
+                mean = extracted_hist.get_mean_df(binned_mean=binned_mean, range_min=range_min, range_max=range_max)
                 self.acceptance_corrected_mean_values[key].append(mean)
 
     def get_isr_hists(self, mass_window_index=-1):
@@ -202,17 +210,22 @@ class ISRHists:
             return hist.bin_width_norm(scale) if bin_width_norm else hist
 
         # Handle 2D case
-        if self.is_2d:
-            if 0 <= mass_window_index < len(self.mass_bins):  # -1 for 2D
+        # tunfoldbinning is used as default
+        if self.is_pt:  #
+            if self.is_2d:
+                if 0 <= mass_window_index < len(self.mass_bins):  # -1 for 2D
+                    if hist_type == 'background':
+                        return {k: normalize(v.extract_1d_hist(mass_window_index)) for k, v in target_hist.items()}
+                    return normalize(target_hist.extract_1d_hist(mass_window_index))
+                return normalize(target_hist)
+            else:
                 if hist_type == 'background':
-                    return {k: normalize(v.extract_1d_hist(mass_window_index)) for k, v in target_hist.items()}
-                return normalize(target_hist.extract_1d_hist(mass_window_index))
-            return normalize(target_hist)
-
-        # Handle 1D case
-        if hist_type == 'background':
-            return {k: normalize(v) for k, v in target_hist.items()}
-        return normalize(target_hist)
+                    return {k: normalize(v.extract_hist()) for k, v in target_hist.items()}
+                return normalize(target_hist.extract_hist())
+        else:
+            if hist_type == 'background':
+                return {k: normalize(v.extract_hist()) for k, v in target_hist.items()}
+            return normalize(target_hist.extract_hist())
 
     def get_additional_text_on_plot(self, mass_window_index=-1):
         text = ''
@@ -229,17 +242,17 @@ class ISRHists:
         return text
 
     def get_df(self, key='measurement', other=None, binned_mean_correction=True,):
-        if other:
-            df = pd.concat(other.acceptance_corrected_mean_values[key], ignore_index=True)
-            is_pt = other.is_pt
-            binned_mean_correction_factors = other.binned_mean_correction_factors
-        else:
-            df = pd.concat(self.acceptance_corrected_mean_values[key], ignore_index=True)
-            is_pt = self.is_pt
-            binned_mean_correction_factors = self.binned_mean_correction_factors
-
-        if is_pt and binned_mean_correction:
-            df['mean'] = df['mean'] * binned_mean_correction_factors
+        # Choose whether to pull from self or another instance
+        source = other if other is not None else self
+        # Build the base dataframe
+        df = pd.concat(source.acceptance_corrected_mean_values[key], ignore_index=True)
+        # If PT case, compute and apply correction
+        if source.is_pt:
+            bmc = source.binned_mean_correction_factors
+            df_sim = pd.concat(source.acceptance_corrected_mean_values['simulation'], ignore_index=True)
+            bmc = bmc / df_sim['mean']
+            if binned_mean_correction:
+                df['mean'] *= bmc
         return df
 
     def add_isr_plot(self, plotter, mass, pt, key='measurement', **kwargs):
@@ -485,6 +498,34 @@ class ISRHists:
             plotter.show_legend()
             plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
+    def draw_correlations(self, mass_window_index=-1,):
+        # Choose the relevant ISR hist container
+        if self.is_pt and not self.is_2d:
+            isr_hist_to_draw = self.isr_hists[mass_window_index]
+        else:
+            isr_hist_to_draw = self.isr_hists[0]
+
+        # Fetch the target hist or dict of hists
+        attr_name = 'tunfolder'
+        tunfolder = getattr(isr_hist_to_draw, attr_name)
+        raw_2d = Hist(tunfolder.tunfolder.GetRhoIJtotal("test"))  # directly from TUnfold
+        plotter = raw_2d.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.draw_matrix(raw_2d.to_numpy_2d(), "test")
+        plotter.save_and_reset_plotter("test")
+
+    def draw_bin_efficiency(self, mass_window_index=-1,):
+        if self.is_pt and not self.is_2d:
+            isr_hist_to_draw = self.isr_hists[mass_window_index]
+        else:
+            isr_hist_to_draw = self.isr_hists[0]
+        attr_name = 'tunfolder'
+        tunfolder = getattr(isr_hist_to_draw, attr_name)
+        x_log = True
+        if self.is_pt:
+            x_log = False
+        tunfolder.draw_bin_efficiency(x_log=x_log)
+
     def draw_pt_comparisons(self, *others, index=2):
         reference_hist = self.get('acceptance_corrected', index, bin_width_norm=True, scale=-1)
 
@@ -527,5 +568,4 @@ class ISRHists:
         plotter.draw_hist()
 
         plotter.get_axis(location=(0, 0)).set_ylim(0, 3)
-
         plotter.save_and_reset_plotter("test_" + self.channel + self.year)

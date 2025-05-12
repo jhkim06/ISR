@@ -23,7 +23,6 @@ class FilePather:
 
     def get_path_dict(self,  *keys_tuple, sys_dir_name='default'):
         # get_path_dict()
-
         out_dict = {}
         for keys in keys_tuple:
             file_path = self.file_path
