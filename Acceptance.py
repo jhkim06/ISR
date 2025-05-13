@@ -8,6 +8,7 @@ class Acceptance:
 
     def _set_acceptance(self):
         self.acceptance_hist = self.mc_hist_full_phase.divide(self.mc_hist_in_acceptance)
+        # TODO check acceptance_hist !
 
     def do_correction(self, input_hist):
         # input_hist from unfolder

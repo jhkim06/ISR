@@ -434,7 +434,9 @@ class ISRAnalyzer(Analyzer):
         correction_factors = []
         for index, mass_bin in enumerate(self.mass_bins):
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
-            mc_hist_full_phase = self.get_mc_hist(self.acceptance_name, pt_hist_full_phase_name_prefix + mass_bin_postfix)
+            # FIXME
+            mc_hist_full_phase = self.get_mc_hist(self.acceptance_name,
+                                                  pt_hist_full_phase_name_prefix + mass_bin_postfix)
             correction_factor = mc_hist_full_phase.get_mean(binned_mean=False)[0]
             correction_factors.append(correction_factor)
 

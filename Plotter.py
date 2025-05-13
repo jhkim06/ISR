@@ -13,32 +13,47 @@ import copy
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 from matplotlib.container import ErrorbarContainer
+import matplotlib.colors as mcolors
 
 
 def extract_color_from_handle(handle):
-    """Extracts color from various matplotlib/mplhep artist types."""
+    """
+    Extracts a color from various matplotlib / mplhep artist types
+    and returns it as a hex string, e.g. '#578fe0'.
+    """
+
+    raw_color = None
 
     # Case 1: mplhep ErrorBarArtists
     if isinstance(handle, ErrorBarArtists):
         container = handle.errorbar
         if isinstance(container, ErrorbarContainer):
-            return container.lines[0].get_color()
+            # this is usually a Line2D
+            raw_color = container.lines[0].get_color()
 
     # Case 2: mplhep StairsArtists
     elif isinstance(handle, StairsArtists):
-        return handle.stairs.get_edgecolor()
+        # returns an RGBA tuple
+        raw_color = handle.stairs.get_edgecolor()
 
     # Case 3: Line2D (e.g., for errorbar or line plot)
     elif isinstance(handle, mlines.Line2D):
-        return handle.get_color()
+        raw_color = handle.get_color()
 
     # Case 4: Patch (e.g., from bar hist)
     elif isinstance(handle, mpatches.Patch):
-        return handle.get_facecolor()
+        raw_color = handle.get_facecolor()
 
-    print(f"⚠️ Unknown handle type: {type(handle)}")
-    return None
+    else:
+        print(f"⚠️ Unknown handle type: {type(handle)}")
+        return None
 
+    # Convert whatever you got (hex str, name, or RGBA tuple) into pure '#rrggbb'
+    try:
+        return mcolors.to_hex(raw_color)
+    except Exception:
+        # fallback: just str it
+        return str(raw_color)
 
 def find_non_negative_min(arr):
     # Get non-negative values
@@ -53,7 +68,7 @@ def find_non_negative_min(arr):
 
 class PlotItem(Hist):
     def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
-                 drawn=False, not_to_draw=False, use_for_ratio=True,
+                 drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True,
                  **kwargs):
 
         super(PlotItem, self).__init__(hist.raw_root_hist,
@@ -73,6 +88,7 @@ class PlotItem(Hist):
         self.not_to_draw = not_to_draw
         self.use_for_ratio = use_for_ratio
         self.plot_kwargs = kwargs
+        self.show_y_err = yerr
 
 class Plotter:
     def __init__(self, experiment, base_output_dir, **kwargs):
@@ -173,10 +189,10 @@ class Plotter:
 
     def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  not_to_draw=False,
-                 use_for_ratio=True,
+                 use_for_ratio=True, yerr=True,
                  **kwargs):
         p_hist = PlotItem(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
-                          use_for_ratio=use_for_ratio, not_to_draw=not_to_draw,
+                          use_for_ratio=use_for_ratio, not_to_draw=not_to_draw, yerr=yerr,
                           **kwargs)
         self.plot_items.append(p_hist)
         return len(self.plot_items) - 1
@@ -243,15 +259,20 @@ class Plotter:
 
     def _draw_single(self, item,
                      values, bins, errs):
-        yerr = item.plot_kwargs.pop('yerr', errs)
-        xerr = item.plot_kwargs.pop('xerr', False)
+        plot_kwargs = copy.deepcopy(item.plot_kwargs)
+        # plot_kwargs |= {"yerr": False}
+        if item.show_y_err:
+            yerr = errs
+        else:
+            yerr = False
 
-        artist = hep.histplot((values, bins), ax=self.current_axis, yerr=yerr, xerr=xerr,
-                              **item.plot_kwargs)[0]
-        if isinstance(artist, ErrorBarArtists) or artist.legend_artist:
-            return artist
-        if isinstance(artist, StairsArtists):
-            return artist.stairs
+        artist = hep.histplot((values, bins), ax=self.current_axis, yerr=yerr, xerr=False,
+                              **plot_kwargs)[0]
+        # FIXME check belows are required in legend
+        #if isinstance(artist, ErrorBarArtists) or artist.legend_artist:
+        #    return artist
+        #if isinstance(artist, StairsArtists):
+        #    return artist.stairs
         return artist
 
     def get_hist(self, index):
@@ -300,7 +321,7 @@ class Plotter:
                 return
 
         else:
-            print("❌ Invalid nominator/denominator config")
+            print("Invalid nominator/denominator config")
             exit(1)
 
         self.draw_hist()
@@ -328,8 +349,7 @@ class Plotter:
 
     def add_ratio_hist(self, ratio_hist, location=(0, 0),
                        **kwargs):
-        kwargs |= {"yerr": False}  # do not draw y errors for ratio hists (error band will be drawn instead)
-        return self.add_hist(ratio_hist, location=location, use_for_ratio=False, **kwargs)
+        return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
 
     def show_legend(self, location=(0, 0), **kwargs_):
         self.set_current_axis(location=location)

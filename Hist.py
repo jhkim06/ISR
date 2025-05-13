@@ -160,33 +160,45 @@ class Hist(object):
         central_values = to_numpy(self.raw_root_hist)[0]
 
         for sys_name, variations in self.systematic_raw_root_hists.items():
-            squared_sum = np.zeros_like(central_values)
+            diffs = []
             for var_name, hist in variations.items():
                 variation_values = to_numpy(hist)[0]
-                squared_diff = (variation_values - central_values) ** 2
-                squared_sum += squared_diff
+                squared_diff = (variation_values-central_values)
+                diffs.append(squared_diff)
+            diffs = np.array(diffs)
+            if sys_name == "pdf":
+                sys_val = np.sqrt(np.mean(diffs ** 2, axis=0))
+            else:
+                sys_val = np.sqrt(np.sum(diffs ** 2, axis=0))
 
-            self.systematics[sys_name] = np.sqrt(squared_sum)  # RSS for this sys_name
+            self.systematics[sys_name] = sys_val  # RSS for this sys_name
+            #if sys_name == "pdf":
+            #    print("compute_systematic_rss_per_sysname", np.sqrt(squared_sum))
         self.update_sys_np_array()
 
     def set_systematic_hist(self, sys_name, sys_variation_name, raw_hist):
 
-        if self.is_TH2: return
-
-        central_values = to_numpy(self.raw_root_hist)[0]
-        variation_values = to_numpy(raw_hist)[0]
-        squared_diff = (variation_values - central_values) ** 2
-
-        # Add to systematic container
         if sys_name not in self.systematic_raw_root_hists:
             self.systematic_raw_root_hists[sys_name] = {}
-            self.systematics[sys_name] = np.sqrt(squared_diff)
+            self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
         else:
-            existing_squared = self.systematics[sys_name] ** 2
-            self.systematics[sys_name] = np.sqrt(existing_squared + squared_diff)
+            self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
 
-        self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
-        self.update_sys_np_array()
+        if not self.is_TH2:
+            central_values = to_numpy(self.raw_root_hist)[0]
+            variation_values = to_numpy(raw_hist)[0]
+            squared_diff = (variation_values - central_values) ** 2
+
+            # Add to systematic container
+            if sys_name not in self.systematics:
+                #self.systematic_raw_root_hists[sys_name] = {}
+                self.systematics[sys_name] = np.sqrt(squared_diff)
+            else:
+                existing_squared = self.systematics[sys_name] ** 2
+                self.systematics[sys_name] = np.sqrt(existing_squared + squared_diff)
+
+            #self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
+            self.update_sys_np_array()
 
     def normalize_systematic_raw_hists_by_central(self, raw_hist):
         for sys_name, variations in self.systematic_raw_root_hists.items():
@@ -197,6 +209,7 @@ class Hist(object):
 
     def create_normalized_error_band(self):
         norm_default = self.raw_root_hist.Clone("norm_default")
+        #print(self.systematic_raw_root_hists)
         norm_default.Divide(norm_default)
         ratio_error_band = self.create(hist=norm_default,)
         ratio_error_band.systematic_raw_root_hists = copy.deepcopy(self.systematic_raw_root_hists)
@@ -313,6 +326,7 @@ class Hist(object):
         else:
             return target_hist.GetMean(), target_hist.GetMeanError()
 
+    # get mean from TH1 and return as dataframe
     def get_mean_df(self, binned_mean=True, range_min=None, range_max=None):
         central_mean, central_error = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max)
         # Initialize result dict
@@ -320,15 +334,21 @@ class Hist(object):
             "mean": central_mean,
             "stat": central_error
         }
-
         # Loop over systematics and calculate RSS of mean shifts
         for sys_name, variations in self.systematic_raw_root_hists.items():
-            squared_sum = 0.0
+            diffs = []
             for var_name, hist in variations.items():
                 var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
                                             target_hist=hist)
-                squared_sum += (var_mean - central_mean) ** 2
-            result[sys_name] = np.sqrt(squared_sum)
+                diffs.append(var_mean - central_mean)
+            diffs = np.array(diffs)
+
+            if sys_name == "pdf":
+                sys_val = np.sqrt(np.mean(diffs ** 2))
+            else:
+                sys_val = np.sqrt(np.sum(diffs ** 2))
+
+            result[sys_name] = sys_val
 
         result = pd.DataFrame([result])
         error_columns = result.columns.difference(['mean'])

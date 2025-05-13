@@ -59,7 +59,9 @@ def with_data_hist_info(func):
 
 class Analyzer:
     def __init__(self, sample_base_dir, signal='DY',
-                 backgrounds=['qcd', ('top', 'antitop'), 'TTLL', 'GGLL', ('ZZ', 'WZ', 'WW'), 'DYJetsToTauTau_MiNNLO'],
+                 backgrounds=['qcd', ('top', 'antitop'),
+                              'TTLL', 'GGLL', ('ZZ', 'WZ', 'WW'),
+                              'DYJetsToTauTau_MiNNLO'],
                  analysis_name=''):
 
         self.data = CMSData(sample_base_dir)
@@ -81,12 +83,20 @@ class Analyzer:
         self.systematics = {
             # apply only to background Hist
             "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
-            "dummy:signal": {"up": ("pdf", "", 1.0), "down": ("pdf", "", 1.0)},
+            "alpha_s:signal": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
             "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
-            #"pdf:signal": {"99": ("pdf", "pdf99", 1.0), "98": ("pdf", "pdf98", 1.0)},
-                                  # directory, postfix scale
-            #"pdf:alphaS": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
         }
+        pdf_signal_variations = {
+            str(i): ("pdf", f"pdf{i}", 1.0)
+            for i in range(100)
+        }
+        self.systematics.update({"pdf:signal": pdf_signal_variations})
+
+        scale_signal_variations = {
+            str(i): ("pdf", f"scalevariation{i}", 1.0)
+            for i in range(9)
+        }
+        #self.systematics.update({"scale:signal": scale_signal_variations})
 
     def set_data_info(self, year, channel, event_selection):
         self.year = year
@@ -128,11 +138,10 @@ class Analyzer:
                 use_sys_config = False  # fallback if unknown apply_to
 
             for variation_name, sys_config in value.items():
-
                 if use_sys_config:
-                    hist_name = hist_name+"_"+sys_config[1] if sys_config[1] else hist_name
+                    hist_name_ = hist_name+"_"+sys_config[1] if sys_config[1] else hist_name
                     # FIXME option to use systematic root file
-                    sys_hist = file_group.get_combined_root_hists(hist_name,
+                    sys_hist = file_group.get_combined_root_hists(hist_name_,
                                                                   event_selection=self.event_selection,
                                                                   hist_name_prefix=hist_name_prefix,
                                                                   scale=sys_config[2],
@@ -142,7 +151,6 @@ class Analyzer:
                     sys_hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
                                                                   hist_name_prefix=hist_name_prefix,
                                                                   bin_width_norm=bin_width_norm)
-
                 hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
 
     # Methods to get Hist

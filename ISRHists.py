@@ -85,6 +85,7 @@ class ISRHists:
             self.x_axis_label = r"$m^{"+change_to_greek(self.channel)+"}$ [GeV]"
 
     # TODO update hist also
+    # add systematic from other ISRHist object
     def update_mean_values(self, other, sys_name):
         key = 'measurement'
         for index, mean_value in enumerate(self.acceptance_corrected_mean_values[key]):
@@ -266,6 +267,7 @@ class ISRHists:
         else:
             pt_mean = self.get_df(key=key, other=pt)
 
+        print(pt_mean)
         plotter.add_errorbar((mass_mean, pt_mean), **kwargs)
 
     def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement', **kwargs):
@@ -459,7 +461,7 @@ class ISRHists:
         self._draw_comparison_plot(measurement_hist, signal_hist, background_hists, text, suffix=suffix,
                                    draw_as_2d=draw_as_2d)
 
-    def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False):
+    def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False, mc_denominator=True):
         measurement_hist = self.get('unfolded_measurement', mass_window_index, bin_width_norm=bin_width_norm)
         signal_hist = self.get('truth_signal', mass_window_index, bin_width_norm=bin_width_norm)
         text = self.get_additional_text_on_plot(mass_window_index)
@@ -467,7 +469,8 @@ class ISRHists:
         suffix = '_unfolded'
         if self.is_2d:
             suffix = '_unfolded_'+str(mass_window_index)
-        self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix)
+        self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
+                                   mc_denominator=mc_denominator)
 
     def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False,
                                         mc_denominator=True, others=None):
@@ -497,6 +500,30 @@ class ISRHists:
 
             plotter.show_legend()
             plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+
+    def draw_systematics(self, sys_name, mass_window_index=-1, bin_width_norm=False):
+        # get variation hists of dictionary from Hist
+        # systematic_raw_root_hists[sys_name][var_name] = hist
+        measurement_hist = self.get('unfolded_measurement', mass_window_index, bin_width_norm=bin_width_norm)
+        systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
+
+        plotter = measurement_hist.plotter
+        plotter.init_plotter(rows=2, cols=1)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
+
+        plotter.add_hist(measurement_hist, as_denominator=True,
+                         **get_hist_kwargs(measurement_hist.get_label()))
+
+        for sys_name_, sys_hist in systematic_hists.items():
+            # suppress y error for systematic hists
+            plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False)
+
+        plotter.draw_hist()
+
+        plotter.draw_ratio_hists(location=(1, 0))
+        plotter.get_axis(location=(1, 0)).set_ylim(0.9, 1.1)
+
+        plotter.save_and_reset_plotter("test_sys_" + sys_name + "_" + self.channel + self.year)
 
     def draw_correlations(self, mass_window_index=-1,):
         # Choose the relevant ISR hist container

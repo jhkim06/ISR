@@ -85,16 +85,21 @@ class TUnFolder:
         self._subtract_backgrounds()
 
     # FIXME check if use_bin_map really needed
-    def _create_tunfolder(self):
+    def _create_tunfolder(self, sys_name='', var_name=''):
+        if sys_name:
+            #print(self.response_matrix.systematic_raw_root_hists)
+            matrix = self.response_matrix.systematic_raw_root_hists[sys_name][var_name]
+        else:
+            matrix = self.response_matrix.get_raw_hist()
         if self.use_tunfoldbinning:  # Use bin map
-            return ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
+            return ROOT.TUnfoldDensity(matrix,
                                        ROOT.TUnfold.kHistMapOutputHoriz,
                                        REG_MODE[self.reg_mode],
                                        EX_CONSTRAINTS[self.ex_constraint],
                                        DENSITY_MODE[self.density_mode],
                                        self.unfolded_bin, self.folded_bin)
         else:
-            return ROOT.TUnfoldDensity(self.response_matrix.get_raw_hist(),
+            return ROOT.TUnfoldDensity(matrix,
                                        ROOT.TUnfold.kHistMapOutputHoriz,
                                        REG_MODE[self.reg_mode],
                                        EX_CONSTRAINTS[self.ex_constraint],
@@ -171,9 +176,10 @@ class TUnFolder:
         sys_unfolded_hist = {}
         sys_hist = self.input_hist.systematic_raw_root_hists
         for sys_name, variations in sys_hist.items():
+            # print('systematic unfolding... ', sys_name)
             sys_unfolded_hist[sys_name] = {}
             for var_name, hist in variations.items():
-                tunfolder = self._create_tunfolder()  # create tunfolder with the matrix
+                tunfolder = self._create_tunfolder(sys_name=sys_name, var_name=var_name)  # create tunfolder with the matrix FIXME allow response matrix variation!
                 self._set_tunfolder_input(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self._subtract_backgrounds(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
                 self.unfold(sys_tunfolder=tunfolder)
