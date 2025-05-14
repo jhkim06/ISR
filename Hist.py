@@ -203,7 +203,7 @@ class Hist(object):
     def normalize_systematic_raw_hists_by_central(self, raw_hist):
         for sys_name, variations in self.systematic_raw_root_hists.items():
             for var_name, hist in variations.items():
-                normalized = hist.Clone(f"{hist.GetName()}_norm")
+                normalized = hist.Clone(f'{hist.GetName()}_norm')
                 normalized.Divide(raw_hist)
                 self.systematic_raw_root_hists[sys_name][var_name] = normalized
 
@@ -336,11 +336,28 @@ class Hist(object):
         }
         # Loop over systematics and calculate RSS of mean shifts
         for sys_name, variations in self.systematic_raw_root_hists.items():
+
+            # Temporary
+            maximum_pdf_delta = 0
+            if sys_name == "pdf":
+                for var_name, hist in variations.items():
+                    var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
+                                                target_hist=hist)
+                    temp_delta = abs(var_mean-central_mean)
+                    if temp_delta > maximum_pdf_delta:
+                        maximum_pdf_delta = temp_delta
+
             diffs = []
             for var_name, hist in variations.items():
                 var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
                                             target_hist=hist)
-                diffs.append(var_mean - central_mean)
+                delta = var_mean-central_mean
+                if sys_name == "pdf":
+                    if abs(delta) > 0.99 * maximum_pdf_delta:
+                        print(f"Skipping systematic {sys_name} with variation {var_name} because it is an outlier.")
+                        continue
+                ## otherwise accept it
+                diffs.append(delta)
             diffs = np.array(diffs)
 
             if sys_name == "pdf":

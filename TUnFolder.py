@@ -62,7 +62,7 @@ class TUnFolder:
         self.use_tunfoldbinning = False
         self.unfolded_bin = unfolded_bin
         self.folded_bin = folded_bin
-        if self.folded_bin is not None and self.unfolded_bin is None:
+        if self.folded_bin is not None and self.unfolded_bin is not None:
             self.use_tunfoldbinning = True
 
         self.label = label
@@ -207,12 +207,12 @@ class TUnFolder:
                                                 ctypes.c_char_p(0),
                                                 False)
 
-            # for "*[*]", use_axis_binning=True, makes no sense?
-            #unfolded_hist = self.unfolded_bin.ExtractHistogram("unfolded_hist_extracted",
-            #                                                   unfolded_hist,
-            #                                                   0,  # error matrix
-            #                                                   False,
-            #                                                   projection_mode)
+            # To avoid RuntimeWarning: Attempt to multiply histograms with different bin limits
+            unfolded_hist = self.unfolded_bin.ExtractHistogram("unfolded_hist_extracted",
+                                                               unfolded_hist,
+                                                               0,  # error matrix
+                                                               False,
+                                                               projection_mode)
         else:
             unfolded_hist = tunfolder.GetOutput("unfolded_hist",
                                                 ctypes.c_char_p(0),

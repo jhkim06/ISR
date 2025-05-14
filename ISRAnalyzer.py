@@ -12,6 +12,7 @@ class ISRAnalyzer(Analyzer):
                  mass_bins,
                  pt_bins,
                  signal = "DY",
+                 sys_on = True,
                  acceptance = None,  # DY for acceptance correction
 
                  pt_folded_bin_name='fine_O', pt_unfolded_bin_name='coarse_O',
@@ -21,7 +22,7 @@ class ISRAnalyzer(Analyzer):
                  mass_unfolded_space_name='dressed', ):
 
         super(ISRAnalyzer, self).__init__(sample_base_dir,
-                                          signal=signal, )
+                                          signal=signal, sys_on=sys_on,)
 
         if acceptance is None:
             self.acceptance_name = self.signal_name
@@ -203,6 +204,7 @@ class ISRAnalyzer(Analyzer):
         else:
             self.isr_pt = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=True,
                                    year=year, channel=channel, )
+
             for index, mass_bin in enumerate(mass_bins):
                 mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
 

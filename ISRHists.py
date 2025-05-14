@@ -501,10 +501,11 @@ class ISRHists:
             plotter.show_legend()
             plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
-    def draw_systematics(self, sys_name, mass_window_index=-1, bin_width_norm=False):
+    def draw_systematics(self, sys_name, mass_window_index=-1, bin_width_norm=False,
+                         hist_type='unfolded_measurement'):
         # get variation hists of dictionary from Hist
         # systematic_raw_root_hists[sys_name][var_name] = hist
-        measurement_hist = self.get('unfolded_measurement', mass_window_index, bin_width_norm=bin_width_norm)
+        measurement_hist = self.get(hist_type, mass_window_index, bin_width_norm=bin_width_norm)
         systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
         plotter = measurement_hist.plotter

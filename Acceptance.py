@@ -12,5 +12,6 @@ class Acceptance:
 
     def do_correction(self, input_hist):
         # input_hist from unfolder
+        # FIXME RuntimeWarning: Attempt to multiply histograms with different bin limits
         out_hist = input_hist.multiply(self.acceptance_hist)  #
         return out_hist

@@ -33,6 +33,8 @@ class Combiner:
             "qcd": 1.0,
             "1d_2d": 1.0,
             "matrix": 1.0,
+            "pdf": 1.0,
+            "alpha_s": 1.0,
         }
         self.rho_same_period = {
             "stat error": 0.0,
@@ -43,6 +45,8 @@ class Combiner:
             "qcd": 1.0,
             "1d_2d": 1.0,
             "matrix": 1.0,
+            "pdf": 1.0,
+            "alpha_s": 1.0,
         }
 
         self.n_est = len(estimation_info)
