@@ -63,7 +63,7 @@ class Hist(object):
         # only for TH1D, init the total_sym_sys using statistical error
         if not self.is_TH2:
             # add statistical error to total_sym_sys
-            self.total_sym_sys = self.create_sys_np_array(to_numpy(self.raw_root_hist)[2])
+            self.total_sym_err_array = self.make_symmetric_error_array(to_numpy(self.raw_root_hist)[2])
 
         # to avoid ImportError
         from Plotter import Plotter
@@ -132,27 +132,35 @@ class Hist(object):
             self.plotter.get_axis(location=(0, 0)).set_xscale("log")
             self.plotter.save_and_reset_plotter(self.hist_name, name_postfix)
 
-    def create_sys_np_array(self, error):
-        # [[up errors], [down errors]]
-        error_ = np.expand_dims(error, axis=0)
-        error_ = np.append(error_, error_, axis=0)
+    def make_symmetric_error_array(self, error):
+        # create symmetric error [[up errors], [down errors]]
+        error_ = np.expand_dims(error, axis=0)  # ex) [1, 2, 3] to [[1, 2, 3]]
+        error_ = np.append(error_, error_, axis=0)  # ex) [[1, 2, 3], [1, 2, 3]]
         return error_
 
     def total_error(self):
         if self.is_TH2: return
 
-        total_squared = to_numpy(self.raw_root_hist)[2] ** 2  # stat
-        # self.total_sym_sys = self.create_sys_np_array(total_squared)
+        total_squared = to_numpy(self.raw_root_hist)[2] ** 2  # squared error of statistical from TH1
         for sys_name, sys_array in self.systematics.items():
             total_squared += sys_array ** 2
         total_error = np.sqrt(total_squared)
         return total_error
 
-    def update_sys_np_array(self):
+    def get_sym_sys_err_array(self, sys_name='Total'):
+        if sys_name=='Total':
+            return self.total_sym_err_array
+        else:
+            if sys_name in self.systematics:
+                return self.make_symmetric_error_array(self.systematics[sys_name])
+            else:
+                return self.total_sym_err_array
+
+    def update_symmetric_error_array(self):
         if self.is_TH2: return
 
         total_error = self.total_error()
-        self.total_sym_sys = self.create_sys_np_array(total_error)
+        self.total_sym_err_array = self.make_symmetric_error_array(total_error)
 
     def compute_systematic_rss_per_sysname(self):
         if self.is_TH2: return
@@ -174,7 +182,7 @@ class Hist(object):
             self.systematics[sys_name] = sys_val  # RSS for this sys_name
             #if sys_name == "pdf":
             #    print("compute_systematic_rss_per_sysname", np.sqrt(squared_sum))
-        self.update_sys_np_array()
+        self.update_symmetric_error_array()
 
     def set_systematic_hist(self, sys_name, sys_variation_name, raw_hist):
 
@@ -198,7 +206,7 @@ class Hist(object):
                 self.systematics[sys_name] = np.sqrt(existing_squared + squared_diff)
 
             #self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
-            self.update_sys_np_array()
+            self.update_symmetric_error_array()
 
     def normalize_systematic_raw_hists_by_central(self, raw_hist):
         for sys_name, variations in self.systematic_raw_root_hists.items():
@@ -270,8 +278,8 @@ class Hist(object):
             divided_hist.Divide(other.raw_root_hist)
 
         result = self.create(hist=divided_hist)
-
-        result.systematic_raw_root_hists = self._apply_systematics_operation(other, "Divide", "divided")
+        result.systematic_raw_root_hists = self._apply_systematics_operation(other,
+                                                                             "Divide", "divided")
         result.compute_systematic_rss_per_sysname()
         return result
 

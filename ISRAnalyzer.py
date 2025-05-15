@@ -297,8 +297,14 @@ class ISRAnalyzer(Analyzer):
             unfolded_hist.compute_systematic_rss_per_sysname()
             # Create truth signal
             truth_signal_hist = signal_fake_hist.create(
-                hist=unfold.get_mc_truth_from_response_matrix(use_axis_binning=False),
+                hist=unfold.get_mc_truth_from_response_matrix(),
                 hist_name="_", label='Truth DY',
+            )
+            raw_hist = unfold.get_mc_reco_from_response_matrix()
+            reco_signal_hist = signal_fake_hist.create(
+                hist=raw_hist,
+                hist_name='_',
+                label='DY'
             )
             unfolded_signal_hist = input_hist.create(
                 hist=closure.get_unfolded_hist(),
@@ -311,6 +317,8 @@ class ISRAnalyzer(Analyzer):
                 ISR2DHist(unfolded_hist, unfolded_bin))
             self.isr_pt.isr_hists[mass_window_index].truth_signal_hist = (
                 ISR2DHist(truth_signal_hist, unfolded_bin))
+            self.isr_pt.isr_hists[mass_window_index].reco_signal_hist = (
+                ISR2DHist(reco_signal_hist, folded_bin))
             self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = (
                 ISR2DHist(unfolded_signal_hist, unfolded_bin))
 
@@ -359,17 +367,22 @@ class ISRAnalyzer(Analyzer):
             hist=closure.get_unfolded_hist(),
             hist_name="_", label='Unfolded DY',
         )
-
-        raw_hist = unfold.get_mc_truth_from_response_matrix(use_axis_binning=False)
-        # raw_hist.Scale(1, "width")
+        raw_hist = unfold.get_mc_truth_from_response_matrix()
         truth_signal_hist = signal_fake_hist.create(
             hist=raw_hist,
             hist_name='_',
             label='Truth DY'
         )
+        raw_hist = unfold.get_mc_reco_from_response_matrix()
+        reco_signal_hist = signal_fake_hist.create(
+            hist=raw_hist,
+            hist_name='_',
+            label='DY'
+        )
         self.isr_mass.isr_hists[0].unfold_input_hist =  ISR2DHist(unfold_input_hist, folded_bin)
         self.isr_mass.isr_hists[0].unfolded_measurement_hist = ISR2DHist(unfolded_hist, unfolded_bin)
         self.isr_mass.isr_hists[0].truth_signal_hist = ISR2DHist(truth_signal_hist, unfolded_bin)
+        self.isr_mass.isr_hists[0].reco_signal_hist = ISR2DHist(reco_signal_hist, folded_bin)
         self.isr_mass.isr_hists[0].unfolded_signal_hist = ISR2DHist(unfolded_signal_hist, unfolded_bin)
 
     def isr_acceptance_corrections(self):
@@ -390,7 +403,7 @@ class ISRAnalyzer(Analyzer):
 
             raw_response_matrix = self.get_acceptance_hist(matrix_name)
             mc_acceptance_hist = Hist(
-                self.isr_pt.isr_hists[index].tunfolder.extract_truth_from_2d_hist_using_bin_definition(
+                self.isr_pt.isr_hists[index].tunfolder.projection_matrix(
                     raw_response_matrix.raw_root_hist))
 
             unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist

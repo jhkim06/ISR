@@ -45,7 +45,7 @@ def extract_color_from_handle(handle):
         raw_color = handle.get_facecolor()
 
     else:
-        print(f"⚠️ Unknown handle type: {type(handle)}")
+        print(f"Unknown handle type: {type(handle)}")
         return None
 
     # Convert whatever you got (hex str, name, or RGBA tuple) into pure '#rrggbb'
@@ -68,7 +68,7 @@ def find_non_negative_min(arr):
 
 class PlotItem(Hist):
     def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
-                 drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True,
+                 drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True, sym_err_name='Total',
                  **kwargs):
 
         super(PlotItem, self).__init__(hist.raw_root_hist,
@@ -89,7 +89,26 @@ class PlotItem(Hist):
         self.use_for_ratio = use_for_ratio
         self.plot_kwargs = kwargs
         self.show_y_err = yerr
+        self.sym_err_name = sym_err_name
 
+    def divide(self, other=None):
+        divided_hist = super().divide(other)
+        return PlotItem(divided_hist, location=self.location, as_stack=self.as_stack, as_denominator=self.as_denominator,
+                        use_for_ratio=self.use_for_ratio, not_to_draw=self.not_to_draw,
+                        yerr=self.show_y_err,
+                        sym_err_name=self.sym_err_name,
+                        **self.plot_kwargs)
+
+    def __add__(self, other=None, c1=1):
+        added_hist = super().__add__(other, c1)
+        return PlotItem(added_hist, location=self.location, as_stack=self.as_stack, as_denominator=self.as_denominator,
+                        use_for_ratio=self.use_for_ratio, not_to_draw=self.not_to_draw,
+                        yerr=self.show_y_err,
+                        sym_err_name=self.sym_err_name,
+                        **self.plot_kwargs)
+
+
+# Plotter get Hist and draw it
 class Plotter:
     def __init__(self, experiment, base_output_dir, **kwargs):
         self.experiment = experiment
@@ -189,10 +208,12 @@ class Plotter:
 
     def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  not_to_draw=False,
-                 use_for_ratio=True, yerr=True,
+                 use_for_ratio=True, yerr=True, sym_err_name='Total',
                  **kwargs):
         p_hist = PlotItem(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
-                          use_for_ratio=use_for_ratio, not_to_draw=not_to_draw, yerr=yerr,
+                          use_for_ratio=use_for_ratio, not_to_draw=not_to_draw,
+                          yerr=yerr,
+                          sym_err_name=sym_err_name,
                           **kwargs)
         self.plot_items.append(p_hist)
         return len(self.plot_items) - 1
@@ -221,7 +242,7 @@ class Plotter:
             exit(1)
 
     def draw_hist(self):
-        for p_hist in self.plot_items:
+        for item_index, p_hist in enumerate(self.plot_items):
             if p_hist.drawn:
                 continue
             values, bins, errors = p_hist.to_numpy()
@@ -238,9 +259,10 @@ class Plotter:
             else:
                 handle = self._draw_single(p_hist, values, bins, errors)
                 this_color = extract_color_from_handle(handle)
+                if 'color' not in p_hist.plot_kwargs and this_color is not None:
+                    p_hist.plot_kwargs['color'] = this_color
+                self.draw_error_box_for_plot_item(item_index, p_hist.location)
             # check if kwargs has color, if not, draw and then get the color and set the color in the kwargs
-            if 'color' not in p_hist.plot_kwargs and this_color is not None:
-                p_hist.plot_kwargs['color'] = this_color
 
             label = p_hist.plot_kwargs.get("label", None)
             if label:
@@ -278,8 +300,9 @@ class Plotter:
     def get_hist(self, index):
         if isinstance(index, int):
             return self.plot_items[index].hist
-        return sum((self.plot_items[i].hist for i in index[1:]),
-                   self.plot_items[index[0]].hist)
+        # FIXME type is Hist not PlotItem
+        return sum((self.plot_items[i] for i in index[1:]),
+                   self.plot_items[index[0]])
 
     def draw_ratio_hists(self, location=(0, 0)):
         nominator_index, denominator_index = self.set_ratio_hist()
@@ -289,43 +312,38 @@ class Plotter:
 
         # Case 1: Both nominator and denominator are index
         if isinstance(nominator_index, int) and isinstance(denominator_index, int):
-            nom_hist = self.plot_items[nominator_index].hist
-            denom_hist = self.plot_items[denominator_index].hist
-            ratio_hist = nom_hist.divide(denom_hist)
-            ratio_index = self.add_ratio_hist(ratio_hist, location=location,
-                                              **self.plot_items[nominator_index].plot_kwargs)
+            nom_hist = self.plot_items[nominator_index]
+            denom_hist = self.plot_items[denominator_index]
+            ratio_hist = nom_hist.divide(denom_hist)  # TODO define divide for PlotItem!
+            self.add_ratio_hist(ratio_hist, location)
 
         # Case 2: Only nominator is index (denominator is list)
         elif isinstance(nominator_index, int):
-            nom_hist = self.plot_items[nominator_index].hist
+            nom_hist = self.plot_items[nominator_index]
             denom_hist = self.get_hist(denominator_index)
             ratio_hist = nom_hist.divide(denom_hist)
-            ratio_index = self.add_ratio_hist(ratio_hist, location=location,
-                                              **self.plot_items[nominator_index].plot_kwargs)
+            self.add_ratio_hist(ratio_hist, location)
 
         # Case 3: Only denominator is index (nominator is list)
         elif isinstance(denominator_index, int):
-            denom_hist = self.plot_items[denominator_index].hist
+            denom_hist = self.plot_items[denominator_index]
 
             if is_stackable(nominator_index):
                 nom_hist = self.get_hist(nominator_index)
                 ratio_hist = nom_hist.divide(denom_hist)
-                ratio_index = self.add_ratio_hist(ratio_hist, location=location)
+                self.add_ratio_hist(ratio_hist, location)
             else:
                 for idx in nominator_index:
-                    ratio_hist = self.plot_items[idx].hist.divide(denom_hist)
-                    self.add_ratio_hist(ratio_hist, location=location,
-                                        **self.plot_items[idx].plot_kwargs)
+                    ratio_hist = self.plot_items[idx].divide(denom_hist)
+                    self.add_ratio_hist(ratio_hist, location)
                     self.draw_hist()
                 self.draw_normalized_error_band(denom_hist, location=location)
                 return
-
         else:
             print("Invalid nominator/denominator config")
             exit(1)
 
         self.draw_hist()
-        self.draw_error_box_for_plot_item(ratio_index, location=location)
         # TODO add on/off option
         self.draw_normalized_error_band(denom_hist, location=location)
 
@@ -333,23 +351,26 @@ class Plotter:
         error_band = hist.create_normalized_error_band()
         self.draw_error_boxes(error_band.to_numpy()[0],
                               error_band.to_numpy()[1],
-                              error_band.total_sym_sys,
+                              error_band.total_sym_err_array,
                               location=location,
                               **{"facecolor": 'none', "alpha": 0.5, "fill": True, 'hatch': '///'})
 
-    def draw_error_box_for_plot_item(self, index, location=(0, 0)):
+    def draw_error_box_for_plot_item(self, index, location=(0, 0),):
         plot_item = self.plot_items[index]
 
         self.draw_error_boxes(plot_item.to_numpy()[0],
                               plot_item.to_numpy()[1],
-                              plot_item.total_sym_sys,
+                              plot_item.get_sym_sys_err_array(plot_item.sym_err_name),  # TODO update to select specific systematic
                               location=location,
                               **{"facecolor": plot_item.plot_kwargs['color'],
                                  "alpha": 0.2, "fill": True, 'hatch': None})
 
-    def add_ratio_hist(self, ratio_hist, location=(0, 0),
-                       **kwargs):
-        return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
+    def add_ratio_hist(self, ratio_hist, location=(0, 0)):
+        ratio_hist.use_for_ratio = False
+        ratio_hist.yerr = False
+        ratio_hist.location = location
+        self.plot_items.append(ratio_hist)
+        # return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
 
     def show_legend(self, location=(0, 0), **kwargs_):
         self.set_current_axis(location=location)
@@ -544,7 +565,7 @@ class Plotter:
 
     def draw_vlines(self, vlines, location=(0, 0), **kwargs):
         for line in vlines:
-            self.get_axis(location=location).axvline(x=line, linestyle='--', linewidth=1)
+            self.get_axis(location=location).axvline(x=line, **kwargs)
 
     def save_fig(self, out_name=''):
         out_file_name = out_name

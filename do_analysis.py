@@ -116,8 +116,8 @@ def main():
         {"period": "2016a", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         {"period": "2016b", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2016b", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
-        #{"period": "2017", "channel": "ee", "event_selection": "TightID_b_veto"},
-        #{"period": "2017", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
+        {"period": "2017", "channel": "ee", "event_selection": "TightID_b_veto"},
+        {"period": "2017", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         #{"period": "2018", "channel": "ee", "event_selection": "TightID_b_veto"},
         #{"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
     ]
@@ -133,8 +133,9 @@ def main():
         analyzer = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins)
         pt, mass = unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True)
 
-        analyzer.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=False)
-        pt_1d, mass_1d = unfold_and_correct(analyzer, period, channel, event_selection, is_2d=False)
+        analyzer_1d = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False)
+        analyzer_1d.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=False)
+        pt_1d, mass_1d = unfold_and_correct(analyzer_1d, period, channel, event_selection, is_2d=False)
 
         analyzer_nlo = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, signal="DY:aMCNLO", acceptance="DY", sys_on=False)
         pt_nlo, mass_nlo = unfold_and_correct(analyzer_nlo, period, channel, event_selection, is_2d=True)
@@ -160,6 +161,7 @@ def main():
         #    test_LO.setup_isr_acceptance_hists(period, channel, "", is_2d=False)
         #    pt_LO, mass_LO = test_LO.get_isr_results()
         #    pt_others.append(pt_LO)
+
         pt.draw_isr_plot(mass)
 
         for index in range(len(mass_bins)):
@@ -171,6 +173,7 @@ def main():
             pt.draw_unfolded_level(index, bin_width_norm=True)
             # TODO draw LO also
             pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=False)
+            # TODO draw each systematic
 
         pt.draw_unfold_inputs(-1, bin_width_norm=False)
         pt.draw_detector_level(-1, bin_width_norm=False)
@@ -229,7 +232,7 @@ def main():
     mass_combined_final, pt_combined_final = combiner_all.combine()
 
     #periods = ["2016a", "2016b", "2017", "2018"]
-    periods = ["2016a", "2016b"]
+    periods = ["2016a", "2016b", "2017"]
 
     color_map = {
         "2016a": (86 / 255, 180 / 255, 233 / 255),

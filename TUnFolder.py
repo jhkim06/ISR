@@ -5,6 +5,7 @@ from Hist import Hist
 import numpy as np
 from Plotter import Plotter
 from array import array
+import re
 
 
 REG_MODE = MappingProxyType(
@@ -280,6 +281,7 @@ class TUnFolder:
         print("Matrix condition: " + str(decomp.Condition()))
         return decomp.Condition()
 
+    # FIXME use tunfoldbinning to get global bin index
     def rebin_y_to_match_x(self):
         """
         Return a new TH2D whose X‐ and Y‐axes both use h2’s X‐axis bin edges.
@@ -302,28 +304,77 @@ class TUnFolder:
         # 3) Loop over all original bins, re‐assign them to new Y‐bins
         ya = raw_matrix.GetYaxis()
         for ix in range(1, raw_matrix.GetNbinsX() + 1):
-            xval = xa.GetBinCenter(ix)
+            # xval = xa.GetBinCenter(ix)  # FIXME use TUnfoldBinning
             for iy in range(1, raw_matrix.GetNbinsY() + 1):
-                yval = ya.GetBinCenter(iy)
                 c = raw_matrix.GetBinContent(ix, iy)
                 e = raw_matrix.GetBinError(ix, iy)
                 if c == 0 and e == 0:
                     continue
 
                 # find which new Y‐bin this yval falls into
-                new_iy = hnew.GetYaxis().FindBin(yval)
+                #yval = ya.GetBinCenter(iy)
+                #new_iy = hnew.GetYaxis().FindBin(yval)
+
+                # get iy return new_iy
+                new_iy = self.get_bin_index_of_x_axis(iy)
 
                 # sum the content and propagate error in quadrature
                 old_c = hnew.GetBinContent(ix, new_iy)
                 old_e = hnew.GetBinError(ix, new_iy)
                 hnew.SetBinContent(ix, new_iy, old_c + c)
                 hnew.SetBinError(ix, new_iy, (old_e ** 2 + e ** 2) ** 0.5)
-
         return hnew
+
+    def get_bin_index_of_x_axis(self, iy):
+        def get_bin_center(rng_str, underflow, overflow):
+            """Given 'ufl','ofl' or 'low,high', return the correct bin‐center."""
+            if rng_str == 'ufl':
+                return underflow
+            if rng_str == 'ofl':
+                return overflow
+            left, right = map(float, rng_str.split(',', 1))
+            return 0.5 * (left + right)
+
+        # how many axes are we dealing with?
+        dim = self.folded_bin.GetDistributionDimension()
+
+        # primary axis edges & under/overflow for axis 0
+        edges0 = list(self.folded_bin.GetDistributionBinning(0))
+        under0 = edges0[0] - 0.5
+        over0 = edges0[-1] + 0.5
+
+        # grab the raw bin-name (e.g. "…:axis0[0,4]" or "…:axis0[0,4]:axis1[5,7]")
+        name = str(self.folded_bin.GetBinName(iy))
+        tail = name.split(':', 1)[1]  # drop everything before the first ':'
+        ranges = re.findall(r'\[([^\]]*)\]', tail)
+
+        if dim == 1:
+            # only one axis → take the *first* range
+            axis0 = get_bin_center(ranges[0], under0, over0)
+            # 1D GetGlobalBinNumber takes just the single axis coordinate
+            return self.unfolded_bin.GetGlobalBinNumber(axis0)
+
+        # otherwise dim >= 2, so also do axis1
+        edges1 = list(self.folded_bin.GetDistributionBinning(1))
+        under1 = edges1[0] - 0.5
+        over1 = edges1[-1] + 0.5
+
+        # ranges[0] ↦ axis1 string, ranges[1] ↦ axis0 string
+        axis1 = get_bin_center(ranges[0], under1, over1)
+        axis0 = get_bin_center(ranges[1], under0, over0)
+
+        # 2D GetGlobalBinNumber takes (x0, x1)
+        return self.unfolded_bin.GetGlobalBinNumber(axis0, axis1)
 
     def get_purity_hist(self):
         rebinned_matrix = self.rebin_y_to_match_x()
+        # FIXME
         hist_purity = rebinned_matrix.ProjectionX("hist_purity", 0, -1, "")
+        if self.folded_bin.GetDistributionDimension() == 1:
+            hist_purity = self.unfolded_bin.ExtractHistogram("hist_purity_",
+                                                             hist_purity,
+                                                             0,  # error matrix
+                                                             True)
         hist_purity.Reset()
 
         for iy in range(1, rebinned_matrix.GetNbinsY() + 1):
@@ -341,8 +392,6 @@ class TUnFolder:
         ROOT.TH1.SetDefaultSumw2()  # FIXME
         prob_matrix = self.tunfolder.GetProbabilityMatrix("histProb", ";P_T(gen);P_T(rec)")
         bin_efficiency_hist = Hist(prob_matrix.ProjectionX("histEfficiency"), "bin_efficiency")
-        # extract 1D
-        # FIXME update for 2D unfold
         bin_purity_hist = self.get_purity_hist()
         # bin_purity_hist = Hist(prob_matrix.ProjectionY("histEfficiency"), "bin_purity")
 
@@ -352,9 +401,24 @@ class TUnFolder:
         plotter.add_hist(bin_efficiency_hist, as_denominator=False)
         plotter.add_hist(bin_purity_hist, as_denominator=False)
         plotter.draw_hist()
+
         plotter.get_axis(location=(0, 0)).set_ylim(0., 1.05)
         plotter.get_axis(location=(0, 0)).grid(True, which='both', axis='x', linestyle='--', linewidth=0.7)
         plotter.get_axis(location=(0, 0)).grid(True, which='major', axis='y', linestyle='--', linewidth=0.7)
+
+        # for 2 dimension show bin info
+        if self.folded_bin.GetDistributionDimension() == 2:
+            nbin = bin_efficiency_hist.raw_root_hist.GetNbinsX()
+            vline = []
+            for i in range(nbin):
+                bin_name = str(self.unfolded_bin.GetBinName(i + 1))
+                after_first_colon = bin_name.split(":", 1)[1]
+                results = re.findall(r'\[([^\]]*)\]', after_first_colon)
+                if results[1] == 'ofl':
+                    vline.append(i + 1.5)
+                    vline.append(i + 2.5)
+            plotter.draw_vlines(vline, color='black', linewidth=0.7)
+
         if x_log:
             plotter.get_axis(location=(0, 0)).set_xscale("log")
         plotter.save_and_reset_plotter("bin_efficiency")
@@ -443,11 +507,17 @@ class TUnFolder:
 
         return folded_chi2 > unfolded_chi2
 
-    def get_mc_truth_from_response_matrix(self, projection_mode="*[*]", use_axis_binning=True):
-        return self.extract_truth_from_2d_hist_using_bin_definition(self.response_matrix.get_raw_hist())
+    def get_mc_truth_from_response_matrix(self):
+        return self.projection_matrix(self.response_matrix.get_raw_hist())
 
-    def extract_truth_from_2d_hist_using_bin_definition(self, raw_2d_hist,):
-        projected_hist = raw_2d_hist.ProjectionX("histMCTruth", 0, -1, "e")
+    def get_mc_reco_from_response_matrix(self):
+        return self.projection_matrix(self.response_matrix.get_raw_hist(), project_x=False)
+
+    def projection_matrix(self, raw_2d_hist, project_x=True):
+        if project_x:
+            projected_hist = raw_2d_hist.ProjectionX("histMCTruth", 0, -1, "e")
+        else:
+            projected_hist = raw_2d_hist.ProjectionY("histMCTruth", 0, -1, "e")
 
         #if projection_mode != "*[*]":
         #projected_hist = self.unfolded_bin.ExtractHistogram("truth_extracted",

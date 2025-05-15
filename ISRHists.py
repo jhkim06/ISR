@@ -27,6 +27,7 @@ class ISRHistSet:
 
         self.tunfolder = None
         self.unfold_input_hist = None  #
+        self.reco_signal_hist = None
         self.unfolded_measurement_hist = None
         self.unfolded_signal_hist = None  # simple closure
         self.truth_signal_hist = truth_signal_hist  # request to tunfolder
@@ -231,13 +232,12 @@ class ISRHists:
     def get_additional_text_on_plot(self, mass_window_index=-1):
         text = ''
         if self.is_pt:
-            if self.is_2d:
-                if mass_window_index == -1:
-                    return ""
-                else:
-                    text = (str(int(self.mass_bins[mass_window_index][0]))+
-                            "$<m^{"+change_to_greek(self.channel)+"}<$"+
-                            str(int(self.mass_bins[mass_window_index][1])) + " GeV")
+            if mass_window_index == -1:
+                return ""
+            else:
+                text = (str(int(self.mass_bins[mass_window_index][0]))+
+                        "$<m^{"+change_to_greek(self.channel)+"}<$"+
+                        str(int(self.mass_bins[mass_window_index][1])) + " GeV")
         else:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
@@ -374,6 +374,7 @@ class ISRHists:
         signal_hist = self.get('signal', mass_window_index)
         background_hists = self.get('background', mass_window_index)
         total_mc_hist = None
+
         for bg_name, bg_hist in background_hists.items():
             total_mc_hist = bg_hist + total_mc_hist
         total_mc_hist = total_mc_hist + signal_hist
@@ -394,7 +395,7 @@ class ISRHists:
 
         plotter.draw_hist()
         text = self.get_additional_text_on_plot(mass_window_index)
-        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right"})
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper left"})
 
         plotter.set_common_ratio_plot_cosmetics(self.x_axis_label, y_axis_name='Fractions',
                                                 y_min=0, y_max=0.5)
@@ -414,8 +415,10 @@ class ISRHists:
                                  #**{'label': labels.get(bg_hist.get_label(), bg_name)})
 
         # Add signal and measurement
-        plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator, **get_hist_kwargs(signal_hist.get_label()))
-        plotter.add_hist(measurement_hist, as_denominator=not mc_denominator, **get_hist_kwargs(measurement_hist.get_label()))
+        plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator, sym_err_name='alpha_s',
+                         **get_hist_kwargs(signal_hist.get_label()))
+        plotter.add_hist(measurement_hist, as_denominator=not mc_denominator, sym_err_name='alpha_s',
+                         **get_hist_kwargs(measurement_hist.get_label()))
 
         plotter.draw_hist()
         plotter.draw_ratio_hists(location=(1, 0))
@@ -469,8 +472,22 @@ class ISRHists:
         suffix = '_unfolded'
         if self.is_2d:
             suffix = '_unfolded_'+str(mass_window_index)
-        self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
-                                   mc_denominator=mc_denominator)
+        # draw unfold input and its comparison to simulation
+        plotter = self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
+                                             mc_denominator=mc_denominator, signal_as_stack=False, save_and_reset=False)
+
+        input_hist = self.get('unfold_input', mass_window_index, bin_width_norm=bin_width_norm)
+        sim_input_hist = self.get('reco_signal', mass_window_index, bin_width_norm=bin_width_norm)
+
+        plotter.add_hist(input_hist, as_denominator=not mc_denominator, label='Data (reco)',
+                         histtype='errorbar', color='gray', mfc='none',)
+        plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY')
+
+        plotter.draw_hist()
+        plotter.draw_ratio_hists(location=(1, 0))
+
+        plotter.show_legend()
+        plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
     def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False,
                                         mc_denominator=True, others=None):
