@@ -134,7 +134,6 @@ def main():
         pt, mass = unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True)
 
         analyzer_1d = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False)
-        analyzer_1d.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=False)
         pt_1d, mass_1d = unfold_and_correct(analyzer_1d, period, channel, event_selection, is_2d=False)
 
         analyzer_nlo = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, signal="DY:aMCNLO", acceptance="DY", sys_on=False)

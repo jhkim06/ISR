@@ -1,6 +1,7 @@
 from Hist import Hist
 import copy
 
+
 # ISRTUnfoldBinningHist
 # for additional info on tunfold
 class ISR2DHist(Hist):
@@ -43,7 +44,7 @@ class ISR2DHist(Hist):
                                                               projection_mode)
         return extracted_raw_hist
 
-    def extract_hist(self):
+    def extract_hist(self, bin_width_norm=False):
         projection_mode = 'dimass[UO]'
         extracted_raw_hist = self.extract_raw_hist(self.raw_root_hist, projection_mode, use_axis_binning=True)
         # extracted_raw_hist.Scale(1, "width")
@@ -65,14 +66,13 @@ class ISR2DHist(Hist):
             for var_name, hist in variations.items():
                 extracted_systematic_raw_hists[sys_name][var_name] = self.extract_raw_hist(hist, projection_mode,
                                                                                            use_axis_binning=True)
-                # extracted_systematic_raw_hists[sys_name][var_name].Scale(1, "width")
-
         extracted_hist.systematic_raw_root_hists = copy.deepcopy(extracted_systematic_raw_hists)
         extracted_hist.compute_systematic_rss_per_sysname()
 
-        return extracted_hist
+        return extracted_hist.bin_width_norm(1.) if bin_width_norm else extracted_hist
 
-    def extract_1d_hist(self, index):
+    # CAUTION bin_width_norm will change binned mean values a lot, so here just stick to False
+    def extract_1d_hist(self, index, bin_width_norm=False):
         extracted_raw_hist = self.extract_1d_raw_hist(self.raw_root_hist, index)
         # extracted_raw_hist.Scale(1, "width")
 
@@ -97,4 +97,4 @@ class ISR2DHist(Hist):
         extracted_hist.systematic_raw_root_hists = copy.deepcopy(extracted_systematic_raw_hists)
         extracted_hist.compute_systematic_rss_per_sysname()
 
-        return extracted_hist
+        return extracted_hist.bin_width_norm(1.) if bin_width_norm else extracted_hist

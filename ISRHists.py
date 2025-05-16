@@ -35,6 +35,74 @@ class ISRHistSet:
         self.acceptance_corrected_hist = {"measurement": None,
                                           "simulation": acceptance_corrected_signal_hist}
 
+    def get_extracted_1d_hist_set(self, index):
+        measurement_hist_extracted = self.measurement_hist.extract_1d_hist(index)
+        signal_hist_extracted = self.signal_hist.extract_1d_hist(index)
+        signal_fake_hist_extracted = self.signal_fake_hist.extract_1d_hist(index)
+        background_hist_extracted = {}
+        for key, value in self.background_hist.items():
+            background_hist_extracted[key] = self.background_hist[key].extract_1d_hist(index)
+
+        unfold_input_hist_extracted = self.unfold_input_hist.extract_1d_hist(index)
+        reco_signal_hist_extracted = self.reco_signal_hist.extract_1d_hist(index)
+        unfolded_measurement_hist_extracted = self.unfolded_measurement_hist.extract_1d_hist(index)
+        unfolded_signal_hist_extracted = self.unfolded_signal_hist.extract_1d_hist(index)
+        truth_signal_hist_extracted = self.truth_signal_hist.extract_1d_hist(index)
+
+        acceptance_corrected_hist_extracted = {
+            "measurement": self.acceptance_corrected_hist["measurement"].extract_1d_hist(index),
+            "simulation": self.acceptance_corrected_hist["simulation"].extract_1d_hist(index),
+        }
+
+        extracted_set = ISRHistSet()
+        extracted_set.measurement_hist = measurement_hist_extracted
+        extracted_set.signal_hist = signal_hist_extracted
+        extracted_set.signal_fake_hist = signal_fake_hist_extracted
+        extracted_set.background_hists = background_hist_extracted
+        extracted_set.unfold_input_hist = unfold_input_hist_extracted
+        extracted_set.reco_signal_hist = reco_signal_hist_extracted
+        extracted_set.unfolded_measurement_hist = unfolded_measurement_hist_extracted
+        extracted_set.unfolded_signal_hist = unfolded_signal_hist_extracted
+        extracted_set.response_matrix = None
+        extracted_set.truth_signal_hist = truth_signal_hist_extracted
+        extracted_set.acceptance_corrected_hist = acceptance_corrected_hist_extracted
+
+        return extracted_set
+
+
+    def get_extracted_hist_set(self,):
+        measurement_hist_extracted = self.measurement_hist.extract_hist()
+        signal_hist_extracted = self.signal_hist.extract_hist()
+        signal_fake_hist_extracted = self.signal_fake_hist.extract_hist()
+        background_hist_extracted = {}
+        for key, value in self.background_hist.items():
+            background_hist_extracted[key] = self.background_hist[key].extract_hist()
+
+        unfold_input_hist_extracted = self.unfold_input_hist.extract_hist()
+        reco_signal_hist_extracted = self.reco_signal_hist.extract_hist()
+        unfolded_measurement_hist_extracted = self.unfolded_measurement_hist.extract_hist()
+        unfolded_signal_hist_extracted = self.unfolded_signal_hist.extract_hist()
+        truth_signal_hist_extracted = self.truth_signal_hist.extract_hist()
+
+        acceptance_corrected_hist_extracted = {
+            "measurement": self.acceptance_corrected_hist["measurement"].extract_hist(),
+            "simulation": self.acceptance_corrected_hist["simulation"].extract_hist(),
+        }
+
+        extracted_set = ISRHistSet()
+        extracted_set.measurement_hist = measurement_hist_extracted
+        extracted_set.signal_hist = signal_hist_extracted
+        extracted_set.signal_fake_hist = signal_fake_hist_extracted
+        extracted_set.background_hists = background_hist_extracted
+        extracted_set.unfold_input_hist = unfold_input_hist_extracted
+        extracted_set.reco_signal_hist = reco_signal_hist_extracted
+        extracted_set.unfolded_measurement_hist = unfolded_measurement_hist_extracted
+        extracted_set.unfolded_signal_hist = unfolded_signal_hist_extracted
+        extracted_set.response_matrix = None
+        extracted_set.truth_signal_hist = truth_signal_hist_extracted
+        extracted_set.acceptance_corrected_hist = acceptance_corrected_hist_extracted
+
+        return extracted_set
 
 # ISRPtHists ISRMassHists
 class ISRHists:
@@ -58,8 +126,8 @@ class ISRHists:
         self.is_pt = is_pt
 
         # detector level hists
-        self.isr_hists = []
-        self.isr_hists_1d = []  #
+        self.isr_hists = []  # depend on input format
+        self.isr_hists_per_mass_window = []  # TODO input format independent N result!
 
         self.use_tunfoldbinning = False
         self.folded_tunfold_bin = folded_tunfold_bin
@@ -75,6 +143,7 @@ class ISRHists:
         self.unfolded_measurement_mean_values = None
         self.unfolded_signal_mean_values = None
 
+        # N mean values
         self.acceptance_corrected_mean_values = {"measurement": [],
                                                  "simulation": []}
 
@@ -84,6 +153,43 @@ class ISRHists:
             self.x_axis_label = r"$p_{T}^{"+change_to_greek(self.channel)+"}$ [GeV]"
         else:
             self.x_axis_label = r"$m^{"+change_to_greek(self.channel)+"}$ [GeV]"
+
+    def set_ISRHistSet_per_mass_window(self):
+        if self.is_pt:
+            if self.is_2d:
+                # extract 1D and then copy to self.isr_hists_per_mass_window
+                for index, _ in enumerate(self.mass_bins):
+                    self.isr_hists_per_mass_window.append(self.isr_hists[0].get_extracted_1d_hist_set(index))
+            else:
+                # just copy it to self.isr_hists_per_mass_window
+                for isr_hist in self.isr_hists:
+                    self.isr_hists_per_mass_window.append(isr_hist.get_extracted_hist_set())
+        else:
+            # just copy it to self.isr_hists_per_mass_window
+            self.isr_hists_per_mass_window.append(self.isr_hists[0].get_extracted_hist_set())
+
+    def add_external_hist_as_sys_hist(self, other, sys_name):
+        for index, isr_hist in enumerate(self.isr_hists_per_mass_window):
+            other_isr_hist = other.isr_hists_per_mass_window[index]
+
+            isr_hist.unfolded_measurement_hist.set_systematic_hist(sys_name,
+                                                                   sys_name,
+                                                                   other_isr_hist.unfolded_measurement_hist.get_raw_hist())
+            isr_hist.acceptance_corrected_hist["measurement"].set_systematic_hist(sys_name,
+                                                                                  sys_name,
+                                                                                  other_isr_hist.acceptance_corrected_hist["measurement"].get_raw_hist())
+            isr_hist.acceptance_corrected_hist["simulation"].set_systematic_hist(sys_name,
+                                                                                 sys_name,
+                                                                                 other_isr_hist.acceptance_corrected_hist["simulation"].get_raw_hist())
+
+            isr_hist.unfolded_measurement_hist.compute_systematic_rss_per_sysname()
+            isr_hist.acceptance_corrected_hist["measurement"].compute_systematic_rss_per_sysname()
+            isr_hist.acceptance_corrected_hist["simulation"].compute_systematic_rss_per_sysname()
+
+            # update mean value
+            # set_acceptance_corrected_mean_values
+            self.set_acceptance_corrected_mean_values_(mass_window_index=index, key='measurement')
+            self.set_acceptance_corrected_mean_values_(mass_window_index=index, key='simulation')
 
     # TODO update hist also
     # add systematic from other ISRHist object
@@ -137,9 +243,21 @@ class ISRHists:
 
     def set_acceptance_corrected_hist(self, hist,
                                       mass_window_index=0, key='measurement'):
-
         self.isr_hists[mass_window_index].acceptance_corrected_hist[key] = hist
         self.set_acceptance_corrected_mean_values(mass_window_index, key)
+
+    def set_acceptance_corrected_mean_values_(self, mass_window_index, key='measurement',
+                                              binned_mean=True, range_min=None, range_max=None,):
+        self.acceptance_corrected_mean_values[key].clear()
+        if self.is_pt:
+            for index in range(len(self.mass_bins)):
+                mean = self.isr_hists_per_mass_window[index].acceptance_corrected_hist[key].get_mean_df(binned_mean=binned_mean,)
+                self.acceptance_corrected_mean_values[key].append(mean)
+        else:
+            for low, high in self.mass_bins:
+                mean = self.isr_hists_per_mass_window[0].acceptance_corrected_hist[key].get_mean_df(range_min=low,
+                                                                                                    range_max=high)
+                self.acceptance_corrected_mean_values[key].append(mean)
 
     def set_acceptance_corrected_mean_values(self, mass_window_index=0, key='measurement',
                                              binned_mean=True, range_min=None, range_max=None,):
@@ -191,6 +309,7 @@ class ISRHists:
         for index, _ in enumerate(self.mass_bins):
             pass
 
+    # get from self.isr_hists which could have different formats
     def get(self, hist_type='signal', mass_window_index=-1, bin_width_norm=False, scale=1,
             key='measurement'):
         # Choose the relevant ISR hist container
@@ -261,11 +380,11 @@ class ISRHists:
         if isinstance(mass, pd.DataFrame):
             mass_mean = mass
         else:
-            mass_mean = self.get_df(key=key, other=mass)
+            mass_mean = self.get_df(key=key, other=mass,)
         if isinstance(pt, pd.DataFrame):
             pt_mean = pt
         else:
-            pt_mean = self.get_df(key=key, other=pt)
+            pt_mean = self.get_df(key=key, other=pt,)
 
         print(pt_mean)
         plotter.add_errorbar((mass_mean, pt_mean), **kwargs)
@@ -496,9 +615,13 @@ class ISRHists:
 
     def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False,
                                         mc_denominator=True, others=None):
-        measurement_hist = self.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm)
-        signal_hist = self.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm,
-                               key='simulation')
+        #measurement_hist = self.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm)
+        #signal_hist = self.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm,
+        #                       key='simulation')
+
+        # TODO apply bin_width_norm option when drawing
+        measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']
+        signal_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['simulation']
         text = self.get_additional_text_on_plot(mass_window_index)
 
         suffix = '_acceptance_corrected'
@@ -527,7 +650,9 @@ class ISRHists:
                          hist_type='unfolded_measurement', key='measurement'):
         # get variation hists of dictionary from Hist
         # systematic_raw_root_hists[sys_name][var_name] = hist
-        measurement_hist = self.get(hist_type, mass_window_index, bin_width_norm=bin_width_norm, key=key)
+        #measurement_hist = self.get(hist_type, mass_window_index, bin_width_norm=bin_width_norm, key=key)
+
+        measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']
         systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
         plotter = measurement_hist.plotter
