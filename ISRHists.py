@@ -415,10 +415,15 @@ class ISRHists:
                                  #**{'label': labels.get(bg_hist.get_label(), bg_name)})
 
         # Add signal and measurement
-        plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator, sym_err_name='alpha_s',
-                         **get_hist_kwargs(signal_hist.get_label()))
-        plotter.add_hist(measurement_hist, as_denominator=not mc_denominator, sym_err_name='alpha_s',
+        kwargs =get_hist_kwargs(signal_hist.get_label())
+        if not signal_as_stack:
+            kwargs['histtype'] = 'errorbar'
+            kwargs['mfc'] = 'none'
+        plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator,
+                         **kwargs)
+        plotter.add_hist(measurement_hist, as_denominator=not mc_denominator,
                          **get_hist_kwargs(measurement_hist.get_label()))
+
 
         plotter.draw_hist()
         plotter.draw_ratio_hists(location=(1, 0))
@@ -519,10 +524,10 @@ class ISRHists:
             plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
     def draw_systematics(self, sys_name, mass_window_index=-1, bin_width_norm=False,
-                         hist_type='unfolded_measurement'):
+                         hist_type='unfolded_measurement', key='measurement'):
         # get variation hists of dictionary from Hist
         # systematic_raw_root_hists[sys_name][var_name] = hist
-        measurement_hist = self.get(hist_type, mass_window_index, bin_width_norm=bin_width_norm)
+        measurement_hist = self.get(hist_type, mass_window_index, bin_width_norm=bin_width_norm, key=key)
         systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
         plotter = measurement_hist.plotter
@@ -534,7 +539,7 @@ class ISRHists:
 
         for sys_name_, sys_hist in systematic_hists.items():
             # suppress y error for systematic hists
-            plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False)
+            plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False, show_err_band=False)
 
         plotter.draw_hist()
 

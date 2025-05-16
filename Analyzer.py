@@ -166,6 +166,7 @@ class Analyzer:
         if self.sys_on:
             self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
                                          bin_width_norm=bin_width_norm)  # Analyzer knows systematics
+            hist.compute_systematic_rss_per_sysname()
         return hist
 
     def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False):
@@ -182,6 +183,7 @@ class Analyzer:
         if self.sys_on:
             self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
                                          bin_width_norm=bin_width_norm)
+            hist.compute_systematic_rss_per_sysname()
         return hist
 
     def get_qcd_hist(self, hist_name, bin_width_norm=False, bg_scale=1.0, norm=False):
@@ -201,6 +203,7 @@ class Analyzer:
 
         qcd_hist.set_systematic_hist("qcd", "up", qcd_hist_up.get_raw_hist())
         qcd_hist.set_systematic_hist("qcd", "down", qcd_hist_down.get_raw_hist())
+        qcd_hist.compute_systematic_rss_per_sysname()
         # apply 50% normalization uncertainty
 
         return qcd_hist

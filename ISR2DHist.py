@@ -15,9 +15,8 @@ class ISR2DHist(Hist):
                                         year=hist.year,
                                         is_measurement=hist.is_measurement,
                                         is_mc_signal=hist.is_mc_signal, )
-
         self.systematic_raw_root_hists = copy.deepcopy(hist.systematic_raw_root_hists)
-        self.systematics = copy.deepcopy(hist.systematics)
+        self.compute_systematic_rss_per_sysname()
 
         self.tunfold_bin = tunfold_bin
 
@@ -64,10 +63,11 @@ class ISR2DHist(Hist):
         for sys_name, variations in self.systematic_raw_root_hists.items():
             extracted_systematic_raw_hists[sys_name] = {}
             for var_name, hist in variations.items():
-                extracted_systematic_raw_hists[sys_name][var_name] = self.extract_raw_hist(hist, projection_mode, use_axis_binning=True)
+                extracted_systematic_raw_hists[sys_name][var_name] = self.extract_raw_hist(hist, projection_mode,
+                                                                                           use_axis_binning=True)
                 # extracted_systematic_raw_hists[sys_name][var_name].Scale(1, "width")
 
-        extracted_hist.systematic_raw_root_hists = extracted_systematic_raw_hists
+        extracted_hist.systematic_raw_root_hists = copy.deepcopy(extracted_systematic_raw_hists)
         extracted_hist.compute_systematic_rss_per_sysname()
 
         return extracted_hist
@@ -94,7 +94,7 @@ class ISR2DHist(Hist):
                 extracted_systematic_raw_hists[sys_name][var_name] = self.extract_1d_raw_hist(hist, index)
                 # extracted_systematic_raw_hists[sys_name][var_name].Scale(1, "width")
 
-        extracted_hist.systematic_raw_root_hists = extracted_systematic_raw_hists
+        extracted_hist.systematic_raw_root_hists = copy.deepcopy(extracted_systematic_raw_hists)
         extracted_hist.compute_systematic_rss_per_sysname()
 
         return extracted_hist

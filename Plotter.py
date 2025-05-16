@@ -69,6 +69,7 @@ def find_non_negative_min(arr):
 class PlotItem(Hist):
     def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True, sym_err_name='Total',
+                 show_err_band=True,
                  **kwargs):
 
         super(PlotItem, self).__init__(hist.raw_root_hist,
@@ -78,7 +79,8 @@ class PlotItem(Hist):
                                        is_measurement=hist.is_measurement, )
 
         self.systematic_raw_root_hists = copy.deepcopy(hist.systematic_raw_root_hists)
-        self.systematics = copy.deepcopy(hist.systematics)
+        # self.systematics = copy.deepcopy(hist.systematics)
+        self.compute_systematic_rss_per_sysname()
 
         self.hist = hist
         self.location = location
@@ -90,13 +92,14 @@ class PlotItem(Hist):
         self.plot_kwargs = kwargs
         self.show_y_err = yerr
         self.sym_err_name = sym_err_name
+        self.show_err_band = show_err_band
 
     def divide(self, other=None):
         divided_hist = super().divide(other)
         return PlotItem(divided_hist, location=self.location, as_stack=self.as_stack, as_denominator=self.as_denominator,
                         use_for_ratio=self.use_for_ratio, not_to_draw=self.not_to_draw,
                         yerr=self.show_y_err,
-                        sym_err_name=self.sym_err_name,
+                        sym_err_name=self.sym_err_name, show_err_band=self.show_err_band,
                         **self.plot_kwargs)
 
     def __add__(self, other=None, c1=1):
@@ -104,7 +107,7 @@ class PlotItem(Hist):
         return PlotItem(added_hist, location=self.location, as_stack=self.as_stack, as_denominator=self.as_denominator,
                         use_for_ratio=self.use_for_ratio, not_to_draw=self.not_to_draw,
                         yerr=self.show_y_err,
-                        sym_err_name=self.sym_err_name,
+                        sym_err_name=self.sym_err_name, show_err_band=self.show_err_band,
                         **self.plot_kwargs)
 
 
@@ -208,12 +211,12 @@ class Plotter:
 
     def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  not_to_draw=False,
-                 use_for_ratio=True, yerr=True, sym_err_name='Total',
+                 use_for_ratio=True, yerr=True, sym_err_name='Total', show_err_band=True,
                  **kwargs):
         p_hist = PlotItem(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
                           use_for_ratio=use_for_ratio, not_to_draw=not_to_draw,
                           yerr=yerr,
-                          sym_err_name=sym_err_name,
+                          sym_err_name=sym_err_name, show_err_band=show_err_band,
                           **kwargs)
         self.plot_items.append(p_hist)
         return len(self.plot_items) - 1
@@ -261,7 +264,8 @@ class Plotter:
                 this_color = extract_color_from_handle(handle)
                 if 'color' not in p_hist.plot_kwargs and this_color is not None:
                     p_hist.plot_kwargs['color'] = this_color
-                self.draw_error_box_for_plot_item(item_index, p_hist.location)
+                if p_hist.show_err_band:
+                    self.draw_error_box_for_plot_item(item_index, p_hist.location)
             # check if kwargs has color, if not, draw and then get the color and set the color in the kwargs
 
             label = p_hist.plot_kwargs.get("label", None)
@@ -360,14 +364,14 @@ class Plotter:
 
         self.draw_error_boxes(plot_item.to_numpy()[0],
                               plot_item.to_numpy()[1],
-                              plot_item.get_sym_sys_err_array(plot_item.sym_err_name),  # TODO update to select specific systematic
+                              plot_item.get_sym_sys_err_array(plot_item.sym_err_name),
                               location=location,
                               **{"facecolor": plot_item.plot_kwargs['color'],
                                  "alpha": 0.2, "fill": True, 'hatch': None})
 
     def add_ratio_hist(self, ratio_hist, location=(0, 0)):
         ratio_hist.use_for_ratio = False
-        ratio_hist.yerr = False
+        ratio_hist.show_y_err = False
         ratio_hist.location = location
         self.plot_items.append(ratio_hist)
         # return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)

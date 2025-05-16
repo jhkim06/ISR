@@ -119,7 +119,7 @@ def main():
         {"period": "2017", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2017", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         #{"period": "2018", "channel": "ee", "event_selection": "TightID_b_veto"},
-        #{"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
+        {"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
     ]
 
     mass_dict = {}
@@ -170,7 +170,7 @@ def main():
             pt.draw_unfold_inputs(index, bin_width_norm=True)  # check unfold inputs
             pt.draw_fake_hists(index, bin_width_norm=True)
             pt.draw_unfold_closure(index, bin_width_norm=True)
-            pt.draw_unfolded_level(index, bin_width_norm=True)
+            pt.draw_unfolded_level(index, bin_width_norm=True, mc_denominator=False)
             # TODO draw LO also
             pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=False)
             # TODO draw each systematic
@@ -181,8 +181,8 @@ def main():
         mass.draw_background_fractions(index)
         mass.draw_detector_level(bin_width_norm=True)
         pt.draw_unfold_closure(-1, bin_width_norm=False)
-        mass.draw_unfolded_level(bin_width_norm=True)
-        mass.draw_acceptance_corrected_level(bin_width_norm=True)
+        mass.draw_unfolded_level(bin_width_norm=True, mc_denominator=False)
+        mass.draw_acceptance_corrected_level(bin_width_norm=True, mc_denominator=False)
 
         # Same-sign
         ss_test = ISRAnalyzer(sample_base_dir,

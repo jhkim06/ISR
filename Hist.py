@@ -171,13 +171,16 @@ class Hist(object):
             diffs = []
             for var_name, hist in variations.items():
                 variation_values = to_numpy(hist)[0]
-                squared_diff = (variation_values-central_values)
-                diffs.append(squared_diff)
+                diff = (variation_values-central_values)
+                diffs.append(diff)
             diffs = np.array(diffs)
+
+            # FIXME is it right way to calculate PDF uncertainty?
             if sys_name == "pdf":
                 sys_val = np.sqrt(np.mean(diffs ** 2, axis=0))
             else:
                 sys_val = np.sqrt(np.sum(diffs ** 2, axis=0))
+            #sys_val = np.sqrt(np.sum(diffs ** 2, axis=0))
 
             self.systematics[sys_name] = sys_val  # RSS for this sys_name
             #if sys_name == "pdf":
@@ -191,22 +194,6 @@ class Hist(object):
             self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
         else:
             self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
-
-        if not self.is_TH2:
-            central_values = to_numpy(self.raw_root_hist)[0]
-            variation_values = to_numpy(raw_hist)[0]
-            squared_diff = (variation_values - central_values) ** 2
-
-            # Add to systematic container
-            if sys_name not in self.systematics:
-                #self.systematic_raw_root_hists[sys_name] = {}
-                self.systematics[sys_name] = np.sqrt(squared_diff)
-            else:
-                existing_squared = self.systematics[sys_name] ** 2
-                self.systematics[sys_name] = np.sqrt(existing_squared + squared_diff)
-
-            #self.systematic_raw_root_hists[sys_name][sys_variation_name] = raw_hist
-            self.update_symmetric_error_array()
 
     def normalize_systematic_raw_hists_by_central(self, raw_hist):
         for sys_name, variations in self.systematic_raw_root_hists.items():
@@ -242,6 +229,7 @@ class Hist(object):
 
             for var_name in all_var_names:
                 # Use default hist if missing
+                # TODO is ok for ratio plot?
                 self_hist = self_vars.get(var_name, self.raw_root_hist)
                 other_hist = other_vars.get(var_name, other.raw_root_hist)
 
