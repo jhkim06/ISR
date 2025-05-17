@@ -118,7 +118,7 @@ def main():
         {"period": "2016b", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         {"period": "2017", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2017", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
-        #{"period": "2018", "channel": "ee", "event_selection": "TightID_b_veto"},
+        {"period": "2018", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
     ]
 
@@ -132,18 +132,25 @@ def main():
 
         analyzer = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins)
         pt, mass = unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True)
+        pt.set_ISRHistSet_per_mass_window()
+        mass.set_ISRHistSet_per_mass_window()
 
         analyzer_1d = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False)
         pt_1d, mass_1d = unfold_and_correct(analyzer_1d, period, channel, event_selection, is_2d=False)
+        pt_1d.set_ISRHistSet_per_mass_window()
+        mass_1d.set_ISRHistSet_per_mass_window()
 
         analyzer_nlo = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, signal="DY:aMCNLO", acceptance="DY", sys_on=False)
         pt_nlo, mass_nlo = unfold_and_correct(analyzer_nlo, period, channel, event_selection, is_2d=True)
+        pt_nlo.set_ISRHistSet_per_mass_window()
+        mass_nlo.set_ISRHistSet_per_mass_window()
 
-        pt.update_mean_values(pt_1d, '1d_2d')
-        pt.update_mean_values(pt_nlo, 'matrix')
 
-        mass.update_mean_values(mass_1d, '1d_2d')
-        mass.update_mean_values(mass_nlo, 'matrix')
+        pt.add_external_hist_as_sys_hist(pt_1d, '1d_2d')
+        mass.add_external_hist_as_sys_hist(mass_1d, '1d_2d')
+
+        pt.add_external_hist_as_sys_hist(pt_nlo, 'matrix')
+        mass.add_external_hist_as_sys_hist(mass_nlo, 'matrix')
 
         #pt_others = []
         #test_aMCNLO = ISRAnalyzer(sample_base_dir,
@@ -174,14 +181,14 @@ def main():
             pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=False)
             # TODO draw each systematic
 
-        pt.draw_unfold_inputs(-1, bin_width_norm=False)
-        pt.draw_detector_level(-1, bin_width_norm=False)
-        pt.draw_fake_hists(-1, bin_width_norm=False)
-        mass.draw_background_fractions(index)
-        mass.draw_detector_level(bin_width_norm=True)
-        pt.draw_unfold_closure(-1, bin_width_norm=False)
-        mass.draw_unfolded_level(bin_width_norm=True, mc_denominator=False)
-        mass.draw_acceptance_corrected_level(bin_width_norm=True, mc_denominator=False)
+        #pt.draw_unfold_inputs(-1, bin_width_norm=False)
+        #pt.draw_detector_level(-1, bin_width_norm=False)
+        #pt.draw_fake_hists(-1, bin_width_norm=False)
+        #pt.draw_unfold_closure(-1, bin_width_norm=False)
+        mass.draw_background_fractions(0)
+        mass.draw_detector_level(0, bin_width_norm=True)
+        mass.draw_unfolded_level(0, bin_width_norm=True, mc_denominator=False)
+        mass.draw_acceptance_corrected_level(0, bin_width_norm=True, mc_denominator=False)
 
         # Same-sign
         ss_test = ISRAnalyzer(sample_base_dir,
@@ -192,10 +199,12 @@ def main():
 
         ss_test.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=True, hist_prefix='ss_')
         ss_pt, ss_mass = ss_test.get_isr_results()
+        ss_pt.set_ISRHistSet_per_mass_window()
+        ss_mass.set_ISRHistSet_per_mass_window()
 
         for index in range(len(mass_bins)):
             ss_pt.draw_detector_level(index, bin_width_norm=True)
-        ss_mass.draw_detector_level(bin_width_norm=True)
+        ss_mass.draw_detector_level(0, bin_width_norm=True)
 
         # Save to dict
         key = f"{period}_{channel}"
@@ -230,8 +239,8 @@ def main():
 
     mass_combined_final, pt_combined_final = combiner_all.combine()
 
-    #periods = ["2016a", "2016b", "2017", "2018"]
-    periods = ["2016a", "2016b", "2017"]
+    periods = ["2016a", "2016b", "2017", "2018"]
+    #periods = ["2016a", "2016b", "2017"]
 
     color_map = {
         "2016a": (86 / 255, 180 / 255, 233 / 255),

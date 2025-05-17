@@ -2,7 +2,7 @@ from Analyzer import Analyzer
 from Acceptance import Acceptance
 from Hist import Hist, change_to_greek
 from ISRHists import ISRHists
-from ISR2DHist import ISR2DHist
+from HistTUnfoldBin import HistTUnfoldBin
 from TUnFolder import TUnFolder
 
 
@@ -312,15 +312,15 @@ class ISRAnalyzer(Analyzer):
             )
 
             self.isr_pt.isr_hists[mass_window_index].unfold_input_hist = (
-                ISR2DHist(unfold_input_hist, folded_bin))
+                HistTUnfoldBin(unfold_input_hist, folded_bin))
             self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = (
-                ISR2DHist(unfolded_hist, unfolded_bin))
+                HistTUnfoldBin(unfolded_hist, unfolded_bin))
             self.isr_pt.isr_hists[mass_window_index].truth_signal_hist = (
-                ISR2DHist(truth_signal_hist, unfolded_bin))
+                HistTUnfoldBin(truth_signal_hist, unfolded_bin))
             self.isr_pt.isr_hists[mass_window_index].reco_signal_hist = (
-                ISR2DHist(reco_signal_hist, folded_bin))
+                HistTUnfoldBin(reco_signal_hist, folded_bin))
             self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = (
-                ISR2DHist(unfolded_signal_hist, unfolded_bin))
+                HistTUnfoldBin(unfolded_signal_hist, unfolded_bin))
 
         if self.isr_pt.is_2d:
             run_unfold(0, is2d=True)
@@ -379,11 +379,11 @@ class ISRAnalyzer(Analyzer):
             hist_name='_',
             label='DY'
         )
-        self.isr_mass.isr_hists[0].unfold_input_hist =  ISR2DHist(unfold_input_hist, folded_bin)
-        self.isr_mass.isr_hists[0].unfolded_measurement_hist = ISR2DHist(unfolded_hist, unfolded_bin)
-        self.isr_mass.isr_hists[0].truth_signal_hist = ISR2DHist(truth_signal_hist, unfolded_bin)
-        self.isr_mass.isr_hists[0].reco_signal_hist = ISR2DHist(reco_signal_hist, folded_bin)
-        self.isr_mass.isr_hists[0].unfolded_signal_hist = ISR2DHist(unfolded_signal_hist, unfolded_bin)
+        self.isr_mass.isr_hists[0].unfold_input_hist =  HistTUnfoldBin(unfold_input_hist, folded_bin)
+        self.isr_mass.isr_hists[0].unfolded_measurement_hist = HistTUnfoldBin(unfolded_hist, unfolded_bin)
+        self.isr_mass.isr_hists[0].truth_signal_hist = HistTUnfoldBin(truth_signal_hist, unfolded_bin)
+        self.isr_mass.isr_hists[0].reco_signal_hist = HistTUnfoldBin(reco_signal_hist, folded_bin)
+        self.isr_mass.isr_hists[0].unfolded_signal_hist = HistTUnfoldBin(unfolded_signal_hist, unfolded_bin)
 
     def isr_acceptance_corrections(self):
         self.pt_isr_acceptance_correction()
@@ -413,9 +413,9 @@ class ISRAnalyzer(Analyzer):
 
             unfolded_bin = self.isr_pt.unfolded_tunfold_bin
             self.isr_pt.set_acceptance_corrected_hist(
-                hist=ISR2DHist(acceptance_corrected, unfolded_bin), mass_window_index=index)
+                hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin), mass_window_index=index)
             self.isr_pt.set_acceptance_corrected_hist(
-                hist=ISR2DHist(mc_hist_full_phase, unfolded_bin), mass_window_index=index, key='simulation')
+                hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin), mass_window_index=index, key='simulation')
 
         if self.isr_pt.is_2d:
             run_acceptance_correction(index=0, is2d=True)
@@ -440,8 +440,8 @@ class ISRAnalyzer(Analyzer):
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
 
         unfolded_bin = self.isr_mass.unfolded_tunfold_bin
-        self.isr_mass.set_acceptance_corrected_hist(hist=ISR2DHist(acceptance_corrected, unfolded_bin))
-        self.isr_mass.set_acceptance_corrected_hist(hist=ISR2DHist(mc_hist_full_phase, unfolded_bin), key='simulation')
+        self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin))
+        self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin), key='simulation')
 
     def get_correction_factors(self, space_name, bin_name):
         pt_hist_full_phase_name_prefix = ('dipt_gen_' + space_name +
