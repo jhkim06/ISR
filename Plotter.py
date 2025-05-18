@@ -14,6 +14,8 @@ import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 from matplotlib.container import ErrorbarContainer
 import matplotlib.colors as mcolors
+from array import array
+import ROOT
 
 
 def extract_color_from_handle(handle):
@@ -71,6 +73,18 @@ class PlotItem(Hist):
                  drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True, sym_err_name='Total',
                  show_err_band=True,
                  **kwargs):
+
+        if isinstance(hist, tuple) and len(hist) == 3:
+            values, bins, errors = hist
+            bins = array('f', bins)
+            raw_hist = ROOT.TH1D("hist_to_draw", "hist_to_draw", len(bins)-1, bins)
+            for index, value in enumerate(values):
+                raw_hist.SetBinContent(index+1, value)
+                if errors is not None:
+                    raw_hist.SetBinError(index+1, errors[index])
+                else:
+                    raw_hist.SetBinError(index+1, 0)
+            hist = Hist(raw_hist, )
 
         super(PlotItem, self).__init__(hist.raw_root_hist,
                                        label=hist.label,
@@ -209,6 +223,7 @@ class Plotter:
         else:
             return self.axs[row][col]
 
+    # hist can be Hist or (values, bin, error)
     def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  not_to_draw=False,
                  use_for_ratio=True, yerr=True, sym_err_name='Total', show_err_band=True,
@@ -248,6 +263,7 @@ class Plotter:
         for item_index, p_hist in enumerate(self.plot_items):
             if p_hist.drawn:
                 continue
+            # TODO allow case without TH1
             values, bins, errors = p_hist.to_numpy()
             if p_hist.not_to_draw:  # FIXME
                 continue
@@ -294,11 +310,11 @@ class Plotter:
 
         artist = hep.histplot((values, bins), ax=self.current_axis, yerr=yerr, xerr=False,
                               **plot_kwargs)[0]
-        # FIXME check belows are required in legend
-        #if isinstance(artist, ErrorBarArtists) or artist.legend_artist:
-        #    return artist
-        #if isinstance(artist, StairsArtists):
-        #    return artist.stairs
+        # belows are required to show legend properly
+        if isinstance(artist, ErrorBarArtists) or artist.legend_artist:
+            return artist
+        if isinstance(artist, StairsArtists):
+            return artist.stairs
         return artist
 
     def get_hist(self, index):
@@ -347,12 +363,15 @@ class Plotter:
             print("Invalid nominator/denominator config")
             exit(1)
 
+        self.draw_normalized_error_band(denom_hist, location=location)
         self.draw_hist()
         # TODO add on/off option
-        self.draw_normalized_error_band(denom_hist, location=location)
 
     def draw_normalized_error_band(self, hist, location=(0, 0)):
         error_band = hist.create_normalized_error_band()
+        if 'histtype' in hist.plot_kwargs and hist.plot_kwargs['histtype'] == 'errorbar':
+            self.add_hist(error_band, location=location, use_for_ratio=False, yerr=False, show_err_band=False,
+                      **hist.plot_kwargs)
         self.draw_error_boxes(error_band.to_numpy()[0],
                               error_band.to_numpy()[1],
                               error_band.total_sym_err_array,
@@ -379,6 +398,8 @@ class Plotter:
     def show_legend(self, location=(0, 0), **kwargs_):
         self.set_current_axis(location=location)
         kwargs = {"loc": 'best', 'fontsize': 17} | kwargs_
+        #print(self.legend_handles[location])
+        #print(self.legend_labels[location])
         self.current_axis.legend(self.legend_handles[location],
                                  self.legend_labels[location], **kwargs)
         try:

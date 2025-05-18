@@ -16,7 +16,6 @@ def to_numpy(raw_root_hist):
     bins = []
     errors = []
 
-    # check if bins have labels
     n_bins_x = raw_root_hist.GetNbinsX()
     for i_bin in range(n_bins_x):
         value = raw_root_hist.GetBinContent(i_bin + 1)
@@ -45,6 +44,7 @@ class Hist(object):
                  is_measurement=True,
                  is_mc_signal=False, ):
 
+        # allow
         self.raw_root_hist = hist
         # TODO how to handle systematic of TH2
         self.is_TH2 = isinstance(self.raw_root_hist, ROOT.TH2)
@@ -175,14 +175,14 @@ class Hist(object):
                 diffs.append(diff)
             diffs = np.array(diffs)
 
-            # FIXME is it right way to calculate PDF uncertainty?
-            if sys_name == "pdf":
+            # TODO check is it right way to calculate PDF uncertainty?
+            if sys_name == "pdf" or sys_name == "roccor_stat":
                 sys_val = np.sqrt(np.mean(diffs ** 2, axis=0))
             else:
                 sys_val = np.sqrt(np.sum(diffs ** 2, axis=0))
-            #sys_val = np.sqrt(np.sum(diffs ** 2, axis=0))
 
             self.systematics[sys_name] = sys_val  # RSS for this sys_name
+            # self.systematics_th1[sys_name] =
             #if sys_name == "pdf":
             #    print("compute_systematic_rss_per_sysname", np.sqrt(squared_sum))
         self.update_symmetric_error_array()
@@ -370,6 +370,7 @@ class Hist(object):
         return result
 
     def to_numpy(self, stat=False):
+        # allow
         values, bins, stat_error = to_numpy(self.raw_root_hist)
         if stat:
             error = stat_error

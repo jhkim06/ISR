@@ -680,6 +680,35 @@ class ISRHists:
             plotter.show_legend()
             plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
+    def draw_systematic_summary(self, mass_window_index=0,):
+        measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']
+        relative_systematic_hist = measurement_hist.create_normalized_error_band()
+
+        plotter = measurement_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
+
+        _, bins, errors = relative_systematic_hist.to_numpy()
+        _, _, stat = relative_systematic_hist.to_numpy(stat=True)
+        # FIXME with yerr=False, show_legend() produce error
+        plotter.add_hist((errors, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
+                         label='Total')
+        plotter.add_hist((stat, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
+                         linestyle='--', label='Stat')
+        for sys_name_ in relative_systematic_hist.systematics:
+            sys_error = relative_systematic_hist.systematics[sys_name_]
+            plotter.add_hist((sys_error, bins, None), as_denominator=False, yerr=False, show_err_band=False,
+                             label=sys_name_)
+        plotter.draw_hist()
+        if not self.is_pt:
+            plotter.get_axis(location=(0, 0)).set_xscale("log")
+        plotter.show_legend()
+        text = self.get_additional_text_on_plot(mass_window_index)
+        plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper right"})
+        plotter.get_axis(location=(0, 0)).set_ylabel("Relative Uncertainty")
+        plotter.get_axis(location=(0, 0)).set_xlabel(self.x_axis_label)
+        plotter.save_and_reset_plotter(measurement_hist.hist_name + "_sys_summary_" + self.channel + self.year)
+
     def draw_systematic_hists(self, sys_name, mass_window_index=-1, bin_width_norm=False,
                               hist_type='unfolded_measurement', key='measurement'):
         measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']

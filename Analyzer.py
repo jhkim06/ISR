@@ -28,11 +28,11 @@ colors = {
     "DYJetsToMuMu_MiNNLO": "red",
     "Data": "black",
     "Data(unfolded)": "black",
-    "QCD": (0.3411764705882353, 0.5647058823529412, 0.9882352941176471, 1.0),
+    "QCD":         (0.3411764705882353, 0.5647058823529412, 0.9882352941176471, 1.0),
     "top+antitop": (0.9725490196078431, 0.611764705882353, 0.12549019607843137, 1.0),
-    "TTLL": (0.8941176470588236, 0.1450980392156863, 0.21176470588235294, 1.0),
-    "GGLL": (0.5882352941176471, 0.2901960784313726, 0.5450980392156862, 1.0),
-    "ZZ+WZ+WW": (0.611764705882353, 0.611764705882353, 0.6313725490196078, 1.0),
+    "TTLL":        (0.8941176470588236, 0.1450980392156863, 0.21176470588235294, 1.0),
+    "GGLL":        (0.5882352941176471, 0.2901960784313726, 0.5450980392156862, 1.0),
+    "ZZ+WZ+WW":    (0.611764705882353, 0.611764705882353, 0.6313725490196078, 1.0),
     "DYJetsToTauTau_MiNNLO": (0.47843137254901963, 0.12941176470588237, 0.8666666666666667, 1.0),
 }
 
@@ -81,7 +81,15 @@ class Analyzer:
         # TODO root file wrapper root_file().draw()
         self.plotter = Plotter(self.experiment,
                                '/Users/junhokim/Work/cms_snu/ISR/Plots')
+        self.systematics = {}
 
+
+    def set_data_info(self, year, channel, event_selection):
+        self.year = year
+        self.channel = channel
+        self.event_selection = event_selection
+
+        self.systematics.clear()
         self.systematics = {
             # apply only to background Hist
             "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
@@ -95,20 +103,50 @@ class Analyzer:
         self.systematics.update({"pdf:signal": pdf_signal_variations})
 
         scale_signal_variations = {
-            str(i): ("pdf", f"scalevariation{i}", 1.0)
+            str(i): ("pdf:signal", f"scalevariation{i}", 1.0)
             for i in range(9)
         }
+        # Check what PDF scale means, how to calculate uncertainty
         #self.systematics.update({"scale:signal": scale_signal_variations})
 
-    def set_data_info(self, year, channel, event_selection):
-        self.year = year
-        self.channel = channel
-        self.event_selection = event_selection
+        emomentum_scale_variations = {"up": ("momentum_correction", "egammacor_s1m-1", 1.0),
+                                      "down": ("momentum_correction", "egammacor_s1m1", 1.0)}
+        emomentum_resolution_variations = {"up": ("momentum_correction", "egammacor_s2m-1", 1.0),
+                                           "down": ("momentum_correction", "egammacor_s2m1", 1.0)}
+
+        mmomentum_zpt_variations = {"zpt": ("momentum_correction", "roccor_s2m0", 1.0),}
+        mmomentum_ewk_variations = {"ewk": ("momentum_correction", "roccor_s3m0", 1.0),}
+        mmomentum_deltaM_variations = {"deltaM": ("momentum_correction", "roccor_s4m0", 1.0),}
+        mmomentum_ewk2_variations = {"ewk2": ("momentum_correction", "roccor_s5m0", 1.0),}
+        mmomentum_stat = {
+            str(i): ("momentum_correction", f"roccor_s1m{i}", 1.0)
+            for i in range(100)
+        }
+
+        mmomentum_variations = {}
+        mmomentum_variations.update(mmomentum_zpt_variations)
+        mmomentum_variations.update(mmomentum_ewk_variations)
+        mmomentum_variations.update(mmomentum_deltaM_variations)
+        mmomentum_variations.update(mmomentum_ewk2_variations)
+        #mmomentum_variations.update(mmomentum_stat)
+
+        if self.channel == 'ee':
+            self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
+            self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
+
+        if self.channel == 'mm':
+            #self.systematics.update({"momentum_zpt:all": mmomentum_zpt_variations})
+            #self.systematics.update({"momentum_ewk:all": mmomentum_ewk_variations})
+            #self.systematics.update({"momentum_deltaM:all": mmomentum_deltaM_variations})
+            #self.systematics.update({"momentum_ewk2:all": mmomentum_ewk2_variations})
+            self.systematics.update({"roccor:all": mmomentum_variations})
+            self.systematics.update({"roccor_stat:all": mmomentum_stat})
 
     def reset_data_info(self):
         self.year = ""
         self.channel = ""
         self.event_selection = ""
+        self.systematics.clear()
 
     def plot_name_postfix(self, postfix=""):
         postfix = "_" + postfix + "_" if postfix else '_'
@@ -127,6 +165,7 @@ class Analyzer:
 
         for key, value in self.systematics.items():
             sys_name, apply_to = key.split(":")
+            # sys_name, apply_to = key.split(":")
 
             if apply_to == "all":
                 use_sys_config = True
@@ -169,7 +208,8 @@ class Analyzer:
             hist.compute_systematic_rss_per_sysname()
         return hist
 
-    def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False):
+    def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False,
+                    force_sys_off=False):
         file_group = self.get_mc(process_name)
         is_signal = False
         if process_name == self.signal_name:
@@ -180,7 +220,10 @@ class Analyzer:
                                                   bin_width_norm=bin_width_norm, norm=norm,
                                                   is_signal=is_signal,
                                                   scale=scale)
-        if self.sys_on:
+        sys_on = self.sys_on
+        if force_sys_off:
+            sys_on = False
+        if sys_on:
             self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
                                          bin_width_norm=bin_width_norm)
             hist.compute_systematic_rss_per_sysname()
