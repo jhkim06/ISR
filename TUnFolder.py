@@ -6,6 +6,7 @@ import numpy as np
 from Plotter import Plotter
 from array import array
 import re
+import math
 
 
 REG_MODE = MappingProxyType(
@@ -152,9 +153,9 @@ class TUnFolder:
 
         if self.unfold_method is None:
             if sys_tunfolder is None:
-                # tunfolder.RegularizeCurvature(5, 7, 10)  # t=0.0001 looks best, for 1D mass unfold
+                # tunfolder.RegularizeCurvature(5, 7, 10)  # for 2017 ee, t=0.0001 looks best, for 1D mass unfold
                 tunfolder.RegularizeCurvature(5, 7, 10)
-                tunfolder.DoUnfold(tau)  # TODO understand what it does!
+                tunfolder.DoUnfold(tau)
             else:
                 tunfolder.DoUnfold(tau)
         elif self.unfold_method == 'scan_sure':
@@ -172,6 +173,27 @@ class TUnFolder:
         else:
             print(unfold_method, ' is not supported unfolding method.')
 
+    def get_matrix_stat(self):
+        unfold_result = self.get_unfolded_hist()
+        template = unfold_result.Clone()
+        template.Reset()
+
+        matrixUnc_up = template.Clone("matrixUnc_up")
+        matrixUnc_down = template.Clone("matrixUnc_down")
+
+        mCovMatrix = self.tunfolder.GetEmatrixSysUncorr("mCovMatrix")
+
+        for ibin in range(1, unfold_result.GetNbinsX() + 1):
+            nominal_value = unfold_result.GetBinContent(ibin)
+            matrixUnc_up.SetBinContent(ibin, nominal_value+math.sqrt(mCovMatrix.GetBinContent(ibin, ibin)))
+            matrixUnc_down.SetBinContent(ibin, nominal_value-math.sqrt(mCovMatrix.GetBinContent(ibin, ibin)))
+
+        out_dict = {
+            "up": matrixUnc_up,
+            "down": matrixUnc_down,
+        }
+        return out_dict
+
     def sys_unfold(self):
         # loop over hist systematics
         sys_unfolded_hist = {}
@@ -186,8 +208,6 @@ class TUnFolder:
                 self.unfold(sys_tunfolder=tunfolder)
                 sys_unfolded_hist[sys_name][var_name] = self.get_unfolded_hist(use_axis_binning=False,
                                                                                tunfolder=tunfolder)
-
-        # TODO different response matrix?
 
         return sys_unfolded_hist
 

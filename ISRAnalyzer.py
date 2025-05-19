@@ -294,7 +294,10 @@ class ISRAnalyzer(Analyzer):
                 label=input_hist.label + '(unfolded)'
             )
             unfolded_hist.systematic_raw_root_hists = unfold.sys_unfold()
+            # TODO add matrix statistical!
+            unfolded_hist.systematic_raw_root_hists.update({"matrix_stat": unfold.get_matrix_stat()})
             unfolded_hist.compute_systematic_rss_per_sysname()
+
             # Create truth signal
             truth_signal_hist = signal_fake_hist.create(
                 hist=unfold.get_mc_truth_from_response_matrix(),
@@ -359,8 +362,10 @@ class ISRAnalyzer(Analyzer):
         # seems unfolding input should be bin_width_norm=False
         unfolded_hist = input_hist.create(hist=unfold.get_unfolded_hist(),
                                           label=input_hist.label + '(unfolded)')
-        sys_unfolded_raw_hist = unfold.sys_unfold()
-        unfolded_hist.systematic_raw_root_hists = sys_unfolded_raw_hist
+
+        #sys_unfolded_raw_hist = unfold.sys_unfold()
+        unfolded_hist.systematic_raw_root_hists = unfold.sys_unfold()
+        unfolded_hist.systematic_raw_root_hists.update({"matrix_stat": unfold.get_matrix_stat()})
         unfolded_hist.compute_systematic_rss_per_sysname()
 
         unfolded_signal_hist = signal_fake_hist.create(

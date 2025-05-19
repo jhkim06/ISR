@@ -95,6 +95,7 @@ class Analyzer:
             "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
             "alpha_s:signal": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
             "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
+            # unfold matrix statistical
         }
         pdf_signal_variations = {
             str(i): ("pdf", f"pdf{i}", 1.0)
