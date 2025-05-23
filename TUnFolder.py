@@ -40,17 +40,22 @@ class TUnFolder:
                  unfolded_bin=None, folded_bin=None,
                  # TODO allow dynamic unfold setup
                  reg_mode='None', ex_constraint='None', density_mode='BinWidth',
-                 unfold_method=None, n_iterative=100,
+                 tau_scan_method=None, n_iterative=100,
 
                  analysis_name='',
                  iterative=False,
                  efficiency_correction=True,
 
                  variable_name=''):
+        # TODO Calculate bottom line test value before/after unfolding
 
         self.year = input_hist.year
         self.channel = input_hist.channel
         self.variable_name = variable_name
+        self.iterative = iterative
+        self.input_hist_for_iterEM = None
+        self.chi2_folded = 0
+        self.chi2_unfolded = 0
 
         # default setup
         self.response_matrix = response_matrix
@@ -72,40 +77,70 @@ class TUnFolder:
         self.reg_mode = reg_mode
         self.ex_constraint = ex_constraint
         self.density_mode = density_mode
-        self.unfold_method = unfold_method
+        self.tau_scan_method = tau_scan_method
         self.n_iterative = n_iterative
+        self.custom_regularization_for_mass = False
 
         self.reg_strength = 0
+        self.iter_best = 0
 
         self.graphSURE = ROOT.TGraph()
         self.df_deviance = ROOT.TGraph()
         self.lcurve = ROOT.TGraph()
         self.curvature = ROOT.TSpline3()
+        self.logTaux = ROOT.TSpline3()
+        self.logTauy = ROOT.TSpline3()
+        self.logTaucurvature = ROOT.TSpline3()
 
         self.tunfolder = self._create_tunfolder()
         self._set_tunfolder_input()
         self._subtract_backgrounds()
 
-    # FIXME check if use_bin_map really needed
-    def _create_tunfolder(self, sys_name='', var_name=''):
+    # comparable regularization to iterative 4
+    def apply_custom_regularization_for_mass(self, tunfolder=None):
+        if tunfolder is None:
+            self.tunfolder.RegularizeCurvature(4, 5, 6)
+            self.tunfolder.RegularizeCurvature(5, 6, 7)
+        else:
+            tunfolder.RegularizeCurvature(4, 5, 6)
+            tunfolder.RegularizeCurvature(5, 6, 7)
+
+        self.custom_regularization_for_mass = True
+
+    def _create_tunfolder(self, sys_name='', var_name='', other_matrix=None):
         if sys_name:
             #print(self.response_matrix.systematic_raw_root_hists)
             matrix = self.response_matrix.systematic_raw_root_hists[sys_name][var_name]
         else:
-            matrix = self.response_matrix.get_raw_hist()
+            if other_matrix is None:
+                matrix = self.response_matrix.get_raw_hist()
+            else:
+                matrix = other_matrix
+
+        tunfolder = None
         if self.use_tunfoldbinning:  # Use bin map
-            return ROOT.TUnfoldDensity(matrix,
-                                       ROOT.TUnfold.kHistMapOutputHoriz,
-                                       REG_MODE[self.reg_mode],
-                                       EX_CONSTRAINTS[self.ex_constraint],
-                                       DENSITY_MODE[self.density_mode],
-                                       self.unfolded_bin, self.folded_bin)
+            if self.iterative:
+                tunfolder = ROOT.TUnfoldIterativeEM(matrix, ROOT.TUnfold.kHistMapOutputHoriz,
+                                                    self.unfolded_bin, self.folded_bin)
+            else:
+                tunfolder = ROOT.TUnfoldDensity(matrix,
+                                                ROOT.TUnfold.kHistMapOutputHoriz,
+                                                REG_MODE[self.reg_mode],
+                                                EX_CONSTRAINTS[self.ex_constraint],
+                                                DENSITY_MODE[self.density_mode],
+                                                self.unfolded_bin, self.folded_bin)
         else:
-            return ROOT.TUnfoldDensity(matrix,
-                                       ROOT.TUnfold.kHistMapOutputHoriz,
-                                       REG_MODE[self.reg_mode],
-                                       EX_CONSTRAINTS[self.ex_constraint],
-                                       DENSITY_MODE[self.density_mode])
+            if self.iterative:
+                pass
+            else:
+                tunfolder = ROOT.TUnfoldDensity(matrix,
+                                                ROOT.TUnfold.kHistMapOutputHoriz,
+                                                REG_MODE[self.reg_mode],
+                                                EX_CONSTRAINTS[self.ex_constraint],
+                                                DENSITY_MODE[self.density_mode])
+        if sys_name and self.custom_regularization_for_mass:
+            self.apply_custom_regularization_for_mass(tunfolder)
+        return tunfolder
 
     def _set_tunfolder_input(self, sys_name='', var_name='', sys_tunfolder=None):
 
@@ -118,10 +153,14 @@ class TUnFolder:
                 sys_tunfolder.SubtractBackground(sys_input_fake_hist, 'input_fake'+sys_name+var_name)
         else:
             self.tunfolder.SetInput(self.input_hist.get_raw_hist())
+            if self.iterative:
+                self.input_hist_for_iterEM = self.input_hist.get_raw_hist().Clone('input_hist_for_iterativeEM')
 
             if self.input_fake_hist is not None:
                 self.tunfolder.SubtractBackground(self.input_fake_hist.get_raw_hist(),
                                                   'input_fake')
+                if self.iterative:
+                    self.input_hist_for_iterEM.Add(self.input_fake_hist.get_raw_hist(), -1)
 
     def _subtract_backgrounds(self, sys_name='', var_name='', sys_tunfolder=None):
         if self.bg_hists is not None:
@@ -131,68 +170,140 @@ class TUnFolder:
                     sys_tunfolder.SubtractBackground(sys_bg, name)
                 else:
                     self.tunfolder.SubtractBackground(hist.get_raw_hist(), name)
+                    if self.iterative:
+                        self.input_hist_for_iterEM.Add(hist.get_raw_hist(), -1)
 
     def unfold(self, unfold_method=None,
-               n_iterative=100,
-               tau=0,
+               tau=0, max_iter=0,
+               max_scan_iter=100,
                sys_tunfolder=None):
-
         # FIXME
         if sys_tunfolder:
             tunfolder = sys_tunfolder
         else:
             tunfolder = self.tunfolder
 
-        if unfold_method is None and self.unfold_method is None:
-            self.unfold_method = unfold_method
-        else:
-            if self.unfold_method is None:
-                self.unfold_method = unfold_method
-
-        self.n_iterative = n_iterative
-
-        if self.unfold_method is None:
+        if self.tau_scan_method is None:
             if sys_tunfolder is None:
-                # tunfolder.RegularizeCurvature(5, 7, 10)  # for 2017 ee, t=0.0001 looks best, for 1D mass unfold
-                tunfolder.RegularizeCurvature(5, 7, 10)
-                tunfolder.DoUnfold(tau)
+                #tunfolder.RegularizeCurvature(5, 7, 10)  # for 2017 ee, t=0.0001 looks best, for 1D mass unfold
+                if self.iterative:
+                    tunfolder.DoUnfold(int(max_iter))
+                    self.iter_best = max_iter
+                else:
+                    self.reg_strength = tunfolder.DoUnfold(tau)
             else:
-                tunfolder.DoUnfold(tau)
-        elif self.unfold_method == 'scan_sure':
+                if self.iterative:
+                    tunfolder.DoUnfold(int(self.iter_best))
+                else:
+                    tunfolder.DoUnfold(self.reg_strength)
+
+        elif self.tau_scan_method == 'scan_sure':
             if sys_tunfolder is None:
-                i_best = tunfolder.ScanSURE(n_iterative,
-                                            ctypes.c_double(0.0),
-                                            ctypes.c_double(0.0),
-                                            self.graphSURE,
-                                            self.df_deviance,
-                                            self.lcurve)
-                self.reg_strength = pow(10, self.graphSURE.GetX()[i_best])
+                if self.iterative:
+                    self.iter_best = tunfolder.ScanSURE(int(max_scan_iter), self.graphSURE, self.df_deviance)
+                else:
+                    i_best = tunfolder.ScanSURE(max_scan_iter,
+                                                ctypes.c_double(5e-5),
+                                                ctypes.c_double(1e-2),
+                                                self.graphSURE,
+                                                self.df_deviance,
+                                                self.lcurve)
+                    #tunfolder.RegularizeCurvature(5, 6, 7)
+                    #tunfolder.RegularizeCurvature(6, 7, 8)
+                    #tunfolder.RegularizeCurvature(7, 8, 9)
+                    #tunfolder.RegularizeCurvature(8, 9, 10)
+                    print("TAU: ", tunfolder.GetTau())
+                    self.reg_strength = tunfolder.GetTau()
                 # print(self.reg_strength)
             else:
-                tunfolder.DoUnfold(0.0)
+                if self.iterative:
+                    tunfolder.DoUnfold(int(self.iter_best))
+                else:
+                    tunfolder.DoUnfold(self.reg_strength)
+        elif self.tau_scan_method == 'scan_lcurve':
+            if sys_tunfolder is None:
+                if self.iterative:
+                    pass
+                else:
+                    i_best = tunfolder.ScanLcurve(max_scan_iter,
+                                                  # ctypes.c_double(9e-5),
+                                                  ctypes.c_double(5e-5),
+                                                  ctypes.c_double(5e-3),
+                                                  self.lcurve,
+                                                  self.logTaux,
+                                                  self.logTauy, self.logTaucurvature)
+                    self.reg_strength = tunfolder.GetTau()
+                    print("TAU: ", tunfolder.GetTau())
+            else:
+                if self.iterative:
+                    tunfolder.DoUnfold(int(self.iter_best))
+                else:
+                    tunfolder.DoUnfold(self.reg_strength)
         else:
             print(unfold_method, ' is not supported unfolding method.')
 
+        return self.reg_strength, self.iter_best
+
+    def create_stat_matrix(self, n_matrix=100):
+        # get std for each unfolded result, use it as statistical from matrix
+        nx = self.response_matrix.get_raw_hist().GetNbinsX()
+        ny = self.response_matrix.get_raw_hist().GetNbinsY()
+
+        default_matrix = self.response_matrix.get_raw_hist()
+        stat_matrix_template = self.response_matrix.get_raw_hist().Clone('stat_matrix')
+        stat_matrix_template.Reset()
+
+        matrixs = []
+        for i in range(n_matrix):
+            temp_matrix = stat_matrix_template.Clone(f"stat{i}")
+            for i_x in range(nx+2):
+                for i_y in range(ny+2):
+                    mean = default_matrix.GetBinContent(i_x, i_y)
+                    error = default_matrix.GetBinError(i_x, i_y)
+                    temp_matrix.SetBinContent(i_x,i_y, ROOT.gRandom.Gaus(mean, error))
+                    temp_matrix.SetBinError(i_x, i_y, error)
+            matrixs.append(temp_matrix)
+        return matrixs
+
     def get_matrix_stat(self):
-        unfold_result = self.get_unfolded_hist()
-        template = unfold_result.Clone()
-        template.Reset()
+        # helper to build the up/down TH1s given a list of per-bin shifts Δ[i]
+        def build_up_down(nominal_hist, deltas):
+            up = nominal_hist.Clone("matrixUnc_up")
+            down = nominal_hist.Clone("matrixUnc_down")
+            up.Reset()
+            down.Reset()
+            nbin = nominal_hist.GetNbinsX()
+            for i in range(1, nbin + 1):
+                val = nominal_hist.GetBinContent(i)
+                d = deltas[i - 1]
+                up.SetBinContent(i, val + d)
+                down.SetBinContent(i, val - d)
+            return {"up": up, "down": down}
 
-        matrixUnc_up = template.Clone("matrixUnc_up")
-        matrixUnc_down = template.Clone("matrixUnc_down")
+        # get the nominal unfolded result
+        nominal = self.get_unfolded_hist()
 
-        mCovMatrix = self.tunfolder.GetEmatrixSysUncorr("mCovMatrix")
+        if not self.iterative:
+            # simply take the diagonal of the uncorrelated matrix
+            cov2 = self.tunfolder.GetEmatrixSysUncorr("mCovMatrix")
+            # Δ_i = sqrt( cov2(i,i) )
+            deltas = [math.sqrt(cov2.GetBinContent(i, i))
+                      for i in range(1, nominal.GetNbinsX() + 1)]
+        else:
+            # build an array of |Δ_unfolded| from N toy‐matrices
+            default_vals = np.array(Hist(nominal).to_numpy()[0])
+            toy_diffs = []
+            for idx, matrix in enumerate(self.create_stat_matrix()):
+                tf = self._create_tunfolder(other_matrix=matrix)
+                tf.SetInput(self.get_input_hist().Clone(f"matrix_stat{idx}"))
+                self.unfold(sys_tunfolder=tf)
+                out_vals = np.array(Hist(self.get_unfolded_hist(tunfolder=tf)).to_numpy()[0])
+                toy_diffs.append(np.abs(out_vals - default_vals))
+            # per‐bin pop-std
+            deltas = np.std(toy_diffs, axis=0, ddof=0).tolist()
 
-        for ibin in range(1, unfold_result.GetNbinsX() + 1):
-            nominal_value = unfold_result.GetBinContent(ibin)
-            matrixUnc_up.SetBinContent(ibin, nominal_value+math.sqrt(mCovMatrix.GetBinContent(ibin, ibin)))
-            matrixUnc_down.SetBinContent(ibin, nominal_value-math.sqrt(mCovMatrix.GetBinContent(ibin, ibin)))
-
-        out_dict = {
-            "up": matrixUnc_up,
-            "down": matrixUnc_down,
-        }
-        return out_dict
+        # now build & return the two TH1s
+        return build_up_down(nominal, deltas)
 
     def sys_unfold(self):
         # loop over hist systematics
@@ -208,7 +319,6 @@ class TUnFolder:
                 self.unfold(sys_tunfolder=tunfolder)
                 sys_unfolded_hist[sys_name][var_name] = self.get_unfolded_hist(use_axis_binning=False,
                                                                                tunfolder=tunfolder)
-
         return sys_unfolded_hist
 
     def get_unfolded_hist(self, projection_mode="*[*]",
@@ -244,48 +354,140 @@ class TUnFolder:
         return unfolded_hist
 
     def get_input_hist(self, projection_mode="*[*]", use_axis_binning=True):
-        if self.use_tunfoldbinning:
-            # it seems parameter axis steering not passed properly so use ExtractHistogram()
-            data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
-                                                ctypes.c_char_p(0),
-                                                ctypes.c_char_p(0),
-                                                ctypes.c_char_p(0),
-                                                False)
-            #data_hist = self.folded_bin.ExtractHistogram("unfold_input_extracted",
-            #                                             data_hist,
-            #                                             0,  # error matrix
-            #                                             False,
-            #                                             projection_mode)
+        if self.iterative:
+            data_hist = self.input_hist_for_iterEM
         else:
-            data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
-                                                ctypes.c_char_p(0),
-                                                ctypes.c_char_p(0),
-                                                ctypes.c_char_p(0),
-                                                True)
-
+            if self.use_tunfoldbinning:
+                # it seems parameter axis steering not passed properly so use ExtractHistogram()
+                data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
+                                                    ctypes.c_char_p(0),
+                                                    ctypes.c_char_p(0),
+                                                    ctypes.c_char_p(0),
+                                                    False)
+                #data_hist = self.folded_bin.ExtractHistogram("unfold_input_extracted",
+                #                                             data_hist,
+                #                                             0,  # error matrix
+                #                                             False,
+                #                                             projection_mode)
+            else:
+                data_hist = self.tunfolder.GetInput("unfold_input",  # histogram title
+                                                    ctypes.c_char_p(0),
+                                                    ctypes.c_char_p(0),
+                                                    ctypes.c_char_p(0),
+                                                    True)
         return data_hist
+
+    def get_folded_hist(self,):
+        return self.tunfolder.GetFoldedOutput("",
+                                              ctypes.c_char_p(0),
+                                              ctypes.c_char_p(0),
+                                              ctypes.c_char_p(0),
+                                              False)
+
+    def get_arr_without_uoflow(self, arr, folded_bin=True):
+
+        tunfold_bin = self.folded_bin
+        if not folded_bin:
+            tunfold_bin = self.unfolded_bin
+
+        arr_no_uoflow = []
+        for i in range(len(arr)):
+            if 'ufl' in str(tunfold_bin.GetBinName(i + 1)) or 'ofl' in str(tunfold_bin.GetBinName(i + 1)):
+                continue
+            arr_no_uoflow.append(arr[i])
+        arr_no_uoflow = np.array(arr_no_uoflow)
+        return arr_no_uoflow
+
+    def get_unfold_output_input_ibin_shifted(self, ibin, up=True):
+        shifted_input = self.get_input_hist().Clone("shifted_input")
+        stat_err = shifted_input.GetBinError(ibin)
+        if not up:
+            stat_err = -1. * stat_err
+        shifted_input.SetBinContent(ibin, shifted_input.GetBinContent(ibin)+stat_err)
+
+        tunfolder = self._create_tunfolder()
+        tunfolder.SetInput(shifted_input)
+        self.unfold(sys_tunfolder=tunfolder)
+
+        return self.get_unfolded_hist(tunfolder=tunfolder)
+
+    def get_ematrix_input(self):
+        # TUnfoldDensity have its own GetEmatrixInput()
+        # but TUnfoldIterative doesn't
+        # for TUnfoldIterative, get error matrix by
+        error_matrix = ROOT.TUnfoldBinning.CreateHistogramOfMigrations(self.unfolded_bin, self.unfolded_bin, "ematrix")
+        unfolded_hist = self.get_unfolded_hist()
+
+        n_bins = unfolded_hist.GetNbinsX()
+        for i in range(n_bins+1):
+            up = self.get_unfold_output_input_ibin_shifted(i+1)
+            down = self.get_unfold_output_input_ibin_shifted(i+1, up=False)
+            for a in range(n_bins):
+                da = 0.5 * (up.GetBinContent(a+1)-down.GetBinContent(a+1))
+                for b in range(n_bins):
+                    db = 0.5 * (up.GetBinContent(b+1)-down.GetBinContent(b+1))
+                    cov = error_matrix.GetBinContent(a+1, b+1) + da*db
+                    error_matrix.SetBinContent(a+1, b+1, cov)
+        return error_matrix
 
     # TODO understand what is required by this chi2 test
     def get_chi2(self, folded=True, projection_mode="*[*]", use_axis_binning=True):
+        # FIXME for 1D case
         if folded:
             data_hist = self.get_input_hist(projection_mode, use_axis_binning)
             expectation_hist = self.get_mc_reco_from_response_matrix(projection_mode, use_axis_binning)
+
+            data_values = Hist(data_hist).to_numpy()[0]
+            expectation_values = Hist(expectation_hist).to_numpy()[0]
+            data_errors = Hist(data_hist).to_numpy()[2]
+
+            data_values = self.get_arr_without_uoflow(data_values)
+            expectation_values = self.get_arr_without_uoflow(expectation_values)
+            data_errors = self.get_arr_without_uoflow(data_errors)
+
+            # TODO maybe need to handle non-diagonal errors
+            chi2 = np.sum(np.square((data_values-expectation_values) / data_errors))
+            print("folded chi2: ", chi2)
+            return chi2
         else:
             data_hist = self.get_unfolded_hist(projection_mode, use_axis_binning)
-            expectation_hist = self.get_mc_truth_from_response_matrix(projection_mode, use_axis_binning)
+            expectation_hist = self.get_mc_truth_from_response_matrix()
 
-        # negligible effect on ch2 value?
-        data_hist.Scale(1, "width")
-        expectation_hist.Scale(1, "width")
+            data_values = Hist(data_hist).to_numpy()[0]
+            expectation_values = Hist(expectation_hist).to_numpy()[0]
+            data_errors = Hist(data_hist).to_numpy()[2]
 
-        data_values = Hist(data_hist).to_numpy()[0]
-        expectation_values = Hist(expectation_hist).to_numpy()[0]
-        data_errors = Hist(data_hist).to_numpy()[2]
+            data_values = self.get_arr_without_uoflow(data_values, folded_bin=False)
+            expectation_values = self.get_arr_without_uoflow(expectation_values, folded_bin=False)
+            data_errors = self.get_arr_without_uoflow(data_errors, folded_bin=False)
 
-        # TODO maybe need to handle non-diagonal errors
-        chi2 = np.sum(np.square((data_values - expectation_values) / data_errors))
+            # FIXME IterativeEM doesn't have GetEmatrixInput, use custom method to calculate it?
+            # remove underflow and overflow bins (to avoid zero)
+            if not self.iterative:
+                mCovInput = self.tunfolder.GetEmatrixInput("mCovInput")
+                input_stat_error_list = []
+                for i_x in range(mCovInput.GetNbinsX()):
+                    if 'ufl' in str(self.unfolded_bin.GetBinName(i_x+1)) or 'ofl' in str(self.unfolded_bin.GetBinName(i_x+1)):
+                        continue
+                    reco_list = []
+                    for i_y in range(mCovInput.GetNbinsY()):
+                        if 'ufl' in str(self.unfolded_bin.GetBinName(i_y+1)) or 'ofl' in str(self.unfolded_bin.GetBinName(i_y+1)):
+                            continue
+                        reco_list.append(mCovInput.GetBinContent(i_x + 1, i_y + 1))
+                    input_stat_error_list.append(reco_list)
 
-        return chi2
+                input_stat_error_np = np.array(input_stat_error_list)
+                A_inv = np.linalg.inv(input_stat_error_np)
+
+                result1 = A_inv.dot(data_values-expectation_values)
+                chi2 = (data_values-expectation_values).dot(result1)
+                print("unfolded chi2: ", chi2)
+            else:
+                chi2 = np.sum(np.square((data_values-expectation_values) / data_errors))
+                #print("data-exp ", data_values-expectation_values)
+                #print("error ", data_errors)
+                print("unfolded chi2: ", chi2)
+            return chi2
 
     def condition_number(self, draw_matrix=False):
         h_prob_matrix = self.tunfolder.GetProbabilityMatrix("hProb")
@@ -476,7 +678,7 @@ class TUnFolder:
         folded_hist = self.get_input_hist(projection_mode, use_axis_binning)
         folded_expectation_hist = self.get_mc_reco_from_response_matrix(projection_mode, use_axis_binning)
         unfolded_hist = self.get_unfolded_hist(projection_mode, use_axis_binning)
-        unfolded_expectation_hist = self.get_mc_truth_from_response_matrix(projection_mode, use_axis_binning)
+        unfolded_expectation_hist = self.get_mc_truth_from_response_matrix()
 
         folded_hist.Scale(1, "width")
         folded_expectation_hist.Scale(1, "width")
@@ -488,46 +690,9 @@ class TUnFolder:
         unfolded_hist = Hist(unfolded_hist)
         unfolded_expectation_hist = Hist(unfolded_expectation_hist)
 
-        if draw_plot:
-            # TODO make a generic function to draw comparison plot
-            plotter = Plotter('CMS',
-                              '/Users/junhokim/Work/cms_snu/ISR/Plots')  # FIXME use self.plotter
-            plotter.create_subplots(2, 1, figsize=(8,8),
-                                    left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
-
-            plotter.set_experiment_label(**{"year": self.year})
-            # measurement
-            # plotter.add_comparison()
-
-            plotter.add_comparison_pair(folded_hist, folded_expectation_hist, location=(0,0), ratio_location=(1,0),
-                                        nominator_args={"histtype": 'errorbar',
-                                                        "color": 'black', 'label': 'RECO Data'},
-                                        denominator_args={"histtype": 'errorbar', 'marker':"s",
-                                                          "color": 'red', 'mfc': 'none',
-                                                          "label": 'RECO Sim'})
-            plotter.draw_hist()
-
-            plotter.add_comparison_pair(unfolded_hist, unfolded_expectation_hist, location=(0,0), ratio_location=(1,0),
-                                        nominator_args={"histtype": 'errorbar', "color": 'gray', 'label': 'Unfolded Data'},
-                                        denominator_args={"histtype": 'errorbar', 'marker':"s", "color": 'blue', 'mfc': 'none',
-                                                          "label": 'GEN Sim'})
-
-            plotter.draw_hist()
-
-            plotter.set_common_comparison_plot_cosmetics('ll')
-            plotter.show_legend(location=(0, 0))
-            plotter.get_axis(location=(0, 0)).set_xticklabels([])
-            plotter.adjust_y_scale()
-            plotter.add_text(text='$\chi_{folded}^{2}:$' + str(round(folded_chi2, 2))+'\n$\chi_{unfolded}^{2}:$' +
-                                  str(round(unfolded_chi2, 2)),
-                             location=(0,0),
-                             **{"loc": "upper left",})  # Note: required to after setting legend
-            plotter.get_axis(location=(1, 0)).set_ylim(0.4, 1.6)
-            plotter.save_fig(out_name + "_btl_test_" + self.channel + self.year)
-
         return folded_chi2 > unfolded_chi2
 
-    def get_mc_truth_from_response_matrix(self):
+    def get_mc_truth_from_response_matrix(self,):
         return self.projection_matrix(self.response_matrix.get_raw_hist())
 
     def get_mc_reco_from_response_matrix(self):

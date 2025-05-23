@@ -655,7 +655,6 @@ class ISRHists:
                                                         bin_width_norm=bin_width_norm)
         signal_hist = self.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
                                                    bin_width_norm=bin_width_norm, key='simulation')
-
         text = self.get_additional_text_on_plot(mass_window_index)
 
         suffix = '_acceptance_corrected'
@@ -697,8 +696,11 @@ class ISRHists:
                          linestyle='--', label='Stat')
         for sys_name_ in relative_systematic_hist.systematics:
             sys_error = relative_systematic_hist.systematics[sys_name_]
+            kwargs = {}
+            if sys_name_ == 'matrix_stat':
+                kwargs['linestyle'] = '--'
             plotter.add_hist((sys_error, bins, None), as_denominator=False, yerr=False, show_err_band=False,
-                             label=sys_name_)
+                             label=sys_name_, **kwargs)
         plotter.draw_hist()
         if not self.is_pt:
             plotter.get_axis(location=(0, 0)).set_xscale("log")
@@ -711,7 +713,8 @@ class ISRHists:
 
     def draw_systematic_hists(self, sys_name, mass_window_index=-1, bin_width_norm=False,
                               hist_type='unfolded_measurement', key='measurement'):
-        measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']
+        #measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']
+        measurement_hist = self.isr_hists_per_mass_window[mass_window_index].truth_signal_hist
         systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
         plotter = measurement_hist.plotter
@@ -728,7 +731,7 @@ class ISRHists:
         plotter.draw_hist()
 
         plotter.draw_ratio_hists(location=(1, 0))
-        plotter.get_axis(location=(1, 0)).set_ylim(0.9, 1.1)
+        plotter.get_axis(location=(1, 0)).set_ylim(0.8, 1.2)
 
         plotter.save_and_reset_plotter("test_sys_" + sys_name + "_" + self.channel + self.year)
 

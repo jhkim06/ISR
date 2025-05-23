@@ -109,7 +109,7 @@ class PlotItem(Hist):
         self.show_err_band = show_err_band
 
     def divide(self, other=None):
-        divided_hist = super().divide(other)
+        divided_hist = super().divide(other, use_default_denominator=True)
         return PlotItem(divided_hist, location=self.location, as_stack=self.as_stack, as_denominator=self.as_denominator,
                         use_for_ratio=self.use_for_ratio, not_to_draw=self.not_to_draw,
                         yerr=self.show_y_err,

@@ -16,6 +16,7 @@ def to_numpy(raw_root_hist):
     bins = []
     errors = []
 
+    # ignore underflow/overflow
     n_bins_x = raw_root_hist.GetNbinsX()
     for i_bin in range(n_bins_x):
         value = raw_root_hist.GetBinContent(i_bin + 1)
@@ -168,20 +169,40 @@ class Hist(object):
         central_values = to_numpy(self.raw_root_hist)[0]
 
         for sys_name, variations in self.systematic_raw_root_hists.items():
-            diffs = []
+            # 1) build the diffs array for every variation
+            diffs_list = []
             for var_name, hist in variations.items():
-                variation_values = to_numpy(hist)[0]
-                diff = (variation_values-central_values)
-                diffs.append(diff)
-            diffs = np.array(diffs)
+                variation_values = to_numpy(hist)[0]  # shape (n_bins,)
+                diffs_list.append(variation_values - central_values)
+            diffs_arr = np.stack(diffs_list, axis=0)  # shape (n_variations, n_bins)
 
-            # TODO check is it right way to calculate PDF uncertainty?
-            if sys_name == "pdf" or sys_name == "roccor_stat":
-                sys_val = np.sqrt(np.mean(diffs ** 2, axis=0))
+            if sys_name in ("pdf", "roccor_stat"):
+                # 2) compute the per‐bin sigma across *all* variations
+                sigma = np.std(diffs_arr, axis=0, ddof=0)  # shape (n_bins,)
+
+                # 3) now mask out any pull |Δ| > 5σ (set them to zero)
+                #    note: if sigma==0, we leave the pull untouched
+                mask = (np.abs(diffs_arr) <= 5 * sigma) | (sigma == 0)
+                masked_diffs = diffs_arr * mask
+
+                # 4) compute the RMS over only the kept pulls
+                #    we divide by the number of kept pulls in each bin
+                kept_counts = mask.sum(axis=0)  # how many survived per bin
+                # avoid division by zero (if a bin somehow lost *all* pulls, set RMS=0 there)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    mean_sq = np.where(kept_counts > 0,
+                                       (masked_diffs ** 2).sum(axis=0) / kept_counts,
+                                       0.0)
+                sys_val = np.sqrt(mean_sq)  # final per‐bin uncertainty
+
             else:
-                sys_val = np.sqrt(np.sum(diffs ** 2, axis=0))
+                # for everything else just do a straight RSS
+                sys_val = np.sqrt((diffs_arr ** 2).sum(axis=0))
 
-            self.systematics[sys_name] = sys_val  # RSS for this sys_name
+            self.systematics[sys_name] = sys_val
+
+            self.systematics[sys_name] = sys_val
+
             # self.systematics_th1[sys_name] =
             #if sys_name == "pdf":
             #    print("compute_systematic_rss_per_sysname", np.sqrt(squared_sum))
@@ -213,7 +234,8 @@ class Hist(object):
 
         return ratio_error_band
 
-    def _apply_systematics_operation(self, other, operation, postfix, scale=1):
+    def _apply_systematics_operation(self, other, operation, postfix, scale=1,
+                                     use_default_denominator=False):
         result = {}
         if other is None:
             return copy.deepcopy(self.systematic_raw_root_hists)
@@ -229,9 +251,13 @@ class Hist(object):
 
             for var_name in all_var_names:
                 # Use default hist if missing
-                # TODO is ok for ratio plot?
                 self_hist = self_vars.get(var_name, self.raw_root_hist)
-                other_hist = other_vars.get(var_name, other.raw_root_hist)
+                # how the error band for ratio plot should be done?
+                # add option to use default denominator
+                if operation == 'Divide' and use_default_denominator:
+                    other_hist = other.raw_root_hist
+                else:
+                    other_hist = other_vars.get(var_name, other.raw_root_hist)
 
                 new_hist = self_hist.Clone(f"{sys_name}_{var_name}_{postfix}")
                 if operation == "Add":
@@ -259,7 +285,7 @@ class Hist(object):
     def __sub__(self, other=None):
         return self.__add__(other, -1)
 
-    def divide(self, other=None):
+    def divide(self, other=None, use_default_denominator=False):
         divided_hist = self.raw_root_hist.Clone("divided")
 
         if other is not None:
@@ -267,7 +293,8 @@ class Hist(object):
 
         result = self.create(hist=divided_hist)
         result.systematic_raw_root_hists = self._apply_systematics_operation(other,
-                                                                             "Divide", "divided")
+                                                                             "Divide", "divided",
+                                                                             use_default_denominator=use_default_denominator)
         result.compute_systematic_rss_per_sysname()
         return result
 

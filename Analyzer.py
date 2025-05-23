@@ -95,6 +95,7 @@ class Analyzer:
             "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
             "alpha_s:signal": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
             "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
+            "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},
             # unfold matrix statistical
         }
         pdf_signal_variations = {
@@ -108,7 +109,6 @@ class Analyzer:
             for i in range(9)
         }
         # Check what PDF scale means, how to calculate uncertainty
-        #self.systematics.update({"scale:signal": scale_signal_variations})
 
         emomentum_scale_variations = {"up": ("momentum_correction", "egammacor_s1m-1", 1.0),
                                       "down": ("momentum_correction", "egammacor_s1m1", 1.0)}
@@ -136,10 +136,6 @@ class Analyzer:
             self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
 
         if self.channel == 'mm':
-            #self.systematics.update({"momentum_zpt:all": mmomentum_zpt_variations})
-            #self.systematics.update({"momentum_ewk:all": mmomentum_ewk_variations})
-            #self.systematics.update({"momentum_deltaM:all": mmomentum_deltaM_variations})
-            #self.systematics.update({"momentum_ewk2:all": mmomentum_ewk2_variations})
             self.systematics.update({"roccor:all": mmomentum_variations})
             self.systematics.update({"roccor_stat:all": mmomentum_stat})
 
@@ -160,7 +156,7 @@ class Analyzer:
         return self.data.get_mc(process_name, self.year, self.channel, label=label)
 
     def set_systematics_on_hist(self, file_group, hist, hist_name, hist_name_prefix='',
-                                bin_width_norm=False):
+                                bin_width_norm=False, sys_name_to_ignore=''):
         is_measurement = hist.is_measurement
         is_signal = hist.is_mc_signal
 
@@ -180,6 +176,8 @@ class Analyzer:
                 use_sys_config = False  # fallback if unknown apply_to
 
             for variation_name, sys_config in value.items():
+                if sys_name_to_ignore == sys_name:
+                    use_sys_config = False
                 if use_sys_config:
                     hist_name_ = hist_name+"_"+sys_config[1] if sys_config[1] else hist_name
                     # FIXME option to use systematic root file
@@ -210,7 +208,7 @@ class Analyzer:
         return hist
 
     def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False,
-                    force_sys_off=False):
+                    sys_dir_name='default', force_sys_off=False, sys_name_to_ignore=''):
         file_group = self.get_mc(process_name)
         is_signal = False
         if process_name == self.signal_name:
@@ -219,14 +217,14 @@ class Analyzer:
         hist = file_group.get_combined_root_hists(hist_name, event_selection=self.event_selection,
                                                   hist_name_prefix=hist_name_prefix,
                                                   bin_width_norm=bin_width_norm, norm=norm,
-                                                  is_signal=is_signal,
+                                                  is_signal=is_signal, sys_dir_name=sys_dir_name,
                                                   scale=scale)
         sys_on = self.sys_on
         if force_sys_off:
             sys_on = False
         if sys_on:
             self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
-                                         bin_width_norm=bin_width_norm)
+                                         bin_width_norm=bin_width_norm, sys_name_to_ignore=sys_name_to_ignore)
             hist.compute_systematic_rss_per_sysname()
         return hist
 
