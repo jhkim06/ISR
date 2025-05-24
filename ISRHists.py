@@ -550,9 +550,9 @@ class ISRHists:
 
         # Add signal and measurement
         kwargs =get_hist_kwargs(signal_hist.get_label())
-        if not signal_as_stack:
-            kwargs['histtype'] = 'errorbar'
-            kwargs['mfc'] = 'none'
+        #if not signal_as_stack:
+        #    kwargs['histtype'] = 'errorbar'
+        #    kwargs['mfc'] = 'none'
         plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator,
                          **kwargs)
         plotter.add_hist(measurement_hist, as_denominator=not mc_denominator,
@@ -626,12 +626,12 @@ class ISRHists:
         sim_input_hist = self.get_hist_in_mass_window("reco_signal", mass_window_index,
                                                       bin_width_norm=bin_width_norm)
 
-        plotter.add_hist(input_hist, as_denominator=not mc_denominator, label='Data (reco)',
-                         histtype='errorbar', color='gray', mfc='none',)
-        plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY')
+        #plotter.add_hist(input_hist, as_denominator=not mc_denominator, label='Data (reco)',
+        #                 histtype='errorbar', color='gray', mfc='none',)
+        #plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY')
 
-        plotter.draw_hist()
-        plotter.draw_ratio_hists(location=(1, 0))
+        #plotter.draw_hist()
+        #plotter.draw_ratio_hists(location=(1, 0))
 
         plotter.show_legend()
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
@@ -713,8 +713,8 @@ class ISRHists:
 
     def draw_systematic_hists(self, sys_name, mass_window_index=-1, bin_width_norm=False,
                               hist_type='unfolded_measurement', key='measurement'):
-        #measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']
-        measurement_hist = self.isr_hists_per_mass_window[mass_window_index].truth_signal_hist
+        measurement_hist = self.get_hist_in_mass_window(hist_type, mass_window_index,
+                                                        bin_width_norm=bin_width_norm, key=key)
         systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
         plotter = measurement_hist.plotter
@@ -735,7 +735,38 @@ class ISRHists:
 
         plotter.save_and_reset_plotter("test_sys_" + sys_name + "_" + self.channel + self.year)
 
-    def draw_correlations(self, mass_window_index=-1,):
+    def draw_response_matrix(self, mass_window_index=-1, **kwargs_hist2dplot):
+        # Choose the relevant ISR hist container
+        if self.is_pt and not self.is_2d:
+            isr_hist_to_draw = self.isr_hists[mass_window_index]
+        else:
+            isr_hist_to_draw = self.isr_hists[0]
+        # Fetch the target hist or dict of hists
+        attr_name = 'tunfolder'
+        tunfolder = getattr(isr_hist_to_draw, attr_name)
+        useAxisBinning = True
+        if self.is_pt:
+            useAxisBinning = False
+        raw_2d, condition_number = tunfolder.get_response_matrix(useAxisBinning)  # directly from TUnfold
+        plotter = raw_2d.plotter
+
+        plotter.init_plotter(rows=1, cols=1, left=0.12, right=0.9)
+        plotter.set_experiment_label(label='Simulation', **{'year': tunfolder.year})
+        if self.is_pt:
+            x_axis_label = "Truth bin index $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+            y_axis_label = "Reconstructed bin index $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+        else:
+            x_axis_label = "Truth $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
+            y_axis_label = "Reconstructed $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
+            # self.x_axis_label = r"$p_{T}^{" + change_to_greek(self.channel) + "}$ [GeV]"
+        plotter.draw_matrix(raw_2d.to_numpy_2d(), x_axis_label=x_axis_label, y_axis_label=y_axis_label,
+                            **kwargs_hist2dplot)
+        plotter.add_text("condition number: " + str(round(condition_number, 2)),
+                         location=(0,0), do_magic=False,
+                         **{"loc": "upper left",})
+        plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_RM_" + self.channel + self.year)
+
+    def draw_correlations(self, mass_window_index=-1, **kwargs_hist2dplot):
         # Choose the relevant ISR hist container
         if self.is_pt and not self.is_2d:
             isr_hist_to_draw = self.isr_hists[mass_window_index]
@@ -745,23 +776,43 @@ class ISRHists:
         # Fetch the target hist or dict of hists
         attr_name = 'tunfolder'
         tunfolder = getattr(isr_hist_to_draw, attr_name)
-        raw_2d = Hist(tunfolder.tunfolder.GetRhoIJtotal("test"))  # directly from TUnfold
+        useAxisBinning = True
+        if self.is_pt:
+            useAxisBinning = False
+        raw_2d = Hist(tunfolder.get_correlation_matrix(useAxisBinning))  # directly from TUnfold
         plotter = raw_2d.plotter
-        plotter.init_plotter(rows=1, cols=1)
-        plotter.draw_matrix(raw_2d.to_numpy_2d(), "test")
-        plotter.save_and_reset_plotter("test")
+
+        plotter.init_plotter(rows=1, cols=1, left=0.12, right=0.9)
+        plotter.set_experiment_label(**{'year': tunfolder.year})
+        if self.is_pt:
+            x_axis_label = "Unfolded bin index $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+            y_axis_label = "Unfolded bin index $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+        else:
+            x_axis_label = "Unfolded $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
+            y_axis_label = "Unfolded $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
+            # self.x_axis_label = r"$p_{T}^{" + change_to_greek(self.channel) + "}$ [GeV]"
+        plotter.draw_matrix(raw_2d.to_numpy_2d(), x_axis_label=x_axis_label, y_axis_label=y_axis_label,
+                            **kwargs_hist2dplot)
+        plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_correlation_" + self.channel + self.year)
 
     def draw_bin_efficiency(self, mass_window_index=-1,):
         if self.is_pt and not self.is_2d:
             isr_hist_to_draw = self.isr_hists[mass_window_index]
         else:
             isr_hist_to_draw = self.isr_hists[0]
+
         attr_name = 'tunfolder'
         tunfolder = getattr(isr_hist_to_draw, attr_name)
+
         x_log = True
         if self.is_pt:
             x_log = False
-        tunfolder.draw_bin_efficiency(x_log=x_log)
+        plotter = tunfolder.draw_bin_efficiency(x_log=x_log, save_and_reset_plotter=False)
+        plotter.show_legend()
+        plotter.current_axis.set_xlabel(self.x_axis_label)
+        plotter.current_axis.set_ylabel("Fraction")
+
+        plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_eff_purity_" + self.channel + self.year)
 
     def draw_pt_comparisons(self, *others, index=2):
         reference_hist = self.get('acceptance_corrected', index, bin_width_norm=True, scale=-1)

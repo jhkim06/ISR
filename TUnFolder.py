@@ -610,7 +610,7 @@ class TUnFolder:
 
         return Hist(hist_purity, 'hist_purity')
 
-    def draw_bin_efficiency(self, x_log=True):
+    def draw_bin_efficiency(self, x_log=True, save_and_reset_plotter=True):
         ROOT.TH1.SetDefaultSumw2()  # FIXME
         prob_matrix = self.tunfolder.GetProbabilityMatrix("histProb", ";P_T(gen);P_T(rec)")
         bin_efficiency_hist = Hist(prob_matrix.ProjectionX("histEfficiency"), "bin_efficiency")
@@ -619,9 +619,9 @@ class TUnFolder:
 
         plotter = bin_efficiency_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
-        plotter.set_experiment_label(year=self.input_hist.year)
-        plotter.add_hist(bin_efficiency_hist, as_denominator=False)
-        plotter.add_hist(bin_purity_hist, as_denominator=False)
+        plotter.set_experiment_label(label='Simulation', year=self.input_hist.year)
+        plotter.add_hist(bin_efficiency_hist, as_denominator=False, label='Efficiency', yerr=False, show_err_band=False)
+        plotter.add_hist(bin_purity_hist, as_denominator=False, label='Purity', yerr=False, show_err_band=False)
         plotter.draw_hist()
 
         plotter.get_axis(location=(0, 0)).set_ylim(0., 1.05)
@@ -643,11 +643,16 @@ class TUnFolder:
 
         if x_log:
             plotter.get_axis(location=(0, 0)).set_xscale("log")
-        plotter.save_and_reset_plotter("bin_efficiency")
+
+        if save_and_reset_plotter:
+            plotter.save_and_reset_plotter("bin_efficiency")
+            return None
+        else:
+            return plotter
 
     def draw_response_matrix(self, out_name=''):
         plotter = Plotter('CMS',
-                          '/Users/junhokim/Work/cms_snu/ISR/Plots')  # FIXME use self.plotter
+                          '/Users/junhokim/Work/cms_snu/ISR/Plots')
         plotter.create_subplots(1, 1, figsize=(8, 8),
                                 left=0.15, right=0.9, hspace=0.0, bottom=0.15)
         plotter.set_experiment_label(label="Simulation")
@@ -662,10 +667,16 @@ class TUnFolder:
                          **{"loc": "upper left",})
         plotter.save_fig(out_name + "_rm_" +  self.channel + self.year)
 
-    def get_response_matrix(self):
+    def get_correlation_matrix(self, useAxisBinning=False):
+
+        return self.tunfolder.GetRhoIJtotal("correlation_matrix",
+                                            ctypes.c_char_p(0), ctypes.c_char_p(0), ctypes.c_char_p(0),
+                                            useAxisBinning)
+
+    def get_response_matrix(self, useAxisBinning=True):
         return Hist(self.tunfolder.GetProbabilityMatrix(ctypes.c_char_p(0),
                                                         ctypes.c_char_p(0),
-                                                        True))
+                                                        useAxisBinning)), self.condition_number()
 
     # FIXME
     # general comparison template?

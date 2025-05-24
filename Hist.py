@@ -167,7 +167,6 @@ class Hist(object):
         if self.is_TH2: return
 
         central_values = to_numpy(self.raw_root_hist)[0]
-
         for sys_name, variations in self.systematic_raw_root_hists.items():
             # 1) build the diffs array for every variation
             diffs_list = []
@@ -200,12 +199,6 @@ class Hist(object):
                 sys_val = np.sqrt((diffs_arr ** 2).sum(axis=0))
 
             self.systematics[sys_name] = sys_val
-
-            self.systematics[sys_name] = sys_val
-
-            # self.systematics_th1[sys_name] =
-            #if sys_name == "pdf":
-            #    print("compute_systematic_rss_per_sysname", np.sqrt(squared_sum))
         self.update_symmetric_error_array()
 
     def set_systematic_hist(self, sys_name, sys_variation_name, raw_hist):

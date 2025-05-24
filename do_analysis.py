@@ -2,6 +2,9 @@ from ISRAnalyzer import ISRAnalyzer
 from ISRCombiner import ISRCombiner
 import logging
 from Plotter import Plotter
+import ROOT
+import sys
+ROOT.gROOT.SetBatch(True)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -14,33 +17,33 @@ def unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True):
     return analyzer.get_isr_results()
 
 
-soft_blue = (86 / 255, 180 / 255, 233 / 255)
+soft_blue =    (86 / 255, 180 / 255, 233 / 255)
 soft_orange =  (230 / 255, 159 / 255, 0 / 255)
-soft_green = (0 / 255, 158 / 255, 115 / 255)
+soft_green =   (0 / 255, 158 / 255, 115 / 255)
 red =  (213 / 255, 94 / 255, 0 / 255)
 
 
 mass_bins_1d = [(55.0, 64.0),
-             (55.0, 68.0),
-             #(55.0, 81.0),
-             (64.0, 81.0),
-             (72.0, 91.0),
-             (81.0, 101.0),
-             (91.0, 110.0),
-             #(101.0, 150.0),
-             (101.0, 200.0),
-             (106.0, 220.0),
-             (110.0, 243.0),
-             (115.0, 273.0),
-             (120.0, 320.0),
-             (126.0, 380.0),
-             (133.0, 440.0),
-             (141.0, 510.0),
-             (150.0, 600.0),
-             (160.0, 700.0),
-             (171.0, 830.0),
-             (200.0, 1000.0),
-             ]
+                (55.0, 68.0),
+                #(55.0, 81.0),
+                (64.0, 81.0),
+                (72.0, 91.0),
+                (81.0, 101.0),
+                (91.0, 110.0),
+                #(101.0, 150.0),
+                (101.0, 200.0),
+                (106.0, 220.0),
+                (110.0, 243.0),
+                (115.0, 273.0),
+                (120.0, 320.0),
+                (126.0, 380.0),
+                (133.0, 440.0),
+                (141.0, 510.0),
+                (150.0, 600.0),
+                (160.0, 700.0),
+                (171.0, 830.0),
+                (200.0, 1000.0),
+                ]
 '''
 sample_base_dir = '/Users/junhokim/Work/cms_snu/data/Ultralegacy/'
 pt_bins_ = (0.0, 100.0)  # actually pt cut
@@ -124,34 +127,34 @@ def main():
 
     mass_dict = {}
     pt_dict = {}
+    use_2d_pt = True
 
     for setup in setups:
         period = setup["period"]
         channel = setup["channel"]
         event_selection = setup["event_selection"]
 
+        reg_mode = 'None'
         analyzer = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins)
-        pt, mass = unfold_and_correct(analyzer, period, channel, event_selection, is_2d=True)
+        analyzer.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=use_2d_pt)
+        tau, _ = analyzer.mass_isr_unfold(do_iterative=False, reg_mode=reg_mode, tau_scan_method='scan_lcurve')
+        analyzer.pt_isr_unfold(do_iterative=False)
+        analyzer.isr_acceptance_corrections()
+        pt, mass = analyzer.get_isr_results()
         pt.set_ISRHistSet_per_mass_window()
         mass.set_ISRHistSet_per_mass_window()
 
         analyzer_1d = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False)
-        pt_1d, mass_1d = unfold_and_correct(analyzer_1d, period, channel, event_selection, is_2d=False)
+        analyzer_1d.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=use_2d_pt)
+        analyzer_1d.mass_isr_unfold(do_iterative=False, tau=tau,  # use the same regularization strength
+                                    reg_mode=reg_mode, tau_scan_method=None)
+        analyzer_1d.pt_isr_unfold(do_iterative=False)
+        analyzer_1d.isr_acceptance_corrections()
+        pt_1d, mass_1d = analyzer_1d.get_isr_results()
         pt_1d.set_ISRHistSet_per_mass_window()
         mass_1d.set_ISRHistSet_per_mass_window()
 
-        analyzer_nlo = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, signal="DY:aMCNLO", acceptance="DY", sys_on=False)
-        pt_nlo, mass_nlo = unfold_and_correct(analyzer_nlo, period, channel, event_selection, is_2d=True)
-        pt_nlo.set_ISRHistSet_per_mass_window()
-        mass_nlo.set_ISRHistSet_per_mass_window()
-
-
-        pt.add_external_hist_as_sys_hist(pt_1d, '1d_2d')
-        mass.add_external_hist_as_sys_hist(mass_1d, '1d_2d')
-
-        pt.add_external_hist_as_sys_hist(pt_nlo, 'matrix')
-        mass.add_external_hist_as_sys_hist(mass_nlo, 'matrix')
-
+        pt.add_external_hist_as_sys_hist(pt_1d, '1d_2d')  # mass use only 1D unfolding
         #pt_others = []
         #test_aMCNLO = ISRAnalyzer(sample_base_dir,
         #                        mass_bins,
@@ -167,7 +170,6 @@ def main():
         #    test_LO.setup_isr_acceptance_hists(period, channel, "", is_2d=False)
         #    pt_LO, mass_LO = test_LO.get_isr_results()
         #    pt_others.append(pt_LO)
-
         pt.draw_isr_plot(mass)
 
         for index in range(len(mass_bins)):
@@ -177,9 +179,8 @@ def main():
             pt.draw_fake_hists(index, bin_width_norm=True)
             pt.draw_unfold_closure(index, bin_width_norm=True)
             pt.draw_unfolded_level(index, bin_width_norm=True, mc_denominator=False)
-            # TODO draw LO also
             pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=False)
-            # TODO draw each systematic
+            pt.draw_systematic_summary(mass_window_index=index)
 
         #pt.draw_unfold_inputs(-1, bin_width_norm=False)
         #pt.draw_detector_level(-1, bin_width_norm=False)
@@ -188,12 +189,20 @@ def main():
         mass.draw_background_fractions(0)
         mass.draw_detector_level(0, bin_width_norm=True)
         mass.draw_unfolded_level(0, bin_width_norm=True, mc_denominator=False)
+        mass.draw_response_matrix(mass_window_index=0, cbarsize='3%', cbarpad=0)
+        mass.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
+        mass.draw_bin_efficiency()
+        if use_2d_pt:
+            pt.draw_response_matrix(mass_window_index=0, cbarsize='3%', cbarpad=0)
+            pt.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
+            pt.draw_bin_efficiency()
         mass.draw_acceptance_corrected_level(0, bin_width_norm=True, mc_denominator=False)
+        mass.draw_systematic_summary(mass_window_index=0)
 
         # Same-sign
         ss_test = ISRAnalyzer(sample_base_dir,
-                           mass_bins,
-                           pt_bins)
+                              mass_bins,
+                              pt_bins)
         ss_test.background_names = [('top', 'antitop'),
                                     'TTLL', 'GGLL', ('ZZ', 'WZ', 'WW'), 'DYJetsToTauTau_MiNNLO']
 
@@ -240,7 +249,6 @@ def main():
     mass_combined_final, pt_combined_final = combiner_all.combine()
 
     periods = ["2016a", "2016b", "2017", "2018"]
-    #periods = ["2016a", "2016b", "2017"]
 
     color_map = {
         "2016a": (86 / 255, 180 / 255, 233 / 255),
@@ -337,3 +345,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    sys.exit(0)

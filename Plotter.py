@@ -172,13 +172,14 @@ class Plotter:
         self.legend_labels.clear()
         self.y_minimum = 999.
 
-    def init_plotter(self, figsize=(8,8), rows=1, cols=1,):
+    def init_plotter(self, figsize=(8,8), rows=1, cols=1,
+                     left=0.15, right=0.95, bottom=0.15, top=0.95,):
         if rows == 2 and cols == 1:
             self.create_subplots(rows, cols, figsize=figsize,
-                                         left=0.15, right=0.95, hspace=0.0, bottom=0.15, height_ratios=[1, 0.3])
+                                 left=left, right=right, hspace=0.0, bottom=bottom, height_ratios=[1, 0.3])
         elif rows == 1 and cols == 1:
             self.create_subplots(rows, cols, figsize=figsize,
-                                         left=0.15, right=0.95, hspace=0.0, bottom=0.15)
+                                 left=left, right=right, hspace=0.0, bottom=bottom)
         else:
             # FIXME
             self.create_subplots(rows, cols, figsize=figsize,)
@@ -517,8 +518,7 @@ class Plotter:
         self.add_hist(denominator_hist, location=location, as_denominator=True, **denominator_args)
         self.draw_ratio_hists(location=ratio_location)
 
-    def draw_matrix(self, rm_np, variable_name, **kwargs):
-
+    def draw_matrix(self, rm_np, x_axis_label="", y_axis_label="", **kwargs):
         self.set_current_axis((0, 0))
         # hep.hist2dplot(rm_np, norm=mcolors.LogNorm(), ax=self.current_axis, **kwargs)
         hep.hist2dplot(rm_np, ax=self.current_axis, **kwargs)
@@ -546,8 +546,8 @@ class Plotter:
                                            rm_np[2][y] + y_half_width,
                                            f'{c:.2f}', va='center', ha='center', fontsize=15, color='red')
 
-        self.current_axis.set_ylabel(variable_name + "(Reco) [GeV]", fontsize=30)
-        self.current_axis.set_xlabel(variable_name + "(Gen) [GeV]", fontsize=30)
+        self.current_axis.set_ylabel(y_axis_label, fontsize=30)
+        self.current_axis.set_xlabel(x_axis_label, fontsize=30)
 
     def add_custom_axis_tick_labels(self, locates, labels, location=(0, 0)):
         self.set_current_axis(location=location)
