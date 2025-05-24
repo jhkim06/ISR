@@ -5,6 +5,8 @@ class Acceptance:
         self.mc_hist_full_phase = mc_hist_full_phase
         self.mc_hist_in_acceptance = mc_hist_in_acceptance
         self._set_acceptance()
+        # Systematic on acceptance correction?
+        # Statistical,
 
     def _set_acceptance(self):
         self.acceptance_hist = self.mc_hist_full_phase.divide(self.mc_hist_in_acceptance)

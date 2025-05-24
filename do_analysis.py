@@ -233,9 +233,9 @@ def main():
     for key in mass_dict:
         period, channel = key.split("_")
         if channel == "ee":
-            combiner_ee.get_results_dfs(key, mass_dict[key].get_df(), pt_dict[key].get_df())
+            combiner_ee.get_results_dfs(key, mass_dict[key].get_mean_df(), pt_dict[key].get_mean_df())
         elif channel == "mm":
-            combiner_mm.get_results_dfs(key, mass_dict[key].get_df(), pt_dict[key].get_df())
+            combiner_mm.get_results_dfs(key, mass_dict[key].get_mean_df(), pt_dict[key].get_mean_df())
 
     # TODO delete 
 

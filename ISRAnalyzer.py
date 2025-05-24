@@ -346,8 +346,6 @@ class ISRAnalyzer(Analyzer):
                            folded_bin=folded_bin, unfolded_bin=unfolded_bin, iterative=do_iterative)
 
         if not do_iterative:
-            #unfold.tunfolder.RegularizeCurvature(4, 5, 6)
-            #unfold.tunfolder.RegularizeCurvature(5, 6, 7)
             unfold.apply_custom_regularization_for_mass()
 
         # Tikhonov regularisation comparable to IterativeEM with 4 iteration
@@ -410,11 +408,7 @@ class ISRAnalyzer(Analyzer):
                 mass_bin_postfix = '_' + str(self.mass_bins[index][0]) + 'to' + str(self.mass_bins[index][1])
                 matrix_name = self.pt_matrix_name_prefix+mass_bin_postfix
 
-            raw_response_matrix = self.get_acceptance_hist(matrix_name)
-            mc_acceptance_hist = Hist(
-                self.isr_pt.isr_hists[index].tunfolder.projection_matrix(
-                    raw_response_matrix.raw_root_hist))
-
+            mc_acceptance_hist = self.isr_pt.isr_hists[index].tunfolder.get_mc_truth_from_response_matrix(sys_on=True)
             unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist
 
             acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
@@ -443,7 +437,7 @@ class ISRAnalyzer(Analyzer):
         mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
 
         unfolded_hist = self.isr_mass.isr_hists[0].unfolded_measurement_hist
-        mc_acceptance_hist = self.isr_mass.isr_hists[0].truth_signal_hist
+        mc_acceptance_hist = self.isr_mass.isr_hists[0].tunfolder.get_mc_truth_from_response_matrix(sys_on=True)
 
         acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)

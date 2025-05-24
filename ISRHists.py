@@ -5,6 +5,7 @@ from Analyzer import labels, colors, get_hist_kwargs
 from HistTUnfoldBin import HistTUnfoldBin
 import pandas as pd
 import numpy as np
+from ISRLinearFitter import ISRLinearFitter
 
 
 def normalize(hist, bin_width_norm=True):
@@ -389,14 +390,15 @@ class ISRHists:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
 
-    def get_df(self, key='measurement', other=None, binned_mean_correction=True,):
+    # TODO systematics on binned_mean_correction?
+    def get_mean_df(self, key='measurement', other=None, binned_mean_correction=True, ):
         # Choose whether to pull from self or another instance
         source = other if other is not None else self
         # Build the base dataframe
         df = pd.concat(source.acceptance_corrected_mean_values[key], ignore_index=True)
         # If PT case, compute and apply correction
         if source.is_pt:
-            bmc = source.binned_mean_correction_factors
+            bmc = source.binned_mean_correction_factors  # unbinned mean values
             df_sim = pd.concat(source.acceptance_corrected_mean_values['simulation'], ignore_index=True)
             bmc = bmc / df_sim['mean']
             if binned_mean_correction:
@@ -408,14 +410,15 @@ class ISRHists:
         if isinstance(mass, pd.DataFrame):
             mass_mean = mass
         else:
-            mass_mean = self.get_df(key=key, other=mass,)
+            mass_mean = self.get_mean_df(key=key, other=mass, )
         if isinstance(pt, pd.DataFrame):
             pt_mean = pt
         else:
-            pt_mean = self.get_df(key=key, other=pt,)
+            pt_mean = self.get_mean_df(key=key, other=pt, )
 
-        print(pt_mean)
+        print(pt_mean, mass_mean)
         plotter.add_errorbar((mass_mean, pt_mean), **kwargs)
+        return pt_mean, mass_mean
 
     def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement', **kwargs):
         if self.is_pt and other.is_pt == False:
@@ -431,13 +434,19 @@ class ISRHists:
         plotter = measurement_hist.plotter
 
         plotter.init_plotter(figsize=(10,8), rows=1, cols=1)
-
-        self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, label=self.year,
-                          **kwargs,)
-
+        pt_mean, mass_mean = self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, label=self.year,
+                                               **kwargs,)
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
         text = isr_mass.get_additional_text_on_plot()
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right", })
+
+        fitter = ISRLinearFitter(mass_mean, pt_mean)
+        slope, slope_err, intercept, intercept_err = fitter.do_fit()
+
+        # draw fit result
+        x = np.linspace(50, 400, 350)
+        y = 2.0 * slope * np.log10(x) + intercept
+        plotter.current_axis.plot(x, y)
 
         if save_and_reset_plotter:
             if key == 'simulation':
