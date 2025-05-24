@@ -180,6 +180,7 @@ def main():
             pt.draw_unfold_closure(index, bin_width_norm=True)
             pt.draw_unfolded_level(index, bin_width_norm=True, mc_denominator=False)
             pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=False)
+            pt.draw_acceptance(mass_window_index=index, bin_width_norm=True)
             pt.draw_systematic_summary(mass_window_index=index)
 
         #pt.draw_unfold_inputs(-1, bin_width_norm=False)
@@ -190,6 +191,7 @@ def main():
         mass.draw_detector_level(0, bin_width_norm=True)
         mass.draw_unfolded_level(0, bin_width_norm=True, mc_denominator=False)
         mass.draw_response_matrix(mass_window_index=0, cbarsize='3%', cbarpad=0)
+        mass.draw_acceptance(mass_window_index=0, bin_width_norm=True)
         mass.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
         mass.draw_bin_efficiency()
         if use_2d_pt:
@@ -234,6 +236,8 @@ def main():
             combiner_ee.get_results_dfs(key, mass_dict[key].get_df(), pt_dict[key].get_df())
         elif channel == "mm":
             combiner_mm.get_results_dfs(key, mass_dict[key].get_df(), pt_dict[key].get_df())
+
+    # TODO delete 
 
     # Combine all periods for each channel
     mass_combined_ee, pt_combined_ee = combiner_ee.combine()

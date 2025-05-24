@@ -300,16 +300,7 @@ class ISRAnalyzer(Analyzer):
             unfolded_hist.compute_systematic_rss_per_sysname()
 
             # Create truth signal
-            truth_signal_hist = signal_fake_hist.create(
-                hist=unfold.get_mc_truth_from_response_matrix(),
-                hist_name="_", label='Truth DY',
-            )
-
-            if 'matrix_model' in matrix.systematic_raw_root_hists:
-                matrix_model = matrix.systematic_raw_root_hists['matrix_model']['matrix_model']
-                truth_signal_hist_matrix_model = unfold.projection_matrix(matrix_model)
-                truth_signal_hist.set_systematic_hist('matrix_model', 'matrix_model',
-                                                      truth_signal_hist_matrix_model)
+            truth_signal_hist = unfold.get_mc_truth_from_response_matrix(sys_on=True)
 
             raw_hist = unfold.get_mc_reco_from_response_matrix()
             reco_signal_hist = signal_fake_hist.create(
@@ -388,18 +379,7 @@ class ISRAnalyzer(Analyzer):
             hist=closure.get_unfolded_hist(),
             hist_name="_", label='Unfolded DY',
         )
-        raw_hist = unfold.get_mc_truth_from_response_matrix()
-        truth_signal_hist = signal_fake_hist.create(
-            hist=raw_hist,
-            hist_name='_',
-            label='Truth DY'
-        )
-
-        if 'matrix_model' in matrix.systematic_raw_root_hists:
-            matrix_model = matrix.systematic_raw_root_hists['matrix_model']['matrix_model']
-            truth_signal_hist_matrix_model = unfold.projection_matrix(matrix_model)
-            truth_signal_hist.set_systematic_hist('matrix_model', 'matrix_model',
-                                                  truth_signal_hist_matrix_model)
+        truth_signal_hist = unfold.get_mc_truth_from_response_matrix(sys_on=True)
 
         raw_hist = unfold.get_mc_reco_from_response_matrix()
         reco_signal_hist = signal_fake_hist.create(

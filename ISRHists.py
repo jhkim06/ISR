@@ -626,12 +626,12 @@ class ISRHists:
         sim_input_hist = self.get_hist_in_mass_window("reco_signal", mass_window_index,
                                                       bin_width_norm=bin_width_norm)
 
-        #plotter.add_hist(input_hist, as_denominator=not mc_denominator, label='Data (reco)',
-        #                 histtype='errorbar', color='gray', mfc='none',)
-        #plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY')
+        plotter.add_hist(input_hist, as_denominator=not mc_denominator, label='Data (reco)',
+                         histtype='errorbar', color='gray', mfc='none',)
+        plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY')
 
-        #plotter.draw_hist()
-        #plotter.draw_ratio_hists(location=(1, 0))
+        plotter.draw_hist()
+        plotter.draw_ratio_hists(location=(1, 0))
 
         plotter.show_legend()
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
@@ -648,6 +648,30 @@ class ISRHists:
         if self.is_2d:
             suffix = '_closure_'+str(mass_window_index)
         self._draw_comparison_plot(unfolded_signal_hist, truth_signal_hist, text=text, suffix=suffix)
+
+    def draw_acceptance(self, mass_window_index=-1, bin_width_norm=False):
+        full_phase_hist = self.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
+                                                       bin_width_norm=bin_width_norm, key='simulation')
+        fiducial_phase_hist = self.get_hist_in_mass_window("truth_signal", mass_window_index,
+                                                          bin_width_norm=bin_width_norm)
+
+        plotter = full_phase_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.set_experiment_label(label='Simulation', **{'year': full_phase_hist.year})
+
+        plotter.add_hist(full_phase_hist, as_denominator=True, not_to_draw=True, yerr=False)
+        plotter.add_hist(fiducial_phase_hist, as_denominator=False, not_to_draw=True, yerr=False)
+        plotter.draw_ratio_hists(location=(0, 0), show_normalized_error_band=False)
+
+        if not self.is_pt:
+            plotter.current_axis.set_xscale("log")
+        plotter.current_axis.set_xlabel(self.x_axis_label)
+        plotter.current_axis.set_ylabel("Acceptance")
+        text = self.get_additional_text_on_plot(mass_window_index)
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower left"})
+
+        plotter.save_and_reset_plotter(full_phase_hist.hist_name + "_acceptance" + "_" +
+                                       str(mass_window_index) + "_" + self.channel + self.year)
 
     def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False,
                                         mc_denominator=True, others=None):

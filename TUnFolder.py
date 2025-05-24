@@ -703,13 +703,28 @@ class TUnFolder:
 
         return folded_chi2 > unfolded_chi2
 
-    def get_mc_truth_from_response_matrix(self,):
-        return self.projection_matrix(self.response_matrix.get_raw_hist())
+    def get_mc_truth_from_response_matrix(self, sys_on=False):
+        if sys_on:
+            # extract all systematic hist
+            truth_hist = Hist(self.projection_matrix(self.response_matrix.get_raw_hist()),
+                              hist_name=self.response_matrix.hist_name+"_projected_truth",
+                              year=self.year, channel=self.channel, label='Truth DY')
+
+            for sys_name, variations in self.response_matrix.systematic_raw_root_hists.items():
+                if sys_name == 'matrix_model':
+                    continue
+                for var_name, hist in variations.items():
+                    temp_matrix = self.projection_matrix(hist)
+                    truth_hist.set_systematic_hist(sys_name, var_name, temp_matrix)
+            truth_hist.compute_systematic_rss_per_sysname()
+            return truth_hist
+        else:
+            return self.projection_matrix(self.response_matrix.get_raw_hist())
 
     def get_mc_reco_from_response_matrix(self):
         return self.projection_matrix(self.response_matrix.get_raw_hist(), project_x=False)
 
-    def projection_matrix(self, raw_2d_hist, project_x=True):
+    def projection_matrix(self, raw_2d_hist, project_x=True, sys_on=False):
         if project_x:
             projected_hist = raw_2d_hist.ProjectionX("histMCTruth", 0, -1, "e")
         else:

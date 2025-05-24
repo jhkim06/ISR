@@ -325,7 +325,7 @@ class Plotter:
         return sum((self.plot_items[i] for i in index[1:]),
                    self.plot_items[index[0]])
 
-    def draw_ratio_hists(self, location=(0, 0)):
+    def draw_ratio_hists(self, location=(0, 0), show_normalized_error_band=True):
         nominator_index, denominator_index = self.set_ratio_hist()
 
         def is_stackable(indices):
@@ -364,7 +364,8 @@ class Plotter:
             print("Invalid nominator/denominator config")
             exit(1)
 
-        self.draw_normalized_error_band(denom_hist, location=location)
+        if show_normalized_error_band:
+            self.draw_normalized_error_band(denom_hist, location=location)
         self.draw_hist()
         # TODO add on/off option
 
@@ -393,6 +394,7 @@ class Plotter:
         ratio_hist.use_for_ratio = False
         ratio_hist.show_y_err = False
         ratio_hist.location = location
+        ratio_hist.not_to_draw = False
         self.plot_items.append(ratio_hist)
         # return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
 
