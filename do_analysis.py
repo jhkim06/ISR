@@ -4,6 +4,8 @@ import logging
 from Plotter import Plotter
 import ROOT
 import sys
+from ISRLinearFitter import ISRLinearFitter
+import numpy as np
 ROOT.gROOT.SetBatch(True)
 
 
@@ -44,6 +46,7 @@ mass_bins_1d = [(55.0, 64.0),
                 (171.0, 830.0),
                 (200.0, 1000.0),
                 ]
+
 '''
 sample_base_dir = '/Users/junhokim/Work/cms_snu/data/Ultralegacy/'
 pt_bins_ = (0.0, 100.0)  # actually pt cut
@@ -90,6 +93,13 @@ def draw_isr_plot_from_df(mass, pt, save_and_reset_plotter=True, postfix='', **k
         #                     color=soft_blue, label='NLO', linestyle='dashdot', linewidth=1.)
         #plotter.add_errorbar((mass_lo_1d.get_df(key=key), pt_lo_1d.get_df(key=key)),
         #                     color=soft_orange, label='LO', linestyle='dashdot', linewidth=1.)
+        fitter = ISRLinearFitter(mass, pt)
+        slope, slope_err, intercept, intercept_err = fitter.do_fit()
+
+        # draw fit result
+        x = np.linspace(50, 400, 350)
+        y = 2.0 * slope * np.log10(x) + intercept
+        plotter.current_axis.plot(x, y)
 
         plotter.set_isr_plot_cosmetics(channel='ll',)
         text = r"$p_{T}^{ll}<$ 100 GeV"
@@ -295,6 +305,7 @@ def main():
             mass_dict[reference_period],
             key='measurement',
             save_and_reset_plotter=False,
+            do_fit=False,
             color=color_map.get(periods[0], 'black'),
             marker=marker_map.get(periods[0], 'o'),
             linestyle='none',
@@ -308,6 +319,7 @@ def main():
                 plotter,
                 mass_dict[period_key],
                 pt_dict[period_key],
+                do_fit=False,
                 label=period,
                 color=color_map.get(period, 'black'),
                 marker=marker_map.get(period, 'o'),
@@ -321,6 +333,7 @@ def main():
                 plotter,
                 mass_combined,
                 pt_combined,
+                do_fit=True,
                 label='Combined',
                 color='black',
                 marker='*',

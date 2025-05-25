@@ -184,6 +184,8 @@ class Plotter:
             # FIXME
             self.create_subplots(rows, cols, figsize=figsize,)
 
+        self.set_current_axis()
+
         self._stack_bottoms.clear()
         for r in range(rows):
             for c in range(cols):

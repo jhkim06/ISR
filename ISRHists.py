@@ -405,8 +405,7 @@ class ISRHists:
                 df['mean'] *= bmc
         return df
 
-    def add_isr_plot(self, plotter, mass, pt, key='measurement', **kwargs):
-
+    def add_isr_plot(self, plotter, mass, pt, key='measurement', do_fit=False, **kwargs):
         if isinstance(mass, pd.DataFrame):
             mass_mean = mass
         else:
@@ -418,9 +417,19 @@ class ISRHists:
 
         print(pt_mean, mass_mean)
         plotter.add_errorbar((mass_mean, pt_mean), **kwargs)
+
+        if do_fit:
+            fitter = ISRLinearFitter(mass_mean, pt_mean)
+            slope, slope_err, intercept, intercept_err = fitter.do_fit()
+
+            # draw fit result
+            x = np.linspace(50, 400, 350)
+            y = 2.0 * slope * np.log10(x) + intercept
+            plotter.current_axis.plot(x, y)
         return pt_mean, mass_mean
 
-    def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement', **kwargs):
+    def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement',
+                      do_fit=True, **kwargs):
         if self.is_pt and other.is_pt == False:
             isr_pt = self
             isr_mass = other
@@ -434,19 +443,11 @@ class ISRHists:
         plotter = measurement_hist.plotter
 
         plotter.init_plotter(figsize=(10,8), rows=1, cols=1)
-        pt_mean, mass_mean = self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, label=self.year,
+        pt_mean, mass_mean = self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, do_fit=do_fit, label=self.year,
                                                **kwargs,)
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
         text = isr_mass.get_additional_text_on_plot()
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right", })
-
-        fitter = ISRLinearFitter(mass_mean, pt_mean)
-        slope, slope_err, intercept, intercept_err = fitter.do_fit()
-
-        # draw fit result
-        x = np.linspace(50, 400, 350)
-        y = 2.0 * slope * np.log10(x) + intercept
-        plotter.current_axis.plot(x, y)
 
         if save_and_reset_plotter:
             if key == 'simulation':
