@@ -201,6 +201,22 @@ class Hist(object):
             self.systematics[sys_name] = sys_val
         self.update_symmetric_error_array()
 
+    def get_systematics(self, merge_statistics=False, sys_names_to_merge=[('matrix_stat', 'matrix_model', 'Unfolding'),
+                                                                          ('roccor_stat', 'roccor', 'Roccor'),
+                                                                          ('momentum_scale', 'momentum_resolution', 'momentum_correction')]):
+        if merge_statistics:
+            # find sys_stat sys_***
+            new_systematics = copy.deepcopy(self.systematics)
+            for sys_name in sys_names_to_merge:
+                if sys_name[0] in new_systematics:
+                    combined = np.sqrt(new_systematics[sys_name[0]]**2 + new_systematics[sys_name[1]]**2)
+                    new_systematics[sys_name[2]] = combined
+                    del new_systematics[sys_name[0]]
+                    del new_systematics[sys_name[1]]
+            return new_systematics
+        else:
+            return self.systematics
+
     def set_systematic_hist(self, sys_name, sys_variation_name, raw_hist):
 
         if sys_name not in self.systematic_raw_root_hists:
@@ -342,6 +358,21 @@ class Hist(object):
         else:
             return target_hist.GetMean(), target_hist.GetMeanError()
 
+    def get_sys_mean_dfs(self, sys_name, binned_mean=True, range_min=None, range_max=None):
+        sys_means = []
+        for var_name, hist in self.systematic_raw_root_hists[sys_name].items():
+            central_mean, err = self.get_mean(binned_mean=binned_mean, range_min=range_min,
+                                                        range_max=range_max, target_hist=hist)
+            result = {
+                "mean": central_mean,
+                "stat": err
+            }
+            result = pd.DataFrame([result])
+            error_columns = result.columns.difference(['mean'])
+            result['total_error'] = np.sqrt((result[error_columns] ** 2).sum(axis=1))
+            sys_means.append(result)
+        return sys_means
+
     # get mean from TH1 and return as dataframe
     def get_mean_df(self, binned_mean=True, range_min=None, range_max=None):
         central_mean, central_error = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max)
@@ -355,7 +386,7 @@ class Hist(object):
 
             # Temporary
             maximum_pdf_delta = 0
-            if sys_name == "pdf":
+            if sys_name == "pdf" or "_stat" in sys_name:
                 for var_name, hist in variations.items():
                     var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
                                                 target_hist=hist)
@@ -368,8 +399,8 @@ class Hist(object):
                 var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
                                             target_hist=hist)
                 delta = var_mean-central_mean
-                if sys_name == "pdf":
-                    if abs(delta) > 0.99 * maximum_pdf_delta:
+                if sys_name == "pdf" or "_stat" in sys_name:
+                    if abs(delta) > 0.9999 * maximum_pdf_delta:
                         print(f"Skipping systematic {sys_name} with variation {var_name} because it is an outlier.")
                         continue
                 ## otherwise accept it
@@ -380,7 +411,6 @@ class Hist(object):
                 sys_val = np.sqrt(np.mean(diffs ** 2))
             else:
                 sys_val = np.sqrt(np.sum(diffs ** 2))
-
             result[sys_name] = sys_val
 
         result = pd.DataFrame([result])

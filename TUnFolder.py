@@ -80,6 +80,7 @@ class TUnFolder:
         self.tau_scan_method = tau_scan_method
         self.n_iterative = n_iterative
         self.custom_regularization_for_mass = False
+        self.custom_regularization_for_pt = False
 
         self.reg_strength = 0
         self.iter_best = 0
@@ -106,6 +107,28 @@ class TUnFolder:
             tunfolder.RegularizeCurvature(5, 6, 7)
 
         self.custom_regularization_for_mass = True
+
+    def apply_custom_regularization_for_pt(self, tunfolder=None):
+        ndim = self.folded_bin.GetDistributionDimension()
+        if ndim == 2:
+            # for 2d pt
+            if tunfolder is None:
+                #self.tunfolder.RegularizeCurvature(51, 52, 53)
+                self.tunfolder.RegularizeDerivative(53, 43)
+                self.tunfolder.RegularizeDerivative(51, 41)
+                self.tunfolder.RegularizeDerivative(52, 42, -2)
+                #self.tunfolder.RegularizeCurvature(52, 53, 54)
+            else:
+                #tunfolder.RegularizeCurvature(51, 52, 53)
+                tunfolder.RegularizeDerivative(53, 43)
+                tunfolder.RegularizeDerivative(51, 41)
+                tunfolder.RegularizeDerivative(52, 42, -2)
+                #tunfolder.RegularizeCurvature(52, 53, 54)
+        else:
+            self.tunfolder.RegularizeCurvature(1, 2, 3)
+            self.tunfolder.RegularizeCurvature(2, 3, 4)
+
+        self.custom_regularization_for_pt = True
 
     def _create_tunfolder(self, sys_name='', var_name='', other_matrix=None):
         if sys_name:
@@ -138,8 +161,11 @@ class TUnFolder:
                                                 REG_MODE[self.reg_mode],
                                                 EX_CONSTRAINTS[self.ex_constraint],
                                                 DENSITY_MODE[self.density_mode])
-        if sys_name and self.custom_regularization_for_mass:
-            self.apply_custom_regularization_for_mass(tunfolder)
+        if sys_name:
+            if self.custom_regularization_for_mass:
+                self.apply_custom_regularization_for_mass(tunfolder)
+            if self.custom_regularization_for_pt:
+                self.apply_custom_regularization_for_pt(tunfolder)
         return tunfolder
 
     def _set_tunfolder_input(self, sys_name='', var_name='', sys_tunfolder=None):
@@ -190,7 +216,8 @@ class TUnFolder:
                     tunfolder.DoUnfold(int(max_iter))
                     self.iter_best = max_iter
                 else:
-                    self.reg_strength = tunfolder.DoUnfold(tau)
+                    tunfolder.DoUnfold(tau)
+                    self.reg_strength = tau
             else:
                 if self.iterative:
                     tunfolder.DoUnfold(int(self.iter_best))
@@ -208,10 +235,6 @@ class TUnFolder:
                                                 self.graphSURE,
                                                 self.df_deviance,
                                                 self.lcurve)
-                    #tunfolder.RegularizeCurvature(5, 6, 7)
-                    #tunfolder.RegularizeCurvature(6, 7, 8)
-                    #tunfolder.RegularizeCurvature(7, 8, 9)
-                    #tunfolder.RegularizeCurvature(8, 9, 10)
                     print("TAU: ", tunfolder.GetTau())
                     self.reg_strength = tunfolder.GetTau()
                 # print(self.reg_strength)

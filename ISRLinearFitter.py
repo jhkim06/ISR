@@ -6,7 +6,7 @@ class ISRLinearFitter:
         self.mass_mean = mass_mean
         self.pt_mean = pt_mean
 
-        self.fit_funct = "2.* [0] * TMath::Log10(x) + [1]"
+        self.fit_funct = "2.* [0] * TMath::Log(x) + [1]"
         self.slope = 0
         self.intercept = 0
         self.slope_err = 0
@@ -17,7 +17,7 @@ class ISRLinearFitter:
         graph = TGraphErrors(len(self.mass_mean['mean']))
         for index in range(len(self.pt_mean['mean'])):
             graph.SetPoint(index, self.mass_mean['mean'][index], self.pt_mean['mean'][index])
-            graph.SetPointError(index, self.mass_mean['total_error'][index], self.pt_mean['total_error'][index])
+            graph.SetPointError(index, self.mass_mean['stat'][index], self.pt_mean['stat'][index])
 
         funct = TF1("funct", self.fit_funct, 50, 400)
         graph.Fit("funct")

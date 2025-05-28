@@ -257,10 +257,13 @@ class ISRAnalyzer(Analyzer):
         self.pt_isr_unfold()
         self.mass_isr_unfold()
 
-    def pt_isr_unfold(self, tau=0.0, max_iter=0,
-                      do_iterative=False, do_scan_sure=False):
+    def pt_isr_unfold(self, tau=0.0, max_iter=4,
+                      reg_mode='None', tau_scan_method=None,
+                      do_iterative=False, do_iterative_for_last_window=False):
+
         def run_unfold(mass_window_index, is2d=False, tau=tau, max_iter=max_iter,
-                       do_iterative=do_iterative, do_scan_sure=do_scan_sure):
+                       do_iterative=do_iterative, tau_scan_method=tau_scan_method,
+                       do_iterative_for_last_window=do_iterative_for_last_window):
             # Fetch ISR inputs
             input_hist, signal_hist, signal_fake_hist, background_hists, matrix = (
                 self.isr_pt.get_isr_hists(mass_window_index=mass_window_index)
@@ -268,19 +271,28 @@ class ISRAnalyzer(Analyzer):
             unfolded_bin = self.isr_pt.unfolded_tunfold_bin
             folded_bin = self.isr_pt.folded_tunfold_bin
 
+            if not is2d and mass_window_index == 4 and do_iterative_for_last_window:
+                do_iterative = True
             # Perform unfolding
             unfold = TUnFolder(matrix, input_hist, signal_fake_hist,
                                bg_hists=background_hists,
                                unfolded_bin=unfolded_bin,
                                folded_bin=folded_bin,
-                               variable_name='', iterative=do_iterative,)
-            # FIXME IteratvieEM?
-            tau, max_iter = unfold.unfold(tau=tau, max_iter=2,)
+                               variable_name='', iterative=do_iterative,
+                               reg_mode=reg_mode, tau_scan_method=tau_scan_method,)
+
+            if not do_iterative and tau_scan_method is not None:
+                print("apply regularisation for pt")
+                unfold.apply_custom_regularization_for_pt()
+
+            #print("initial tau for pt ", tau)
+            tau, max_iter = unfold.unfold(tau=tau, max_iter=max_iter,)
             # closure (simple)
             closure = TUnFolder(matrix, signal_hist, signal_fake_hist,
-                               unfolded_bin=unfolded_bin,
-                               folded_bin=folded_bin,
-                               variable_name='', iterative=do_iterative,)
+                                unfolded_bin=unfolded_bin,
+                                folded_bin=folded_bin,
+                                variable_name='', iterative=do_iterative,
+                                reg_mode=reg_mode, tau_scan_method=None,)
             closure.unfold(tau=tau, max_iter=max_iter,)
             self.isr_pt.isr_hists[mass_window_index].tunfolder = unfold
 
@@ -323,16 +335,20 @@ class ISRAnalyzer(Analyzer):
                 HistTUnfoldBin(reco_signal_hist, folded_bin))
             self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = (
                 HistTUnfoldBin(unfolded_signal_hist, unfolded_bin))
+            return tau, max_iter
 
         if self.isr_pt.is_2d:
-            run_unfold(0, is2d=True)
+            return run_unfold(0, is2d=True, tau=tau, max_iter=max_iter,
+                              do_iterative=do_iterative, tau_scan_method=tau_scan_method)
         else:
             for index, _ in enumerate(self.mass_bins):
-                run_unfold(index)
+                run_unfold(index, is2d=False, tau=tau, max_iter=max_iter,
+                           do_iterative=do_iterative, tau_scan_method=tau_scan_method,
+                           do_iterative_for_last_window=do_iterative_for_last_window)
 
     def mass_isr_unfold(self, tau=0.0, max_iter=4,
                         reg_mode='None', tau_scan_method=None,
-                        do_iterative=False, do_scan_sure=False):
+                        do_iterative=False):
         input_hist, signal_hist, signal_fake_hist, background_hists, matrix = self.isr_mass.get_isr_hists()
 
         unfolded_bin = self.isr_mass.unfolded_tunfold_bin
@@ -345,7 +361,7 @@ class ISRAnalyzer(Analyzer):
                            reg_mode=reg_mode, tau_scan_method=tau_scan_method,
                            folded_bin=folded_bin, unfolded_bin=unfolded_bin, iterative=do_iterative)
 
-        if not do_iterative:
+        if not do_iterative and tau_scan_method is not None:
             unfold.apply_custom_regularization_for_mass()
 
         # Tikhonov regularisation comparable to IterativeEM with 4 iteration
@@ -408,11 +424,16 @@ class ISRAnalyzer(Analyzer):
                 mass_bin_postfix = '_' + str(self.mass_bins[index][0]) + 'to' + str(self.mass_bins[index][1])
                 matrix_name = self.pt_matrix_name_prefix+mass_bin_postfix
 
+            # FIXME get matrix from ROOT file
             mc_acceptance_hist = self.isr_pt.isr_hists[index].tunfolder.get_mc_truth_from_response_matrix(sys_on=True)
             unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist
 
             acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
             acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
+            # TODO add statistical uncertainty for acceptance correction
+            acceptance_corrected.systematic_raw_root_hists.update({"accept_stat":
+                                                                       acceptance_corr.get_accept_stat(unfolded_hist)})
+            acceptance_corrected.compute_systematic_rss_per_sysname()
 
             unfolded_bin = self.isr_pt.unfolded_tunfold_bin
             self.isr_pt.set_acceptance_corrected_hist(
@@ -441,6 +462,9 @@ class ISRAnalyzer(Analyzer):
 
         acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
+        acceptance_corrected.systematic_raw_root_hists.update({"accept_stat":
+                                                                   acceptance_corr.get_accept_stat(unfolded_hist)})
+        acceptance_corrected.compute_systematic_rss_per_sysname()
 
         unfolded_bin = self.isr_mass.unfolded_tunfold_bin
         self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin))

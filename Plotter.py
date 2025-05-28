@@ -52,6 +52,8 @@ def extract_color_from_handle(handle):
 
     # Convert whatever you got (hex str, name, or RGBA tuple) into pure '#rrggbb'
     try:
+        #print("use this color!")
+        #print(mcolors.to_hex(raw_color))
         return mcolors.to_hex(raw_color)
     except Exception:
         # fallback: just str it
@@ -359,8 +361,10 @@ class Plotter:
                 for idx in nominator_index:
                     ratio_hist = self.plot_items[idx].divide(denom_hist)
                     self.add_ratio_hist(ratio_hist, location)
+                    #print(ratio_hist.plot_kwargs)
                     self.draw_hist()
-                self.draw_normalized_error_band(denom_hist, location=location)
+                if show_normalized_error_band:
+                    self.draw_normalized_error_band(denom_hist, location=location)
                 return
         else:
             print("Invalid nominator/denominator config")
@@ -403,8 +407,6 @@ class Plotter:
     def show_legend(self, location=(0, 0), **kwargs_):
         self.set_current_axis(location=location)
         kwargs = {"loc": 'best', 'fontsize': 17} | kwargs_
-        #print(self.legend_handles[location])
-        #print(self.legend_labels[location])
         self.current_axis.legend(self.legend_handles[location],
                                  self.legend_labels[location], **kwargs)
         try:
@@ -512,7 +514,14 @@ class Plotter:
         at = AnchoredText(text, prop=dict(size=20, color=color), **kwargs)
         self.current_axis.add_artist(at)
         if do_magic:
-            hep.plot.mpl_magic(self.current_axis)  # error without legend?
+            #hep.plot.mpl_magic(self.current_axis)  # error without legend?
+            try:
+                hep.plot.mpl_magic(self.current_axis)
+            except RuntimeError as e:
+                # swallow only the “Could not fit legend” error,
+                # let any other RuntimeError bubble up
+                if "Could not fit legend" not in str(e):
+                    raise
         #plt.rcParams['text.usetex'] = False
 
     def add_comparison_pair(self, nominator_hist, denominator_hist,
@@ -588,9 +597,14 @@ class Plotter:
             handles, labels = self.current_axis.get_legend_handles_labels()
             label = self.errorbar_kwargs[index].get("label", None)
             if label:
-
                 self.legend_handles[self.errorbar_loc[index]].append(handles[-1])
                 self.legend_labels[self.errorbar_loc[index]].append(labels[-1])
+
+    def update_legend(self, location=(0, 0)):
+        handles, labels = self.get_axis(location=location).get_legend_handles_labels()
+        #label = self.errorbar_kwargs[index].get("label", None)
+        self.legend_handles[location].append(handles[-1])
+        self.legend_labels[location].append(labels[-1])
 
     def draw_vlines(self, vlines, location=(0, 0), **kwargs):
         for line in vlines:

@@ -63,7 +63,7 @@ class Analyzer:
                               'TTLL', 'GGLL', ('ZZ', 'WZ', 'WW'),
                               'DYJetsToTauTau_MiNNLO'],
                 sys_on=True,
-                 analysis_name=''):
+                analysis_name=''):
 
         self.data = CMSData(sample_base_dir)
 
@@ -91,12 +91,17 @@ class Analyzer:
 
         self.systematics.clear()
         self.systematics = {
-            # apply only to background Hist
             "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
             "alpha_s:signal": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
             "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
             "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},
-            # unfold matrix statistical
+            "btagSF:simulation": {"hup": ("sys", "btagSF_hup", 1.0),
+                                  "hdown": ("sys", "btagSF_hdown", 1.0),
+                                  "lup": ("sys", "btagSF_lup", 1.0),
+                                  "ldown": ("sys", "btagSF_ldown", 1.0)},
+            "puWeight:simulation": {"up": ("sys", "PUweight_up", 1.0), "down": ("sys", "PUweight_down", 1.0)},
+            "prefireweight:simulation": {"up": ("sys", "prefireweight_up", 1.0),
+                                         "down": ("sys", "prefireweight_down", 1.0)},
         }
         pdf_signal_variations = {
             str(i): ("pdf", f"pdf{i}", 1.0)
@@ -105,10 +110,11 @@ class Analyzer:
         self.systematics.update({"pdf:signal": pdf_signal_variations})
 
         scale_signal_variations = {
-            str(i): ("pdf:signal", f"scalevariation{i}", 1.0)
+            str(i): ("pdf", f"scalevariation{i}", 1.0)
             for i in range(9)
+            if i not in (5, 7)
         }
-        # Check what PDF scale means, how to calculate uncertainty
+        self.systematics.update({"scale:signal": scale_signal_variations})
 
         emomentum_scale_variations = {"up": ("momentum_correction", "egammacor_s1m-1", 1.0),
                                       "down": ("momentum_correction", "egammacor_s1m1", 1.0)}
@@ -131,13 +137,86 @@ class Analyzer:
         mmomentum_variations.update(mmomentum_ewk2_variations)
         #mmomentum_variations.update(mmomentum_stat)
 
+        muonIDSF_variations = {"s1": ("sys", "muonIDSF_s1_m0", 1.0),
+                                   "s2": ("sys", "muonIDSF_s2_m0", 1.0),
+                                   "s3": ("sys", "muonIDSF_s3_m0", 1.0),
+                                   "s4": ("sys", "muonIDSF_s4_m0", 1.0),
+                                   "s5": ("sys", "muonIDSF_s5_m0", 1.0),
+                                   "s6": ("sys", "muonIDSF_s6_m0", 1.0),
+                                   "s7_m0": ("sys", "muonIDSF_s7_m0", 1.0),
+                                   "s7_m1": ("sys", "muonIDSF_s7_m1", 1.0),
+                                   "s8_m0": ("sys", "muonIDSF_s8_m0", 1.0),
+                                   "s8_m1": ("sys", "muonIDSF_s8_m1", 1.0),
+                                   "s9": ("sys", "muonIDSF_s9_m0", 1.0),
+                                   "s10": ("sys", "muonIDSF_s10_m0", 1.0),
+                                   "s11_m0": ("sys", "muonIDSF_s11_m0", 1.0),
+                                   "s11_m1": ("sys", "muonIDSF_s11_m1", 1.0),
+                                   "s12_m0": ("sys", "muonIDSF_s12_m0", 1.0),
+                                   "s12_m1": ("sys", "muonIDSF_s12_m1", 1.0),
+                                   "s13_m0": ("sys", "muonIDSF_s13_m0", 1.0),
+                                   "s13_m1": ("sys", "muonIDSF_s13_m1", 1.0),
+                                   "s14": ("sys", "muonIDSF_s14_m0", 1.0),
+                                   "s15": ("sys", "muonIDSF_s15_m0", 1.0),
+                                   "s16": ("sys", "muonIDSF_s16_m0", 1.0),
+                                   }
+
+        electronIDSF_variations = {"s1": ("sys", "electronIDSF_s1_m0", 1.0),
+                                   "s2": ("sys", "electronIDSF_s2_m0", 1.0),
+                                   "s3": ("sys", "electronIDSF_s3_m0", 1.0),
+                                   "s4": ("sys", "electronIDSF_s4_m0", 1.0),
+                                   "s5": ("sys", "electronIDSF_s5_m0", 1.0),
+                                   "s6": ("sys", "electronIDSF_s6_m0", 1.0),
+                                   "s7_m0": ("sys", "electronIDSF_s7_m0", 1.0),
+                                   "s7_m1": ("sys", "electronIDSF_s7_m1", 1.0),
+                                   "s8_m0": ("sys", "electronIDSF_s8_m0", 1.0),
+                                   "s8_m1": ("sys", "electronIDSF_s8_m1", 1.0),
+                                   "s9": ("sys", "electronIDSF_s9_m0", 1.0),
+                                   "s10": ("sys", "electronIDSF_s10_m0", 1.0),
+                                   "s11_m0": ("sys", "electronIDSF_s11_m0", 1.0),
+                                   "s11_m1": ("sys", "electronIDSF_s11_m1", 1.0),
+                                   "s12_m0": ("sys", "electronIDSF_s12_m0", 1.0),
+                                   "s12_m1": ("sys", "electronIDSF_s12_m1", 1.0),
+                                   "s13_m0": ("sys", "electronIDSF_s13_m0", 1.0),
+                                   "s13_m1": ("sys", "electronIDSF_s13_m1", 1.0),
+                                   "s14": ("sys", "electronIDSF_s14_m0", 1.0),
+                                   "s15": ("sys", "electronIDSF_s15_m0", 1.0),
+                                   "s16": ("sys", "electronIDSF_s16_m0", 1.0),
+                                   "s17": ("sys", "electronIDSF_s17_m0", 1.0),
+                                   }
+
+        electronRECOSF_variations = {"s1": ("sys", "electronRECOSF_s1_m0", 1.0),
+                                   "s2": ("sys", "electronRECOSF_s2_m0", 1.0),
+                                   "s3": ("sys", "electronRECOSF_s3_m0", 1.0),
+                                   "s4": ("sys", "electronRECOSF_s4_m0", 1.0),
+                                   "s5": ("sys", "electronRECOSF_s5_m0", 1.0),
+                                   "s6": ("sys", "electronRECOSF_s6_m0", 1.0),
+                                   "s7_m0": ("sys", "electronRECOSF_s7_m0", 1.0),
+                                   "s7_m1": ("sys", "electronRECOSF_s7_m1", 1.0),
+                                   "s8_m0": ("sys", "electronRECOSF_s8_m0", 1.0),
+                                   "s8_m1": ("sys", "electronRECOSF_s8_m1", 1.0),
+                                   "s9": ("sys", "electronRECOSF_s9_m0", 1.0),
+                                   "s10": ("sys", "electronRECOSF_s10_m0", 1.0),
+                                   "s11_m0": ("sys", "electronRECOSF_s11_m0", 1.0),
+                                   "s11_m1": ("sys", "electronRECOSF_s11_m1", 1.0),
+                                   "s12_m0": ("sys", "electronRECOSF_s12_m0", 1.0),
+                                   "s12_m1": ("sys", "electronRECOSF_s12_m1", 1.0),
+                                   "s13_m0": ("sys", "electronRECOSF_s13_m0", 1.0),
+                                   "s13_m1": ("sys", "electronRECOSF_s13_m1", 1.0),
+                                   "s14": ("sys", "electronRECOSF_s14_m0", 1.0),
+                                   "s15": ("sys", "electronRECOSF_s15_m0", 1.0),
+                                   "s16": ("sys", "electronRECOSF_s16_m0", 1.0),
+                                   }
+
         if self.channel == 'ee':
             self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
             self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
+            self.systematics.update({"electronIDSF:simulation": electronIDSF_variations})
+            self.systematics.update({"electronRECOSF:simulation": electronRECOSF_variations})
 
         if self.channel == 'mm':
             self.systematics.update({"roccor:all": mmomentum_variations})
             self.systematics.update({"roccor_stat:all": mmomentum_stat})
+            self.systematics.update({"muonIDSF:simulation": muonIDSF_variations})
 
     def reset_data_info(self):
         self.year = ""
@@ -168,6 +247,11 @@ class Analyzer:
                 use_sys_config = True
             elif apply_to == "measurement":
                 use_sys_config = is_measurement
+            elif apply_to == "simulation":
+                if not is_measurement:
+                    use_sys_config = True
+                else:
+                    use_sys_config = False
             elif apply_to == "signal":
                 use_sys_config = not is_measurement and is_signal
             elif apply_to == "background":

@@ -264,7 +264,8 @@ class ISRHists:
         self.acceptance_corrected_mean_values[key].clear()
         if self.is_pt:
             for index in range(len(self.mass_bins)):
-                mean = self.isr_hists_per_mass_window[index].acceptance_corrected_hist[key].get_mean_df(binned_mean=binned_mean,)
+                mean = self.isr_hists_per_mass_window[index].acceptance_corrected_hist[key].get_mean_df(
+                    binned_mean=binned_mean,)
                 self.acceptance_corrected_mean_values[key].append(mean)
         else:
             for low, high in self.mass_bins:
@@ -405,31 +406,100 @@ class ISRHists:
                 df['mean'] *= bmc
         return df
 
-    def add_isr_plot(self, plotter, mass, pt, key='measurement', do_fit=False, **kwargs):
+    def get_sys_mean_dfs(self, pt, mass, sys_name=None, key='measurement', other=None, binned_mean_correction=True,):
+        if sys_name is None:
+            # get all systematic names
+            sys_names = mass.isr_hists_per_mass_window[0].acceptance_corrected_hist[key].systematic_raw_root_hists.keys()
+        else:
+            sys_names = [sys_name]
+
+        sys_mean_pt_dfs = {}
+        sys_mean_mass_dfs = {}
+        for sys_name in sys_names:
+            # loop over variations and plot the means!
+            sys_mean_pt = []  # first mass window sys, second mass window sys
+            sys_mean_mass = []
+
+            sys_mean_pt_dfs[sys_name] = {}
+            sys_mean_mass_dfs[sys_name] = {}
+            for index, bin_edge in enumerate(self.mass_bins):
+                sys_mean_pt.append(pt.isr_hists_per_mass_window[index].acceptance_corrected_hist[key].get_sys_mean_dfs(
+                    sys_name))
+                sys_mean_mass.append(mass.isr_hists_per_mass_window[0].acceptance_corrected_hist[key].get_sys_mean_dfs(
+                    sys_name, range_min=bin_edge[0], range_max=bin_edge[1]))
+
+            for sys_index in range(len(sys_mean_pt[0])):
+                sys_list_pt = []
+                sys_list_mass = []
+                for mass_window_index, bin_edge in enumerate(self.mass_bins):
+                    sys_list_pt.append(sys_mean_pt[mass_window_index][sys_index])
+                    sys_list_mass.append(sys_mean_mass[mass_window_index][sys_index])
+
+                mass_df = pd.concat(sys_list_mass, ignore_index=True)
+                pt_df = pd.concat(sys_list_pt, ignore_index=True)
+
+                bmc = pt.binned_mean_correction_factors  # unbinned mean values
+                df_sim = pd.concat(pt.acceptance_corrected_mean_values['simulation'], ignore_index=True)
+                bmc = bmc / df_sim['mean']
+                pt_df['mean'] *= bmc
+
+                sys_mean_pt_dfs[sys_name][sys_index] = pt_df
+                sys_mean_mass_dfs[sys_name][sys_index] = mass_df
+        return sys_mean_pt_dfs, sys_mean_mass_dfs
+
+    def add_isr_plot(self, plotter, mass, pt, key='measurement', do_fit=False,
+                     sys_mean_mass=None, sys_mean_pt=None,
+                     **kwargs):
         if isinstance(mass, pd.DataFrame):
             mass_mean = mass
         else:
-            mass_mean = self.get_mean_df(key=key, other=mass, )
+            mass_mean = self.get_mean_df(key=key, other=mass,)
+
         if isinstance(pt, pd.DataFrame):
             pt_mean = pt
         else:
-            pt_mean = self.get_mean_df(key=key, other=pt, )
+            pt_mean = self.get_mean_df(key=key, other=pt,)
 
         print(pt_mean, mass_mean)
-        plotter.add_errorbar((mass_mean, pt_mean), **kwargs)
+        plotter.add_errorbar((mass_mean, pt_mean), **kwargs)  # show total uncertainty
 
         if do_fit:
             fitter = ISRLinearFitter(mass_mean, pt_mean)
             slope, slope_err, intercept, intercept_err = fitter.do_fit()
 
+            # Need to extract mean of systematics
+            if sys_mean_pt is None and sys_mean_mass is None:
+                sys_mean_pt, sys_mean_mass = self.get_sys_mean_dfs(pt, mass, sys_name=None)
+            #
+            fit_slope = []
+            fit_intercept = []
+            for sys_name in sys_mean_pt.keys():
+                for sys_index in range(len(sys_mean_pt[sys_name])):
+                    fitter_sys = ISRLinearFitter(sys_mean_mass[sys_name][sys_index], sys_mean_pt[sys_name][sys_index])
+                    slope_sys, _, intercept_sys, _ = fitter_sys.do_fit()
+                    fit_slope.append(slope_sys-slope)
+                    fit_intercept.append(intercept_sys-intercept)
+            corr = np.corrcoef(fit_slope, fit_intercept)
+            cov_matrix = np.cov(fit_slope, fit_intercept, ddof=0)
+            print(corr)
+            print(cov_matrix)
+            slope_sys = np.sqrt(cov_matrix[0, 0])
+            intercept_sys = np.sqrt(cov_matrix[1, 1])
+
+            # error matrix
             # draw fit result
             x = np.linspace(50, 400, 350)
-            y = 2.0 * slope * np.log10(x) + intercept
-            plotter.current_axis.plot(x, y)
+            y = 2.0 * slope * np.log(x) + intercept
+            plotter.current_axis.plot(x, y, label=f'Fit $a={slope:.2f}\pm{slope_sys:.2f}\pm{slope_err:.2f},\ '
+                                                  f'b={intercept:.2f}\mp{intercept_sys:.2f}\mp{intercept_err:.2f}$\n'
+                                                  r'$y = b + 2 \cdot a  \cdot ln(x)$')
+            # update labels
+            plotter.update_legend((0,0))
+            # add fit result
         return pt_mean, mass_mean
 
     def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement',
-                      do_fit=True, **kwargs):
+                      do_fit=True, save_as_csv=False, show_this_sys=None, **kwargs):
         if self.is_pt and other.is_pt == False:
             isr_pt = self
             isr_mass = other
@@ -443,11 +513,24 @@ class ISRHists:
         plotter = measurement_hist.plotter
 
         plotter.init_plotter(figsize=(10,8), rows=1, cols=1)
-        pt_mean, mass_mean = self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, do_fit=do_fit, label=self.year,
-                                               **kwargs,)
+        pt_mean, mass_mean = self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, do_fit=do_fit, **kwargs,)
+
+        if show_this_sys:
+            # loop over variations and plot the means!
+            sys_mean_pt = []  # first mass window sys, second mass window sys
+            sys_mean_mass = []
+            sys_mean_pt, sys_mean_mass = self.get_sys_mean_dfs(isr_pt, isr_mass, sys_name=show_this_sys)
+
+            for sys_index in range(len(sys_mean_pt[show_this_sys])):
+                plotter.add_errorbar((sys_mean_mass[show_this_sys][sys_index],
+                                      sys_mean_pt[show_this_sys][sys_index]), linestyle='--', linewidth=0.5,)
+
+        if save_as_csv:
+            pt_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_{self.channel}{self.year}.csv")
+            mass_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_{self.channel}{self.year}.csv")
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
         text = isr_mass.get_additional_text_on_plot()
-        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right", })
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower right", })
 
         if save_and_reset_plotter:
             if key == 'simulation':
@@ -455,6 +538,7 @@ class ISRHists:
             else:
                 plotter.set_experiment_label(**{'year': measurement_hist.year, })
             plotter.draw_errorbar()
+            plotter.show_legend(location=(0, 0), **{"loc": "upper left"})
             plotter.save_and_reset_plotter("isr_test"+"_"+self.channel+self.year+postfix)
             return None
         else:
@@ -495,6 +579,10 @@ class ISRHists:
         plotter.draw_ratio_hists(location=(1, 0))
 
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+        del measurement_hist
+        del background_hists
+        del unfold_input_hist
+        del signal_fake_hist
 
     def draw_fake_hists(self, mass_window_index=-1, bin_width_norm=False):
         signal_fake_hist = self.get_hist_in_mass_window('signal_fake', mass_window_index,
@@ -512,6 +600,7 @@ class ISRHists:
         if self.is_2d:
             suffix = '_fake_DY_'+str(mass_window_index)
         plotter.save_and_reset_plotter(signal_fake_hist.hist_name + suffix + "_" + self.channel + self.year)
+        del signal_fake_hist
 
     def draw_background_fractions(self, mass_window_index=-1):
         signal_hist = self.get_hist_in_mass_window("signal", mass_window_index,)
@@ -544,6 +633,8 @@ class ISRHists:
         plotter.set_common_ratio_plot_cosmetics(self.x_axis_label, y_axis_name='Fractions',
                                                 y_min=0, y_max=0.5)
         plotter.save_and_reset_plotter(signal_hist.hist_name + suffix + "_" + self.channel + self.year)
+        del signal_hist
+        del background_hists
 
     def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix='',
                               draw_as_2d=False, mc_denominator=True, save_and_reset=True, signal_as_stack=True):
@@ -615,6 +706,9 @@ class ISRHists:
                 suffix = '_detector_'+str(mass_window_index)
         self._draw_comparison_plot(measurement_hist, signal_hist, background_hists, text, suffix=suffix,
                                    draw_as_2d=draw_as_2d)
+        del measurement_hist
+        del signal_hist
+        del background_hists
 
     def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False, mc_denominator=True):
         measurement_hist = self.get_hist_in_mass_window("unfolded_measurement", mass_window_index,
@@ -645,6 +739,10 @@ class ISRHists:
 
         plotter.show_legend()
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+        del measurement_hist
+        del signal_hist
+        del input_hist
+        del sim_input_hist
 
     def draw_unfold_closure(self, mass_window_index=-1, bin_width_norm=False):
         unfolded_signal_hist = self.get_hist_in_mass_window("unfolded_signal", mass_window_index,
@@ -658,6 +756,8 @@ class ISRHists:
         if self.is_2d:
             suffix = '_closure_'+str(mass_window_index)
         self._draw_comparison_plot(unfolded_signal_hist, truth_signal_hist, text=text, suffix=suffix)
+        del unfolded_signal_hist
+        del truth_signal_hist
 
     def draw_acceptance(self, mass_window_index=-1, bin_width_norm=False):
         full_phase_hist = self.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
@@ -682,6 +782,8 @@ class ISRHists:
 
         plotter.save_and_reset_plotter(full_phase_hist.hist_name + "_acceptance" + "_" +
                                        str(mass_window_index) + "_" + self.channel + self.year)
+        del full_phase_hist
+        del fiducial_phase_hist
 
     def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False,
                                         mc_denominator=True, others=None):
@@ -712,6 +814,8 @@ class ISRHists:
 
             plotter.show_legend()
             plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+        del measurement_hist
+        del signal_hist
 
     def draw_systematic_summary(self, mass_window_index=0,):
         measurement_hist = self.isr_hists_per_mass_window[mass_window_index].acceptance_corrected_hist['measurement']
@@ -728,8 +832,10 @@ class ISRHists:
                          label='Total')
         plotter.add_hist((stat, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
                          linestyle='--', label='Stat')
-        for sys_name_ in relative_systematic_hist.systematics:
-            sys_error = relative_systematic_hist.systematics[sys_name_]
+        # merge systematics
+        systematics = relative_systematic_hist.get_systematics(merge_statistics=True)
+        for sys_name_ in systematics:
+            sys_error = systematics[sys_name_]
             kwargs = {}
             if sys_name_ == 'matrix_stat':
                 kwargs['linestyle'] = '--'
@@ -738,36 +844,58 @@ class ISRHists:
         plotter.draw_hist()
         if not self.is_pt:
             plotter.get_axis(location=(0, 0)).set_xscale("log")
-        plotter.show_legend()
+        plotter.show_legend(ncol=2)
         text = self.get_additional_text_on_plot(mass_window_index)
-        plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper right"})
+        plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper left"})
         plotter.get_axis(location=(0, 0)).set_ylabel("Relative Uncertainty")
         plotter.get_axis(location=(0, 0)).set_xlabel(self.x_axis_label)
-        plotter.save_and_reset_plotter(measurement_hist.hist_name + "_sys_summary_" + self.channel + self.year)
+        plotter.save_and_reset_plotter(measurement_hist.hist_name + "_sys_summary_" +
+                                       str(mass_window_index) + "_" +self.channel + self.year)
+        del measurement_hist
+        del relative_systematic_hist
 
-    def draw_systematic_hists(self, sys_name, mass_window_index=-1, bin_width_norm=False,
+    def draw_systematic_hists(self, sys_name=None, mass_window_index=-1, bin_width_norm=False,
                               hist_type='unfolded_measurement', key='measurement'):
         measurement_hist = self.get_hist_in_mass_window(hist_type, mass_window_index,
                                                         bin_width_norm=bin_width_norm, key=key)
-        systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
-        plotter = measurement_hist.plotter
-        plotter.init_plotter(rows=2, cols=1)
-        plotter.set_experiment_label(**{'year': measurement_hist.year})
+        if sys_name is None:
+            sys_names = measurement_hist.systematic_raw_root_hists.keys()
+        else:
+            sys_names = [sys_name]
 
-        plotter.add_hist(measurement_hist, as_denominator=True,
-                         **get_hist_kwargs(measurement_hist.get_label()))
+        for sys_name in sys_names:
+            systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
-        for sys_name_, sys_hist in systematic_hists.items():
-            # suppress y error for systematic hists
-            plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False, show_err_band=False)
+            plotter = measurement_hist.plotter
+            plotter.init_plotter(rows=2, cols=1)
+            plotter.set_experiment_label(**{'year': measurement_hist.year})
 
-        plotter.draw_hist()
+            plotter.add_hist(measurement_hist, as_denominator=True,
+                             label='Default', histtype='errorbar', color='black', yerr=False)
 
-        plotter.draw_ratio_hists(location=(1, 0))
-        plotter.get_axis(location=(1, 0)).set_ylim(0.8, 1.2)
+            colors = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 'pink']
+            index = 0
+            for sys_name_, sys_hist in systematic_hists.items():
+                # suppress y error for systematic hists
+                plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False, show_err_band=False,
+                                 color=colors[index%7], label=sys_name_)
+                index += 1
 
-        plotter.save_and_reset_plotter("test_sys_" + sys_name + "_" + self.channel + self.year)
+            plotter.draw_hist()
+            if index > 10:
+                plotter.show_legend(ncol=5, fontsize=7)
+            else:
+                plotter.show_legend()
+            plotter.draw_ratio_hists(location=(1, 0))
+            plotter.get_axis(location=(0,0)).set_ylabel("Events/bin")
+            plotter.get_axis(location=(1,0)).set_ylabel("/Default")
+            plotter.get_axis(location=(1,0)).set_xlabel(self.x_axis_label)
+            plotter.get_axis(location=(1, 0)).set_ylim(0.95, 1.05)
+
+            plotter.save_and_reset_plotter(measurement_hist.hist_name + "_sys_" + sys_name + "_" + str(mass_window_index) + "_" +
+                                           self.channel + self.year)
+        del measurement_hist
 
     def draw_response_matrix(self, mass_window_index=-1, **kwargs_hist2dplot):
         # Choose the relevant ISR hist container
