@@ -210,7 +210,8 @@ def main():
         #    test_LO.setup_isr_acceptance_hists(period, channel, "", is_2d=False)
         #    pt_LO, mass_LO = test_LO.get_isr_results()
         #    pt_others.append(pt_LO)
-        pt.draw_isr_plot(mass, save_as_csv=True, linestyle='none', marker='o', color='black', ms=4)
+        pt.draw_isr_plot(mass, save_as_csv=True, 
+                         linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=3, capsize=3)
 
         for index in range(len(mass_bins)):
             pt.draw_detector_level(index, bin_width_norm=True)
@@ -270,6 +271,23 @@ def main():
         key = f"{period}_{channel}"
         mass_dict[key] = mass
         pt_dict[key] = pt
+
+    for i_mass_index in range(len(mass_bins)):
+        pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
+                                key='unfold_input',
+                                index=i_mass_index, scale=-1, bin_width_norm=True)
+
+        pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
+                                key='unfolded_measurement',
+                                index=i_mass_index, scale=-1, bin_width_norm=True)
+
+        pt_dict["2016a_mm"].draw_pt_comparisons(pt_dict['2016b_mm'], pt_dict['2017_mm'], pt_dict['2018_mm'],
+                                key='unfold_input',
+                                index=i_mass_index, scale=-1, bin_width_norm=True)
+
+        pt_dict["2016a_mm"].draw_pt_comparisons(pt_dict['2016b_mm'], pt_dict['2017_mm'], pt_dict['2018_mm'],
+                                        key='unfolded_measurement',
+                                        index=i_mass_index, scale=-1, bin_width_norm=True)
 
     ## -------------------
     ## Now combine and plot
@@ -341,6 +359,7 @@ def main():
             sys_pt_mm_combined_df[sys_name][index] = pt_combined_mm_temp
             del combiner_temp
 
+
     del sys_pt
     del sys_mass
 
@@ -407,21 +426,6 @@ def main():
                                   channel="", periods=[],
                                   color_map={}, marker_map={},
                                   save_prefix="ISR_Combined"):
-        """
-        Draw ISR measurement plot for given channel and periods.
-
-        Args:
-            mass_dict (dict): Mass objects keyed by "period_channel".
-            pt_dict (dict): Pt objects keyed by "period_channel".
-            mass_combined (object, optional): Combined mass object (default: None).
-            pt_combined (object, optional): Combined pt object (default: None).
-            channel (str): e.g., "ee" or "mm"
-            periods (list): List of period names.
-            color_map (dict): Mapping from period to color.
-            marker_map (dict): Mapping from period to marker.
-            save_prefix (str): Output file prefix.
-        """
-
         if not periods:
             raise ValueError("Periods list must not be empty!")
 
@@ -486,6 +490,10 @@ def main():
                               channel="mm", periods=periods,
                               color_map=color_map, marker_map=marker_map)
 
+    draw_isr_plot_from_df(mass_combined_final, pt_combined_final, sys_mass_combined_df, sys_pt_combined_df,  
+                          label=r'$ee$ and $\mu\mu$ combined',
+                          color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
+
     draw_isr_plot_from_df(mass_combined_ee, pt_combined_ee, sys_mass_ee_combined_df, sys_pt_ee_combined_df, postfix='ee', channel_label='ee', 
                           label=r'$ee$ combined',
                           color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
@@ -494,9 +502,6 @@ def main():
                           label=r'$\mu\mu$ combined',
                           color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
 
-    draw_isr_plot_from_df(mass_combined_final, pt_combined_final, sys_mass_combined_df, sys_pt_combined_df,  
-                          label=r'$ee$ and $\mu\mu$ combined',
-                          color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
 
 if __name__ == "__main__":
     main()

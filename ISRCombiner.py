@@ -61,4 +61,8 @@ class ISRCombiner:
             # update dataframe
             combined_mass_df.loc[i, "mean":] = mass_combiner.get_result_list()
             combined_pt_df.loc[i, "mean":] = pt_combiner.get_result_list()
+
+            del mass_combiner
+            del pt_combiner
+
         return combined_mass_df, combined_pt_df

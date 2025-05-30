@@ -16,6 +16,7 @@ from matplotlib.container import ErrorbarContainer
 import matplotlib.colors as mcolors
 from array import array
 import ROOT
+import gc
 
 
 def extract_color_from_handle(handle):
@@ -162,8 +163,12 @@ class Plotter:
     def reset(self):
         self.rows = 1
         self.cols = 1
+        self.fig.clf()
+        #plt.close("all")
+        #plt.close(self.fig)
         del self.fig
-        del self.axs
+        self.fig = None
+        self.axs = None
         self._stack_bottoms.clear()
         self.current_axis = None
         self.plot_items.clear()
@@ -173,6 +178,8 @@ class Plotter:
         self.legend_handles.clear()
         self.legend_labels.clear()
         self.y_minimum = 999.
+        #print(len(plt.get_fignums()), "figures still open")
+        gc.collect()
 
     def init_plotter(self, figsize=(8,8), rows=1, cols=1,
                      left=0.15, right=0.95, bottom=0.15, top=0.95,):
@@ -199,9 +206,30 @@ class Plotter:
                         left=0.1, right=0.95, bottom=0.1, top=0.9, hspace=0.2, wspace=0.2, **gridspec_kw):
         self.rows = rows
         self.cols = cols
-        self.fig, self.axs = plt.subplots(rows, cols, figsize=figsize, gridspec_kw=gridspec_kw)
-        plt.tight_layout()
-        plt.subplots_adjust(left=left, right=right, bottom=bottom, top=top, hspace=hspace, wspace=wspace)
+        #self.fig, self.axs = plt.subplots(rows, cols, figsize=figsize, gridspec_kw=gridspec_kw)
+
+        # https://stackoverflow.com/questions/28757348/how-to-clear-memory-completely-of-all-matplotlib-plots
+        self.fig = plt.figure(num=1, figsize=figsize)
+        self.fig.set_size_inches(*figsize, forward=True)
+
+        # Step 2: Build a GridSpec with all the kw
+        gs_kw = dict(hspace=hspace, wspace=wspace, **gridspec_kw)
+        gs = self.fig.add_gridspec(rows, cols, **gs_kw)
+
+        # Step 3: Add each subplot cell-by-cell
+        axes = []
+        for irow in range(rows):
+            for icol in range(cols):
+                ax = self.fig.add_subplot(gs[irow, icol])
+                axes.append(ax)
+
+        # reshape to same layout as subplots() would have
+        self.axs = np.array(axes).reshape(rows, cols) \
+                   if (rows>1 and cols>1) \
+                   else (axes[0] if (rows==1 and cols==1) else axes)
+
+        #plt.tight_layout()
+        plt.subplots_adjust(left=left, right=right, bottom=bottom, top=top)
 
     def save_and_reset_plotter(self, hist_name, postfix=''):
         self.save_fig(hist_name + postfix)
@@ -440,13 +468,13 @@ class Plotter:
         self.current_axis.add_collection(pc)
         self.current_axis.add_patch(legend_)
 
-    def set_isr_plot_cosmetics(self, channel, ):
+    def set_isr_plot_cosmetics(self, channel, y_min=15, y_max=29):
 
         plt.grid(True, which='both', axis='x', linestyle='--', linewidth=0.7)
         plt.grid(True, which='major', axis='y', linestyle='--', linewidth=0.7)
 
         self.get_axis(location=(0, 0)).set_xlim(54, 300)
-        self.get_axis(location=(0, 0)).set_ylim(15, 29)
+        self.get_axis(location=(0, 0)).set_ylim(y_min, y_max)
         self.get_axis(location=(0, 0)).set_xscale("log")
 
         self.get_axis(location=(0, 0)).set_ylabel(r"Mean $p_{T}^{"+channel+"}$ GeV")
@@ -615,6 +643,5 @@ class Plotter:
 
         # print(f"save plot... {out_file_name}")
         self.fig.savefig(self.base_output_dir + "/" + out_file_name + ".pdf")
-        # self.reset()
-        plt.close()
+
 

@@ -8,8 +8,8 @@ import numpy as np
 from ISRLinearFitter import ISRLinearFitter
 
 
-def normalize(hist, bin_width_norm=True):
-    return hist.bin_width_norm(1.0) if bin_width_norm else hist
+def normalize(hist, bin_width_norm=True, scale=1.0):
+    return hist.bin_width_norm(scale) if bin_width_norm else hist
 
 
 # group of hists for ISR
@@ -57,8 +57,10 @@ class ISRHistSet:
         truth_signal_hist_extracted = self.truth_signal_hist.extract_1d_hist(index) if self.truth_signal_hist else None
 
         acceptance_corrected_hist_extracted = {
-            "measurement": self.acceptance_corrected_hist["measurement"].extract_1d_hist(index) if self.acceptance_corrected_hist["measurement"] else None,
-            "simulation": self.acceptance_corrected_hist["simulation"].extract_1d_hist(index) if self.acceptance_corrected_hist["simulation"] else None,
+            "measurement": self.acceptance_corrected_hist["measurement"].extract_1d_hist(index)
+            if self.acceptance_corrected_hist["measurement"] else None,
+            "simulation": self.acceptance_corrected_hist["simulation"].extract_1d_hist(index)
+            if self.acceptance_corrected_hist["simulation"] else None,
         }
 
         extracted_set = ISRHistSet()
@@ -323,7 +325,8 @@ class ISRHists:
         for index, _ in enumerate(self.mass_bins):
             pass
 
-    def get_hist_in_mass_window(self, hist_type, index, bin_width_norm=True, key='measurement'):
+    def get_hist_in_mass_window(self, hist_type, index, bin_width_norm=True, scale=1,
+                                key='measurement'):
         # TODO check if index is valid
         isr_hist_set = self.isr_hists_per_mass_window[index]
 
@@ -336,10 +339,10 @@ class ISRHists:
             raise ValueError(f"No attribute named '{attr_name}' found")
 
         if hist_type == 'background':
-            return {bg_name: normalize(bg_hist, bin_width_norm=bin_width_norm)
+            return {bg_name: normalize(bg_hist, bin_width_norm=bin_width_norm, scale=scale)
                     for bg_name, bg_hist in target_hist.items()}
         else:
-            return normalize(target_hist, bin_width_norm=bin_width_norm)
+            return normalize(target_hist, bin_width_norm=bin_width_norm, scale=scale)
 
     # get from self.isr_hists which could have different formats
     def get(self, hist_type='signal', mass_window_index=-1,
@@ -486,11 +489,11 @@ class ISRHists:
             slope_sys = np.sqrt(cov_matrix[0, 0])
             intercept_sys = np.sqrt(cov_matrix[1, 1])
 
-            # error matrix
             # draw fit result
             x = np.linspace(50, 400, 350)
             y = 2.0 * slope * np.log(x) + intercept
-            plotter.current_axis.plot(x, y, label=f'Fit $a={slope:.2f}\pm{slope_sys:.2f}\pm{slope_err:.2f},\ '
+            plotter.current_axis.plot(x, y, color='black', linewidth=0.7,
+                                      label=f'Fit $a={slope:.2f}\pm{slope_sys:.2f}\pm{slope_err:.2f},\ '
                                                   f'b={intercept:.2f}\mp{intercept_sys:.2f}\mp{intercept_err:.2f}$\n'
                                                   r'$y = b + 2 \cdot a  \cdot ln(x)$')
             # update labels
@@ -499,7 +502,9 @@ class ISRHists:
         return pt_mean, mass_mean
 
     def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement',
-                      do_fit=True, save_as_csv=False, show_this_sys=None, **kwargs):
+                      do_fit=True, save_as_csv=False, show_this_sys=None, y_min=13, y_max=29,
+                      **kwargs):
+
         if self.is_pt and other.is_pt == False:
             isr_pt = self
             isr_mass = other
@@ -514,6 +519,9 @@ class ISRHists:
 
         plotter.init_plotter(figsize=(10,8), rows=1, cols=1)
         pt_mean, mass_mean = self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, do_fit=do_fit, **kwargs,)
+        # show simulation
+        self.add_isr_plot(plotter, isr_mass, isr_pt, key='simulation', do_fit=False,
+                          color='red', linestyle='--', linewidth=0.7, marker='o', markersize=4, capsize=3, label='MiNNLO')
 
         if show_this_sys:
             # loop over variations and plot the means!
@@ -528,7 +536,7 @@ class ISRHists:
         if save_as_csv:
             pt_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_{self.channel}{self.year}.csv")
             mass_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_{self.channel}{self.year}.csv")
-        plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel),)
+        plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel), y_min=y_min, y_max=y_max)
         text = isr_mass.get_additional_text_on_plot()
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower right", })
 
@@ -687,6 +695,14 @@ class ISRHists:
         else:
             return plotter
 
+    def draw_memory_test(self):
+        measurement_hist = self.get_hist_in_mass_window("measurement", 2,
+                                                        bin_width_norm=True)
+
+        plotter = measurement_hist.plotter
+        plotter.init_plotter(rows=1, cols=1)
+        plotter.save_and_reset_plotter(measurement_hist.hist_name + "memory_" + self.channel + self.year)
+
     def draw_detector_level(self, mass_window_index=-1, bin_width_norm=False):
         measurement_hist = self.get_hist_in_mass_window("measurement", mass_window_index,
                                                         bin_width_norm=bin_width_norm)
@@ -827,7 +843,7 @@ class ISRHists:
 
         _, bins, errors = relative_systematic_hist.to_numpy()
         _, _, stat = relative_systematic_hist.to_numpy(stat=True)
-        # FIXME with yerr=False, show_legend() produce error
+        
         plotter.add_hist((errors, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
                          label='Total')
         plotter.add_hist((stat, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
@@ -976,25 +992,34 @@ class ISRHists:
 
         plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_eff_purity_" + self.channel + self.year)
 
-    def draw_pt_comparisons(self, *others, index=2):
-        reference_hist = self.get('acceptance_corrected', index, bin_width_norm=True, scale=-1)
+    def draw_pt_comparisons(self, *others, key='acceptance_corrected', index=2,
+                            bin_width_norm=False, scale=1):
+        reference_hist = self.get_hist_in_mass_window(key, index,
+                                                      bin_width_norm=bin_width_norm, scale=scale)
 
         plotter = reference_hist.plotter
         plotter.init_plotter(rows=1, cols=1)
         plotter.set_experiment_label(**{'year': reference_hist.year})
 
         plotter.add_hist(reference_hist, as_denominator=True, not_to_draw=True,)
-        for other in others:
-            hist = other.get('acceptance_corrected', index, bin_width_norm=True, scale=-1)
-            plotter.add_hist(hist, as_denominator=False, not_to_draw=True, label=other.year)
+        colors = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 'pink']
+        for i, other in enumerate(others):
+            hist = other.get_hist_in_mass_window(key, index,
+                                                bin_width_norm=bin_width_norm, scale=scale)
+            plotter.add_hist(hist, as_denominator=False, not_to_draw=True, label=other.year,
+                             color=colors[i], histtype='errorbar')
 
         plotter.draw_hist()
         plotter.draw_ratio_hists(location=(0, 0))
 
         plotter.get_axis(location=(0, 0)).set_ylim(0.5, 1.5)
         plotter.set_common_ratio_plot_cosmetics(self.x_axis_label)
+        text = self.get_additional_text_on_plot(index)
+        plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper left"})
+        plotter.get_axis(location=(0, 0)).set_ylabel("/"+self.year)
 
-        plotter.save_and_reset_plotter("test_" + self.channel + self.year)
+        plotter.save_and_reset_plotter(reference_hist.hist_name + "_comparison_" + key + "_" + str(index) + "_" +
+                                       self.channel + self.year)
 
     # comparisons between different mass windows
     def draw_pt_comparison(self):
