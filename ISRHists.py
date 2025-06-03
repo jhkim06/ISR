@@ -45,10 +45,16 @@ class ISRHistSet:
     def get_extracted_1d_hist_set(self, index):
         measurement_hist_extracted = self.measurement_hist.extract_1d_hist(index)
         signal_hist_extracted = self.signal_hist.extract_1d_hist(index)
-        signal_fake_hist_extracted = self.signal_fake_hist.extract_1d_hist(index)
+        if self.signal_fake_hist is not None:
+            signal_fake_hist_extracted = self.signal_fake_hist.extract_1d_hist(index)
+        else:
+            signal_fake_hist_extracted = None
         background_hist_extracted = {}
-        for key, value in self.background_hist.items():
-            background_hist_extracted[key] = self.background_hist[key].extract_1d_hist(index)
+        if self.background_hist is not None:
+            for key, value in self.background_hist.items():
+                background_hist_extracted[key] = self.background_hist[key].extract_1d_hist(index)
+        else:
+            background_hist_extracted = None
 
         unfold_input_hist_extracted = self.unfold_input_hist.extract_1d_hist(index) if self.unfold_input_hist else None
         reco_signal_hist_extracted = self.reco_signal_hist.extract_1d_hist(index) if self.reco_signal_hist else None
@@ -82,10 +88,16 @@ class ISRHistSet:
     def get_extracted_hist_set(self,):
         measurement_hist_extracted = self.measurement_hist.extract_hist()
         signal_hist_extracted = self.signal_hist.extract_hist()
-        signal_fake_hist_extracted = self.signal_fake_hist.extract_hist()
+        if self.signal_fake_hist is not None:
+            signal_fake_hist_extracted = self.signal_fake_hist.extract_hist()
+        else:
+            signal_fake_hist_extracted = None
         background_hist_extracted = {}
-        for key, value in self.background_hist.items():
-            background_hist_extracted[key] = self.background_hist[key].extract_hist()
+        if self.background_hist is not None:
+            for key, value in self.background_hist.items():
+                background_hist_extracted[key] = self.background_hist[key].extract_hist()
+        else:
+            background_hist_extracted = None
 
         unfold_input_hist_extracted = self.unfold_input_hist.extract_hist() if self.unfold_input_hist else None
         reco_signal_hist_extracted = self.reco_signal_hist.extract_hist() if self.reco_signal_hist else None
@@ -183,19 +195,27 @@ class ISRHists:
             self.isr_hists_per_mass_window.append(self.isr_hists[0].get_extracted_hist_set())
 
     # from other.isr_hists_per_mass_window
-    def add_external_hist_as_sys_hist(self, other, sys_name):
+    def add_external_hist_as_sys_hist(self, other, sys_name, var_name=None):
+        if var_name is None:
+            var_name = sys_name
         for index, isr_hist in enumerate(self.isr_hists_per_mass_window):
             other_isr_hist = other.isr_hists_per_mass_window[index]
 
-            hist = other_isr_hist.unfolded_measurement_hist.get_raw_hist()
-            isr_hist.unfolded_measurement_hist.set_systematic_hist(sys_name, sys_name, hist)
+            # since FSR use different unfolding phase space, do not include
+            if sys_name != "FSR":
+                hist = other_isr_hist.unfolded_measurement_hist.get_raw_hist()
+                isr_hist.unfolded_measurement_hist.set_systematic_hist(sys_name, var_name, hist)
 
             hist = other_isr_hist.acceptance_corrected_hist["measurement"].get_raw_hist()
-            isr_hist.acceptance_corrected_hist["measurement"].set_systematic_hist(sys_name, sys_name, hist)
+            isr_hist.acceptance_corrected_hist["measurement"].set_systematic_hist(sys_name, var_name, hist)
 
-            hist = other_isr_hist.acceptance_corrected_hist["simulation"].get_raw_hist()
-            isr_hist.acceptance_corrected_hist["simulation"].set_systematic_hist(sys_name, sys_name, hist)
+            if sys_name != "FSR":
+                hist = other_isr_hist.acceptance_corrected_hist["simulation"].get_raw_hist()
+                isr_hist.acceptance_corrected_hist["simulation"].set_systematic_hist(sys_name, var_name, hist)
 
+    def update_systematics(self):
+        for index, isr_hist in enumerate(self.isr_hists_per_mass_window):
+            # separate
             isr_hist.unfolded_measurement_hist.compute_systematic_rss_per_sysname()
             isr_hist.acceptance_corrected_hist["measurement"].compute_systematic_rss_per_sysname()
             isr_hist.acceptance_corrected_hist["simulation"].compute_systematic_rss_per_sysname()
@@ -217,6 +237,11 @@ class ISRHists:
 
             error_columns = mean_value.columns.difference(['mean'])
             mean_value['total_error'] = np.sqrt((mean_value[error_columns] ** 2).sum(axis=1))
+
+    def set_isr_hist(self, measurement, signal, matrix):
+        self.isr_hists.append(ISRHistSet(measurement_hist=measurement,
+                                         signal_hist=HistTUnfoldBin(signal, self.folded_tunfold_bin),
+                                         response_matrix=matrix))
 
     # Note set *detector* level hists
     def set_isr_hists(self, measurement_hist=None,
@@ -845,25 +870,28 @@ class ISRHists:
         _, _, stat = relative_systematic_hist.to_numpy(stat=True)
         
         plotter.add_hist((errors, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
-                         label='Total')
+                         label='Total', linewidth=2)
         plotter.add_hist((stat, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
                          linestyle='--', label='Stat')
         # merge systematics
         systematics = relative_systematic_hist.get_systematics(merge_statistics=True)
-        for sys_name_ in systematics:
+        colors = plotter.get_n_colors(len(systematics))
+        for i, sys_name_ in enumerate(systematics):
             sys_error = systematics[sys_name_]
             kwargs = {}
+            kwargs['color'] = colors[i]
             if sys_name_ == 'matrix_stat':
                 kwargs['linestyle'] = '--'
+
             plotter.add_hist((sys_error, bins, None), as_denominator=False, yerr=False, show_err_band=False,
                              label=sys_name_, **kwargs)
         plotter.draw_hist()
         if not self.is_pt:
             plotter.get_axis(location=(0, 0)).set_xscale("log")
-        plotter.show_legend(ncol=2)
+        plotter.show_legend(**{"loc": "upper left"})
         text = self.get_additional_text_on_plot(mass_window_index)
-        plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper left"})
-        plotter.get_axis(location=(0, 0)).set_ylabel("Relative Uncertainty")
+        plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper right"})
+        plotter.get_axis(location=(0, 0)).set_ylabel("Relative uncertainty")
         plotter.get_axis(location=(0, 0)).set_xlabel(self.x_axis_label)
         plotter.save_and_reset_plotter(measurement_hist.hist_name + "_sys_summary_" +
                                        str(mass_window_index) + "_" +self.channel + self.year)
@@ -907,7 +935,19 @@ class ISRHists:
             plotter.get_axis(location=(0,0)).set_ylabel("Events/bin")
             plotter.get_axis(location=(1,0)).set_ylabel("/Default")
             plotter.get_axis(location=(1,0)).set_xlabel(self.x_axis_label)
-            plotter.get_axis(location=(1, 0)).set_ylim(0.95, 1.05)
+            plotter.get_axis(location=(1, 0)).set_ylim(0.90, 1.1)
+
+            x_log_scale = y_log_scale = True
+            if self.is_pt:
+                x_log_scale = y_log_scale = False
+                y_log_scale = True
+
+            if y_log_scale:
+                plotter.get_axis(location=(0, 0)).set_yscale("log")
+
+            if x_log_scale:
+                plotter.get_axis(location=(0, 0)).set_xscale("log")
+                plotter.get_axis(location=(1, 0)).set_xscale("log")
 
             plotter.save_and_reset_plotter(measurement_hist.hist_name + "_sys_" + sys_name + "_" + str(mass_window_index) + "_" +
                                            self.channel + self.year)

@@ -235,6 +235,22 @@ class Plotter:
         self.save_fig(hist_name + postfix)
         self.reset()
 
+    def get_n_colors(self, n):
+        # Get the original tab10 colormap
+        tab10 = plt.get_cmap('tab10')
+        colors = [tab10(i) for i in range(10)]
+
+        # Generate extended colors by modifying brightness/saturation
+        extended_colors = []
+        for i in range(n):
+            base_color = colors[i % 10]
+            # Slightly adjust the brightness and saturation
+            factor = 0.9 + 0.1 * (i // 10)  # Change factor for every new cycle
+            new_color = tuple(min(1, c * factor) for c in base_color)
+            extended_colors.append(new_color)
+
+        return extended_colors
+
     def set_experiment_label(self, label="Preliminary", location=(0, 0), **kwargs):
         self.set_current_axis(location=location)
         self.current_axis.draw(self.current_axis.figure.canvas.get_renderer())

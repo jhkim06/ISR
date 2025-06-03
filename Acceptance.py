@@ -60,4 +60,6 @@ class Acceptance:
             d = deltas[i - 1]  # underflow/overflow not considered
             up.SetBinContent(i, val + d)
             down.SetBinContent(i, val - d)
+            up.SetBinError(i, default_hist.get_raw_hist().GetBinError(i))
+            down.SetBinError(i, default_hist.get_raw_hist().GetBinError(i))
         return {"up": up, "down": down}

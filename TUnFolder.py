@@ -1,7 +1,7 @@
 import ROOT
 import ctypes
 from types import MappingProxyType
-from Hist import Hist
+from Hist import Hist, to_numpy
 import numpy as np
 from Plotter import Plotter
 from array import array
@@ -102,9 +102,12 @@ class TUnFolder:
         if tunfolder is None:
             self.tunfolder.RegularizeCurvature(4, 5, 6)
             self.tunfolder.RegularizeCurvature(5, 6, 7)
+            #self.tunfolder.RegularizeCurvature(5, 7, 10)
+
         else:
             tunfolder.RegularizeCurvature(4, 5, 6)
             tunfolder.RegularizeCurvature(5, 6, 7)
+            #tunfolder.RegularizeCurvature(5, 7, 10)
 
         self.custom_regularization_for_mass = True
 
@@ -133,7 +136,10 @@ class TUnFolder:
     def _create_tunfolder(self, sys_name='', var_name='', other_matrix=None):
         if sys_name:
             #print(self.response_matrix.systematic_raw_root_hists)
-            matrix = self.response_matrix.systematic_raw_root_hists[sys_name][var_name]
+            if sys_name in self.response_matrix.systematic_raw_root_hists:
+                matrix = self.response_matrix.systematic_raw_root_hists[sys_name][var_name]
+            else:
+                matrix = self.response_matrix.get_raw_hist()
         else:
             if other_matrix is None:
                 matrix = self.response_matrix.get_raw_hist()
@@ -171,8 +177,9 @@ class TUnFolder:
     def _set_tunfolder_input(self, sys_name='', var_name='', sys_tunfolder=None):
 
         if sys_name:
-            sys_input_hist = self.input_hist.systematic_raw_root_hists[sys_name][var_name]
+            sys_input_hist = self.input_hist.systematic_raw_root_hists[sys_name][var_name].Clone("")
             sys_tunfolder.SetInput(sys_input_hist)
+            #sys_tunfolder.SetInput(self.input_hist.get_raw_hist())
 
             if self.input_fake_hist:
                 sys_input_fake_hist = self.input_fake_hist.systematic_raw_root_hists[sys_name][var_name]
@@ -230,7 +237,7 @@ class TUnFolder:
                     self.iter_best = tunfolder.ScanSURE(int(max_scan_iter), self.graphSURE, self.df_deviance)
                 else:
                     i_best = tunfolder.ScanSURE(max_scan_iter,
-                                                ctypes.c_double(5e-5),
+                                                ctypes.c_double(5e-6),
                                                 ctypes.c_double(1e-2),
                                                 self.graphSURE,
                                                 self.df_deviance,
@@ -301,6 +308,8 @@ class TUnFolder:
                 d = deltas[i - 1]
                 up.SetBinContent(i, val + d)
                 down.SetBinContent(i, val - d)
+                up.SetBinError(i, nominal_hist.GetBinError(i))
+                down.SetBinError(i, nominal_hist.GetBinError(i))
             return {"up": up, "down": down}
 
         # get the nominal unfolded result
@@ -310,8 +319,13 @@ class TUnFolder:
             # simply take the diagonal of the uncorrelated matrix
             cov2 = self.tunfolder.GetEmatrixSysUncorr("mCovMatrix")
             # Δ_i = sqrt( cov2(i,i) )
-            deltas = [math.sqrt(cov2.GetBinContent(i, i))
-                      for i in range(1, nominal.GetNbinsX() + 1)]
+            #deltas = [math.sqrt(cov2.GetBinContent(i, i))
+            #         for i in range(1, nominal.GetNbinsX() + 1)]
+
+            deltas = [
+                math.sqrt(max(0.0, cov2.GetBinContent(i, i)))
+                for i in range(1, nominal.GetNbinsX() + 1)
+            ]
         else:
             # build an array of |Δ_unfolded| from N toy‐matrices
             default_vals = np.array(Hist(nominal).to_numpy()[0])
@@ -328,13 +342,18 @@ class TUnFolder:
         # now build & return the two TH1s
         return build_up_down(nominal, deltas)
 
-    def sys_unfold(self):
+    def sys_unfold(self, return_input_sys=False, sys_names_to_skip=[]):
         # loop over hist systematics
         sys_unfolded_hist = {}
+        sys_unfold_input_hist = {}
         sys_hist = self.input_hist.systematic_raw_root_hists
         for sys_name, variations in sys_hist.items():
+            if sys_name in sys_names_to_skip:
+                continue
             # print('systematic unfolding... ', sys_name)
             sys_unfolded_hist[sys_name] = {}
+            if return_input_sys:
+                sys_unfold_input_hist[sys_name] = {}
             for var_name, hist in variations.items():
                 tunfolder = self._create_tunfolder(sys_name=sys_name, var_name=var_name)  # create tunfolder with the matrix FIXME allow response matrix variation!
                 self._set_tunfolder_input(sys_name=sys_name, var_name=var_name, sys_tunfolder=tunfolder)
@@ -342,7 +361,17 @@ class TUnFolder:
                 self.unfold(sys_tunfolder=tunfolder)
                 sys_unfolded_hist[sys_name][var_name] = self.get_unfolded_hist(use_axis_binning=False,
                                                                                tunfolder=tunfolder)
-        return sys_unfolded_hist
+                if return_input_sys:
+                    # FIXME TUnfoldIterative doesn't have GetInput()
+                    sys_unfold_input_hist[sys_name][var_name] = tunfolder.GetInput("unfold_input",  # histogram title
+                                                                                   ctypes.c_char_p(0),
+                                                                                   ctypes.c_char_p(0),
+                                                                                   ctypes.c_char_p(0),
+                                                                                   False)
+        if return_input_sys:
+            return sys_unfolded_hist, sys_unfold_input_hist
+        else:
+            return sys_unfolded_hist
 
     def get_unfolded_hist(self, projection_mode="*[*]",
                           use_axis_binning=True,

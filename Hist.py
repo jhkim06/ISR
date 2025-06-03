@@ -170,9 +170,15 @@ class Hist(object):
         for sys_name, variations in self.systematic_raw_root_hists.items():
             # 1) build the diffs array for every variation
             diffs_list = []
-            for var_name, hist in variations.items():
-                variation_values = to_numpy(hist)[0]  # shape (n_bins,)
-                diffs_list.append(variation_values - central_values)
+            # For FSR, take difference between two variations
+            if sys_name == "FSR":
+                fsr_nominal = to_numpy(variations["nominal"])[0]
+                fsr_sys = to_numpy(variations["pythia"])[0]
+                diffs_list.append(fsr_sys - fsr_nominal)
+            else:
+                for var_name, hist in variations.items():
+                    variation_values = to_numpy(hist)[0]  # shape (n_bins,)
+                    diffs_list.append(variation_values - central_values)
             diffs_arr = np.stack(diffs_list, axis=0)  # shape (n_variations, n_bins)
 
             if sys_name in ("pdf", "roccor_stat"):
@@ -201,18 +207,28 @@ class Hist(object):
             self.systematics[sys_name] = sys_val
         self.update_symmetric_error_array()
 
-    def get_systematics(self, merge_statistics=False, sys_names_to_merge=[('matrix_stat', 'matrix_model', 'Unfolding'),
-                                                                          ('roccor_stat', 'roccor', 'Roccor'),
-                                                                          ('momentum_scale', 'momentum_resolution', 'momentum_correction')]):
+    def get_systematics(self, merge_statistics=False,
+                        sys_names_to_merge=[(['matrix_stat', 'matrix_model'], 'Unfolding'),
+                                            (['roccor_stat', 'roccor'], 'Muon momentum correction'),
+                                            (['momentum_scale', 'momentum_resolution'], 'Electron momentum correction'),
+                                            (['alpha_s', 'scale', 'pdf', 'accept_stat'], 'Acceptance'),
+                                            (['electronRECOSF', 'electronIDSF'], 'Efficiency'),
+                                            (['qcd','bg_normalization'],'Background'),
+                                            (['btagSF', 'puWeight', 'prefireweight'], 'Others')]
+                        ):
         if merge_statistics:
             # find sys_stat sys_***
             new_systematics = copy.deepcopy(self.systematics)
-            for sys_name in sys_names_to_merge:
-                if sys_name[0] in new_systematics:
-                    combined = np.sqrt(new_systematics[sys_name[0]]**2 + new_systematics[sys_name[1]]**2)
-                    new_systematics[sys_name[2]] = combined
-                    del new_systematics[sys_name[0]]
-                    del new_systematics[sys_name[1]]
+            for sys_names_to_combine, combined_name in sys_names_to_merge:
+                combined = 0
+                sys_combined = False
+                for sys_name in sys_names_to_combine:
+                    if sys_name in new_systematics:
+                        combined += new_systematics[sys_name]**2
+                        del new_systematics[sys_name]
+                        sys_combined = True
+                if sys_combined:
+                    new_systematics[combined_name] = np.sqrt(combined)
             return new_systematics
         else:
             return self.systematics
@@ -360,6 +376,7 @@ class Hist(object):
 
     def get_sys_mean_dfs(self, sys_name, binned_mean=True, range_min=None, range_max=None):
         sys_means = []
+        # FIXME for FSR
         for var_name, hist in self.systematic_raw_root_hists[sys_name].items():
             central_mean, err = self.get_mean(binned_mean=binned_mean, range_min=range_min,
                                                         range_max=range_max, target_hist=hist)
@@ -395,16 +412,28 @@ class Hist(object):
                         maximum_pdf_delta = temp_delta
 
             diffs = []
-            for var_name, hist in variations.items():
-                var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
-                                            target_hist=hist)
-                delta = var_mean-central_mean
-                if sys_name == "pdf" or "_stat" in sys_name:
-                    if abs(delta) > 0.9999 * maximum_pdf_delta:
-                        print(f"Skipping systematic {sys_name} with variation {var_name} because it is an outlier.")
-                        continue
-                ## otherwise accept it
+            if sys_name == "FSR":
+                fsr_nominal = variations["nominal"]
+                fsr_pythia = variations["pythia"]
+
+                nominal, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
+                                           target_hist=fsr_nominal)
+                sys, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
+                                       target_hist=fsr_pythia)
+                delta = sys-nominal
                 diffs.append(delta)
+            else:
+                for var_name, hist in variations.items():
+                    var_mean, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
+                                                target_hist=hist)
+                    delta = var_mean-central_mean
+                    if sys_name == "pdf" or "_stat" in sys_name:
+                        if abs(delta) > 0.9999 * maximum_pdf_delta:
+                            print(f"Skipping systematic {sys_name} with variation {var_name} because it is an outlier.")
+                            continue
+                    ## otherwise accept it
+                    diffs.append(delta)
+
             diffs = np.array(diffs)
 
             if sys_name == "pdf":

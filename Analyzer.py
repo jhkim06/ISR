@@ -92,9 +92,8 @@ class Analyzer:
         self.systematics.clear()
         self.systematics = {
             "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
-            "alpha_s:signal": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
             "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
-            "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},
+            "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},  # unfolding
             "btagSF:simulation": {"hup": ("sys", "btagSF_hup", 1.0),
                                   "hdown": ("sys", "btagSF_hdown", 1.0),
                                   "lup": ("sys", "btagSF_lup", 1.0),
@@ -102,6 +101,8 @@ class Analyzer:
             "puWeight:simulation": {"up": ("sys", "PUweight_up", 1.0), "down": ("sys", "PUweight_down", 1.0)},
             "prefireweight:simulation": {"up": ("sys", "prefireweight_up", 1.0),
                                          "down": ("sys", "prefireweight_down", 1.0)},
+
+            "alpha_s:signal": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
         }
         pdf_signal_variations = {
             str(i): ("pdf", f"pdf{i}", 1.0)
@@ -109,10 +110,11 @@ class Analyzer:
         }
         self.systematics.update({"pdf:signal": pdf_signal_variations})
 
+        # factorisation and renormalisation scale variations
         scale_signal_variations = {
             str(i): ("pdf", f"scalevariation{i}", 1.0)
             for i in range(9)
-            if i not in (5, 7)
+            if i not in (5, 7)  #
         }
         self.systematics.update({"scale:signal": scale_signal_variations})
 
@@ -138,27 +140,27 @@ class Analyzer:
         #mmomentum_variations.update(mmomentum_stat)
 
         muonIDSF_variations = {"s1": ("sys", "muonIDSF_s1_m0", 1.0),
-                                   "s2": ("sys", "muonIDSF_s2_m0", 1.0),
-                                   "s3": ("sys", "muonIDSF_s3_m0", 1.0),
-                                   "s4": ("sys", "muonIDSF_s4_m0", 1.0),
-                                   "s5": ("sys", "muonIDSF_s5_m0", 1.0),
-                                   "s6": ("sys", "muonIDSF_s6_m0", 1.0),
-                                   "s7_m0": ("sys", "muonIDSF_s7_m0", 1.0),
-                                   "s7_m1": ("sys", "muonIDSF_s7_m1", 1.0),
-                                   "s8_m0": ("sys", "muonIDSF_s8_m0", 1.0),
-                                   "s8_m1": ("sys", "muonIDSF_s8_m1", 1.0),
-                                   "s9": ("sys", "muonIDSF_s9_m0", 1.0),
-                                   "s10": ("sys", "muonIDSF_s10_m0", 1.0),
-                                   "s11_m0": ("sys", "muonIDSF_s11_m0", 1.0),
-                                   "s11_m1": ("sys", "muonIDSF_s11_m1", 1.0),
-                                   "s12_m0": ("sys", "muonIDSF_s12_m0", 1.0),
-                                   "s12_m1": ("sys", "muonIDSF_s12_m1", 1.0),
-                                   "s13_m0": ("sys", "muonIDSF_s13_m0", 1.0),
-                                   "s13_m1": ("sys", "muonIDSF_s13_m1", 1.0),
-                                   "s14": ("sys", "muonIDSF_s14_m0", 1.0),
-                                   "s15": ("sys", "muonIDSF_s15_m0", 1.0),
-                                   "s16": ("sys", "muonIDSF_s16_m0", 1.0),
-                                   }
+                               "s2": ("sys", "muonIDSF_s2_m0", 1.0),
+                               "s3": ("sys", "muonIDSF_s3_m0", 1.0),
+                               "s4": ("sys", "muonIDSF_s4_m0", 1.0),
+                               "s5": ("sys", "muonIDSF_s5_m0", 1.0),
+                               "s6": ("sys", "muonIDSF_s6_m0", 1.0),
+                               "s7_m0": ("sys", "muonIDSF_s7_m0", 1.0),
+                               "s7_m1": ("sys", "muonIDSF_s7_m1", 1.0),
+                               "s8_m0": ("sys", "muonIDSF_s8_m0", 1.0),
+                               "s8_m1": ("sys", "muonIDSF_s8_m1", 1.0),
+                               "s9": ("sys", "muonIDSF_s9_m0", 1.0),
+                               "s10": ("sys", "muonIDSF_s10_m0", 1.0),
+                               "s11_m0": ("sys", "muonIDSF_s11_m0", 1.0),
+                               "s11_m1": ("sys", "muonIDSF_s11_m1", 1.0),
+                               "s12_m0": ("sys", "muonIDSF_s12_m0", 1.0),
+                               "s12_m1": ("sys", "muonIDSF_s12_m1", 1.0),
+                               "s13_m0": ("sys", "muonIDSF_s13_m0", 1.0),
+                               "s13_m1": ("sys", "muonIDSF_s13_m1", 1.0),
+                               "s14": ("sys", "muonIDSF_s14_m0", 1.0),
+                               "s15": ("sys", "muonIDSF_s15_m0", 1.0),
+                               "s16": ("sys", "muonIDSF_s16_m0", 1.0),
+                               }
 
         electronIDSF_variations = {"s1": ("sys", "electronIDSF_s1_m0", 1.0),
                                    "s2": ("sys", "electronIDSF_s2_m0", 1.0),
@@ -235,7 +237,7 @@ class Analyzer:
         return self.data.get_mc(process_name, self.year, self.channel, label=label)
 
     def set_systematics_on_hist(self, file_group, hist, hist_name, hist_name_prefix='',
-                                bin_width_norm=False, sys_name_to_ignore=''):
+                                bin_width_norm=False, sys_names_to_skip=[]):
         is_measurement = hist.is_measurement
         is_signal = hist.is_mc_signal
 
@@ -260,7 +262,7 @@ class Analyzer:
                 use_sys_config = False  # fallback if unknown apply_to
 
             for variation_name, sys_config in value.items():
-                if sys_name_to_ignore == sys_name:
+                if sys_name in sys_names_to_skip:
                     use_sys_config = False
                 if use_sys_config:
                     hist_name_ = hist_name+"_"+sys_config[1] if sys_config[1] else hist_name
@@ -292,7 +294,7 @@ class Analyzer:
         return hist
 
     def get_mc_hist(self, process_name, hist_name, hist_name_prefix='', bin_width_norm=False, scale=1.0, norm=False,
-                    sys_dir_name='default', force_sys_off=False, sys_name_to_ignore=''):
+                    sys_dir_name='default', force_sys_off=False, sys_names_to_skip=[]):
         file_group = self.get_mc(process_name)
         is_signal = False
         if process_name == self.signal_name:
@@ -308,7 +310,7 @@ class Analyzer:
             sys_on = False
         if sys_on:
             self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
-                                         bin_width_norm=bin_width_norm, sys_name_to_ignore=sys_name_to_ignore)
+                                         bin_width_norm=bin_width_norm, sys_names_to_skip=sys_names_to_skip)
             hist.compute_systematic_rss_per_sysname()
         return hist
 
@@ -318,8 +320,6 @@ class Analyzer:
         data_ss.label='QCD'
         total_mc_ss = self.get_total_expectation_hist(hist_name, hist_name_prefix='ss_',
                                                      bin_width_norm=bin_width_norm, norm=False)
-        #total_mc_ss = self.get_mc_hist(self.signal_name, hist_name, hist_name_prefix='ss_',
-        #                               bin_width_norm=bin_width_norm, norm=False)
         qcd_hist = data_ss - total_mc_ss
 
         qcd_hist_up = qcd_hist.create()

@@ -149,11 +149,12 @@ def main():
         {"period": "2016a", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2016b", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2017", "channel": "ee", "event_selection": "TightID_b_veto"},
-        {"period": "2018", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2016a", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         {"period": "2016b", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         {"period": "2017", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
-        {"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
+
+        #{"period": "2018", "channel": "ee", "event_selection": "TightID_b_veto"},
+        #{"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
     ]
 
     mass_dict = {}
@@ -174,27 +175,75 @@ def main():
         if period == '2017' and channel == 'ee':
             # apply regularisation only for ee 2017
             tau_scan_method_for_pt = 'scan_lcurve' 
-        analyzer.pt_isr_unfold(do_iterative=False, reg_mode=reg_mode, tau_scan_method=tau_scan_method_for_pt)
+
+        tau_pt, _ = analyzer.pt_isr_unfold(do_iterative=False, reg_mode=reg_mode, tau_scan_method=tau_scan_method_for_pt)
         analyzer.isr_acceptance_corrections()
         pt, mass = analyzer.get_isr_results()
         pt.set_ISRHistSet_per_mass_window()
         mass.set_ISRHistSet_per_mass_window()
 
-        analyzer_1d = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False)
-        analyzer_1d.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=False)
-        analyzer_1d.mass_isr_unfold(do_iterative=False, tau=tau,  # use the same regularization strength
-                                    reg_mode=reg_mode, tau_scan_method=None)
-        do_iterative_for_last_window = False
-        if tau_scan_method_for_pt == 'scan_lcurve':
-            do_iterative_for_last_window = True
-        analyzer_1d.pt_isr_unfold(do_iterative=False, tau=0, max_iter=4,
-                                  do_iterative_for_last_window=do_iterative_for_last_window)
+        # FSR, not sure this can be approved...
+        # For FSR systematic
+        analyzer_1d = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False,
+                                  unfolded_space_name='gen_dressedp1', acceptance_space_name='dressedp1',
+                                  mass_unfolded_space_name='gen_dressedp1', mass_acceptance_space_name='dressedp1')
+        analyzer_1d.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=True)
+        analyzer_1d.mass_isr_unfold(do_iterative=False,  # use the same regularization strength
+                                    reg_mode=reg_mode, tau_scan_method='scan_lcurve')
+        analyzer_1d.pt_isr_unfold(do_iterative=False, tau=tau_pt,
+                                  reg_mode=reg_mode, tau_scan_method=None,
+                                  apply_custom_regularization_for_pt=False)
         analyzer_1d.isr_acceptance_corrections()
+
         pt_1d, mass_1d = analyzer_1d.get_isr_results()
         pt_1d.set_ISRHistSet_per_mass_window()
         mass_1d.set_ISRHistSet_per_mass_window()
 
-        pt.add_external_hist_as_sys_hist(pt_1d, 'FSR')  # mass use only 1D unfolding
+        analyzer_fsr_nominal = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False,
+                               folded_space_name='gen_dressedp1',
+                               unfolded_space_name='gen_dressed', acceptance_space_name='dressed',
+                               pt_folded_bin_name='coarse_O',
+
+                               mass_folded_space_name='gen_dressedp1',
+                               mass_unfolded_space_name='gen_dressed', mass_acceptance_space_name='dressed',
+                               mass_folded_bin_name='coarse_O',)
+
+        analyzer_fsr_pythia = ISRAnalyzer(sample_base_dir, mass_bins, pt_bins, sys_on=False,
+                               signal='DY:aMCNLO',
+                               folded_space_name='gen_dressedp1',
+                               unfolded_space_name='gen_dressed', acceptance_space_name='dressed',
+                               pt_folded_bin_name='coarse_O',
+
+                               mass_folded_space_name='gen_dressedp1',
+                               mass_unfolded_space_name='gen_dressed', mass_acceptance_space_name='dressed',
+                               mass_folded_bin_name='coarse_O',)
+
+        analyzer_fsr_nominal.setup_isr_hists(period, channel, event_selection, pt_1d, mass_1d)
+        analyzer_fsr_pythia.setup_isr_hists(period, channel, event_selection, pt_1d, mass_1d)
+
+        analyzer_fsr_nominal.pt_isr_unfold()
+        analyzer_fsr_nominal.mass_isr_unfold()
+        analyzer_fsr_nominal.isr_acceptance_corrections()
+        pt_fsr_nominal, mass_fsr_nominal = analyzer_fsr_nominal.get_isr_results()
+
+        pt_fsr_nominal.set_ISRHistSet_per_mass_window()
+        mass_fsr_nominal.set_ISRHistSet_per_mass_window()
+
+        analyzer_fsr_pythia.pt_isr_unfold()
+        analyzer_fsr_pythia.mass_isr_unfold()
+        analyzer_fsr_pythia.isr_acceptance_corrections()
+        pt_fsr_pythia, mass_fsr_pythia = analyzer_fsr_pythia.get_isr_results()
+
+        pt_fsr_pythia.set_ISRHistSet_per_mass_window()
+        mass_fsr_pythia.set_ISRHistSet_per_mass_window()
+
+        pt.add_external_hist_as_sys_hist(pt_fsr_nominal, 'FSR', 'nominal')
+        mass.add_external_hist_as_sys_hist(mass_fsr_nominal, 'FSR', 'nominal')
+        pt.add_external_hist_as_sys_hist(pt_fsr_pythia, 'FSR', 'pythia')
+        mass.add_external_hist_as_sys_hist(mass_fsr_pythia, 'FSR', 'pythia')
+        pt.update_systematics()
+        mass.update_systematics()
+
         #pt_others = []
         #test_aMCNLO = ISRAnalyzer(sample_base_dir,
         #                        mass_bins,
@@ -210,6 +259,7 @@ def main():
         #    test_LO.setup_isr_acceptance_hists(period, channel, "", is_2d=False)
         #    pt_LO, mass_LO = test_LO.get_isr_results()
         #    pt_others.append(pt_LO)
+
         pt.draw_isr_plot(mass, save_as_csv=True, 
                          linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=3, capsize=3)
 
@@ -272,235 +322,235 @@ def main():
         mass_dict[key] = mass
         pt_dict[key] = pt
 
-    for i_mass_index in range(len(mass_bins)):
-        pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
-                                key='unfold_input',
-                                index=i_mass_index, scale=-1, bin_width_norm=True)
+    #for i_mass_index in range(len(mass_bins)):
+    #    pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
+    #                            key='unfold_input',
+    #                            index=i_mass_index, scale=-1, bin_width_norm=True)
 
-        pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
-                                key='unfolded_measurement',
-                                index=i_mass_index, scale=-1, bin_width_norm=True)
+    #    pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
+    #                            key='unfolded_measurement',
+    #                            index=i_mass_index, scale=-1, bin_width_norm=True)
 
-        pt_dict["2016a_mm"].draw_pt_comparisons(pt_dict['2016b_mm'], pt_dict['2017_mm'], pt_dict['2018_mm'],
-                                key='unfold_input',
-                                index=i_mass_index, scale=-1, bin_width_norm=True)
+    #    pt_dict["2016a_mm"].draw_pt_comparisons(pt_dict['2016b_mm'], pt_dict['2017_mm'], pt_dict['2018_mm'],
+    #                            key='unfold_input',
+    #                            index=i_mass_index, scale=-1, bin_width_norm=True)
 
-        pt_dict["2016a_mm"].draw_pt_comparisons(pt_dict['2016b_mm'], pt_dict['2017_mm'], pt_dict['2018_mm'],
-                                        key='unfolded_measurement',
-                                        index=i_mass_index, scale=-1, bin_width_norm=True)
+    #    pt_dict["2016a_mm"].draw_pt_comparisons(pt_dict['2016b_mm'], pt_dict['2017_mm'], pt_dict['2018_mm'],
+    #                                    key='unfolded_measurement',
+    #                                    index=i_mass_index, scale=-1, bin_width_norm=True)
 
-    ## -------------------
-    ## Now combine and plot
-    ## -------------------
-    # Combiner for "ee" channel
-    combiner_ee = ISRCombiner() 
-    # Combiner for "mm" channel
-    combiner_mm = ISRCombiner()
+    ### -------------------
+    ### Now combine and plot
+    ### -------------------
+    ## Combiner for "ee" channel
+    #combiner_ee = ISRCombiner() 
+    ## Combiner for "mm" channel
+    #combiner_mm = ISRCombiner()
 
-    for key in mass_dict:
-        period, channel = key.split("_")
-        if channel == "ee":
-            combiner_ee.get_results_dfs(key, mass_dict[key].get_mean_df(), pt_dict[key].get_mean_df())
-        elif channel == "mm":
-            combiner_mm.get_results_dfs(key, mass_dict[key].get_mean_df(), pt_dict[key].get_mean_df())
+    #for key in mass_dict:
+    #    period, channel = key.split("_")
+    #    if channel == "ee":
+    #        combiner_ee.get_results_dfs(key, mass_dict[key].get_mean_df(), pt_dict[key].get_mean_df())
+    #    elif channel == "mm":
+    #        combiner_mm.get_results_dfs(key, mass_dict[key].get_mean_df(), pt_dict[key].get_mean_df())
 
-    sys_mass = {}
-    sys_pt = {}
-    sys_pt['2016a'], sys_mass['2016a'] = pt_dict["2016a_ee"].get_sys_mean_dfs(pt_dict["2016a_ee"], mass_dict["2016a_ee"])
-    sys_pt['2016b'], sys_mass['2016b'] = pt_dict["2016b_ee"].get_sys_mean_dfs(pt_dict["2016b_ee"], mass_dict["2016b_ee"])
-    sys_pt['2017'], sys_mass['2017'] =   pt_dict["2017_ee"].get_sys_mean_dfs(pt_dict["2017_ee"], mass_dict["2017_ee"])
-    sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_ee"].get_sys_mean_dfs(pt_dict["2018_ee"], mass_dict["2018_ee"])
+    #sys_mass = {}
+    #sys_pt = {}
+    #sys_pt['2016a'], sys_mass['2016a'] = pt_dict["2016a_ee"].get_sys_mean_dfs(pt_dict["2016a_ee"], mass_dict["2016a_ee"])
+    #sys_pt['2016b'], sys_mass['2016b'] = pt_dict["2016b_ee"].get_sys_mean_dfs(pt_dict["2016b_ee"], mass_dict["2016b_ee"])
+    #sys_pt['2017'], sys_mass['2017'] =   pt_dict["2017_ee"].get_sys_mean_dfs(pt_dict["2017_ee"], mass_dict["2017_ee"])
+    #sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_ee"].get_sys_mean_dfs(pt_dict["2018_ee"], mass_dict["2018_ee"])
 
-    sys_mass_ee_combined_df = {}
-    sys_pt_ee_combined_df = {}
+    #sys_mass_ee_combined_df = {}
+    #sys_pt_ee_combined_df = {}
 
-    for sys_name in sys_mass['2016a'].keys():
-        sys_mass_ee_combined_df[sys_name] = {}
-        sys_pt_ee_combined_df[sys_name] = {}
+    #for sys_name in sys_mass['2016a'].keys():
+    #    sys_mass_ee_combined_df[sys_name] = {}
+    #    sys_pt_ee_combined_df[sys_name] = {}
 
-        for index in sys_mass['2016a'][sys_name].keys():
-            combiner_temp = ISRCombiner()
-            for period in ['2016a', '2016b', '2017', '2018']:
-                combiner_temp.get_results_dfs(period + sys_name + str(index),
-                                              sys_mass[period][sys_name][index],
-                                              sys_pt[period][sys_name][index])
+    #    for index in sys_mass['2016a'][sys_name].keys():
+    #        combiner_temp = ISRCombiner()
+    #        for period in ['2016a', '2016b', '2017', '2018']:
+    #            combiner_temp.get_results_dfs(period + sys_name + str(index),
+    #                                          sys_mass[period][sys_name][index],
+    #                                          sys_pt[period][sys_name][index])
 
-            mass_combined_ee_temp, pt_combined_ee_temp = combiner_temp.combine() # combined sys
-            sys_mass_ee_combined_df[sys_name][index] = mass_combined_ee_temp
-            sys_pt_ee_combined_df[sys_name][index] = pt_combined_ee_temp
-            del combiner_temp
+    #        mass_combined_ee_temp, pt_combined_ee_temp = combiner_temp.combine() # combined sys
+    #        sys_mass_ee_combined_df[sys_name][index] = mass_combined_ee_temp
+    #        sys_pt_ee_combined_df[sys_name][index] = pt_combined_ee_temp
+    #        del combiner_temp
 
-    del sys_pt
-    del sys_mass
+    #del sys_pt
+    #del sys_mass
 
-    sys_mass = {}
-    sys_pt = {}
-    sys_pt['2016a'], sys_mass['2016a'] = pt_dict["2016a_mm"].get_sys_mean_dfs(pt_dict["2016a_mm"], mass_dict["2016a_mm"])
-    sys_pt['2016b'], sys_mass['2016b'] = pt_dict["2016b_mm"].get_sys_mean_dfs(pt_dict["2016b_mm"], mass_dict["2016b_mm"])
-    sys_pt['2017'], sys_mass['2017'] =   pt_dict["2017_mm"].get_sys_mean_dfs(pt_dict["2017_mm"], mass_dict["2017_mm"])
-    sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_mm"].get_sys_mean_dfs(pt_dict["2018_mm"], mass_dict["2018_mm"])
+    #sys_mass = {}
+    #sys_pt = {}
+    #sys_pt['2016a'], sys_mass['2016a'] = pt_dict["2016a_mm"].get_sys_mean_dfs(pt_dict["2016a_mm"], mass_dict["2016a_mm"])
+    #sys_pt['2016b'], sys_mass['2016b'] = pt_dict["2016b_mm"].get_sys_mean_dfs(pt_dict["2016b_mm"], mass_dict["2016b_mm"])
+    #sys_pt['2017'], sys_mass['2017'] =   pt_dict["2017_mm"].get_sys_mean_dfs(pt_dict["2017_mm"], mass_dict["2017_mm"])
+    #sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_mm"].get_sys_mean_dfs(pt_dict["2018_mm"], mass_dict["2018_mm"])
 
-    sys_mass_mm_combined_df = {}
-    sys_pt_mm_combined_df = {}
+    #sys_mass_mm_combined_df = {}
+    #sys_pt_mm_combined_df = {}
 
-    for sys_name in sys_mass['2016a'].keys():
-        sys_mass_mm_combined_df[sys_name] = {}
-        sys_pt_mm_combined_df[sys_name] = {}
+    #for sys_name in sys_mass['2016a'].keys():
+    #    sys_mass_mm_combined_df[sys_name] = {}
+    #    sys_pt_mm_combined_df[sys_name] = {}
 
-        for index in sys_mass['2016a'][sys_name].keys():
-            combiner_temp = ISRCombiner()
-            for period in ['2016a', '2016b', '2017', '2018']:
-                combiner_temp.get_results_dfs(period + sys_name + str(index),
-                                              sys_mass[period][sys_name][index],
-                                              sys_pt[period][sys_name][index])
+    #    for index in sys_mass['2016a'][sys_name].keys():
+    #        combiner_temp = ISRCombiner()
+    #        for period in ['2016a', '2016b', '2017', '2018']:
+    #            combiner_temp.get_results_dfs(period + sys_name + str(index),
+    #                                          sys_mass[period][sys_name][index],
+    #                                          sys_pt[period][sys_name][index])
 
-            mass_combined_mm_temp, pt_combined_mm_temp = combiner_temp.combine() # combined sys
-            sys_mass_mm_combined_df[sys_name][index] = mass_combined_mm_temp
-            sys_pt_mm_combined_df[sys_name][index] = pt_combined_mm_temp
-            del combiner_temp
+    #        mass_combined_mm_temp, pt_combined_mm_temp = combiner_temp.combine() # combined sys
+    #        sys_mass_mm_combined_df[sys_name][index] = mass_combined_mm_temp
+    #        sys_pt_mm_combined_df[sys_name][index] = pt_combined_mm_temp
+    #        del combiner_temp
 
 
-    del sys_pt
-    del sys_mass
+    #del sys_pt
+    #del sys_mass
 
-    sys_mass_combined_df = {}
-    sys_pt_combined_df = {}
+    #sys_mass_combined_df = {}
+    #sys_pt_combined_df = {}
 
-    for sys_name in sys_pt_mm_combined_df.keys():
-        sys_mass_combined_df[sys_name] = {}
-        sys_pt_combined_df[sys_name] = {}
+    #for sys_name in sys_pt_mm_combined_df.keys():
+    #    sys_mass_combined_df[sys_name] = {}
+    #    sys_pt_combined_df[sys_name] = {}
 
-        for index in sys_pt_mm_combined_df[sys_name].keys():
-            combiner_temp = ISRCombiner()
-            combiner_temp.get_results_dfs("mm"+sys_name + str(index),
-                                          sys_mass_mm_combined_df[sys_name][index],
-                                          sys_pt_mm_combined_df[sys_name][index])
-            # FIXME
-            if sys_name in sys_mass_ee_combined_df:
-                combiner_temp.get_results_dfs("ee"+sys_name + str(index),
-                                              sys_mass_ee_combined_df[sys_name][index],
-                                              sys_pt_ee_combined_df[sys_name][index])
+    #    for index in sys_pt_mm_combined_df[sys_name].keys():
+    #        combiner_temp = ISRCombiner()
+    #        combiner_temp.get_results_dfs("mm"+sys_name + str(index),
+    #                                      sys_mass_mm_combined_df[sys_name][index],
+    #                                      sys_pt_mm_combined_df[sys_name][index])
+    #        # FIXME
+    #        if sys_name in sys_mass_ee_combined_df:
+    #            combiner_temp.get_results_dfs("ee"+sys_name + str(index),
+    #                                          sys_mass_ee_combined_df[sys_name][index],
+    #                                          sys_pt_ee_combined_df[sys_name][index])
 
-            mass_combined_temp, pt_combined_temp = combiner_temp.combine() # combined sys
-            sys_mass_combined_df[sys_name][index] = mass_combined_temp
-            sys_pt_combined_df[sys_name][index] = pt_combined_temp
-            del combiner_temp
+    #        mass_combined_temp, pt_combined_temp = combiner_temp.combine() # combined sys
+    #        sys_mass_combined_df[sys_name][index] = mass_combined_temp
+    #        sys_pt_combined_df[sys_name][index] = pt_combined_temp
+    #        del combiner_temp
 
-    # Combine all periods for each channel
-    mass_combined_ee, pt_combined_ee = combiner_ee.combine()
-    pt_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_ee_combined.csv")
-    mass_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_ee_combined.csv")
+    ## Combine all periods for each channel
+    #mass_combined_ee, pt_combined_ee = combiner_ee.combine()
+    #pt_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_ee_combined.csv")
+    #mass_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_ee_combined.csv")
 
-    mass_combined_mm, pt_combined_mm = combiner_mm.combine()
-    pt_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_mm_combined.csv")
-    mass_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_mm_combined.csv")
+    #mass_combined_mm, pt_combined_mm = combiner_mm.combine()
+    #pt_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_mm_combined.csv")
+    #mass_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_mm_combined.csv")
 
-    # Global Combiner (ee + mm)
-    combiner_all = ISRCombiner(is_same_channel=False)
+    ## Global Combiner (ee + mm)
+    #combiner_all = ISRCombiner(is_same_channel=False)
 
-    combiner_all.get_results_dfs("combined_ee", mass_combined_ee, pt_combined_ee)
-    combiner_all.get_results_dfs("combined_mm", mass_combined_mm, pt_combined_mm)
+    #combiner_all.get_results_dfs("combined_ee", mass_combined_ee, pt_combined_ee)
+    #combiner_all.get_results_dfs("combined_mm", mass_combined_mm, pt_combined_mm)
 
-    mass_combined_final, pt_combined_final = combiner_all.combine()
-    pt_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_combined.csv")
-    mass_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_combined.csv")
+    #mass_combined_final, pt_combined_final = combiner_all.combine()
+    #pt_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_combined.csv")
+    #mass_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_combined.csv")
 
-    periods = ["2016a", "2016b", "2017", "2018"]
+    #periods = ["2016a", "2016b", "2017", "2018"]
 
-    color_map = {
-        "2016a": (86 / 255, 180 / 255, 233 / 255),
-        "2016b": (230 / 255, 159 / 255, 0 / 255),
-        "2017": (0 / 255, 158 / 255, 115 / 255),
-        "2018": (213 / 255, 94 / 255, 0 / 255),}
+    #color_map = {
+    #    "2016a": (86 / 255, 180 / 255, 233 / 255),
+    #    "2016b": (230 / 255, 159 / 255, 0 / 255),
+    #    "2017": (0 / 255, 158 / 255, 115 / 255),
+    #    "2018": (213 / 255, 94 / 255, 0 / 255),}
 
-    marker_map = {
-        "2016a": 'o',
-        "2016b": 's',
-        "2017": '^',
-        "2018": 'v',
-    }
+    #marker_map = {
+    #    "2016a": 'o',
+    #    "2016b": 's',
+    #    "2017": '^',
+    #    "2018": 'v',
+    #}
 
-    def draw_isr_combination_plot(mass_dict, pt_dict,
-                                  mass_combined=None, pt_combined=None,
-                                  mass_sys_combined=None, pt_sys_combined=None,
-                                  channel="", periods=[],
-                                  color_map={}, marker_map={},
-                                  save_prefix="ISR_Combined"):
-        if not periods:
-            raise ValueError("Periods list must not be empty!")
+    #def draw_isr_combination_plot(mass_dict, pt_dict,
+    #                              mass_combined=None, pt_combined=None,
+    #                              mass_sys_combined=None, pt_sys_combined=None,
+    #                              channel="", periods=[],
+    #                              color_map={}, marker_map={},
+    #                              save_prefix="ISR_Combined"):
+    #    if not periods:
+    #        raise ValueError("Periods list must not be empty!")
 
-        reference_period = f"{periods[0]}_{channel}"
-        plotter = pt_dict[reference_period].draw_isr_plot(
-            mass_dict[reference_period],
-            key='measurement',
-            save_and_reset_plotter=False,
-            do_fit=False,
-            label=reference_period.split("_")[0],
-            color=color_map.get(periods[0], 'black'),
-            marker=marker_map.get(periods[0], 'o'),
-            linestyle='none',
-            mfc='none'
-        )
-        plotter.set_experiment_label(year='Run 2')
+    #    reference_period = f"{periods[0]}_{channel}"
+    #    plotter = pt_dict[reference_period].draw_isr_plot(
+    #        mass_dict[reference_period],
+    #        key='measurement',
+    #        save_and_reset_plotter=False,
+    #        do_fit=False,
+    #        label=reference_period.split("_")[0],
+    #        color=color_map.get(periods[0], 'black'),
+    #        marker=marker_map.get(periods[0], 'o'),
+    #        linestyle='none',
+    #        mfc='none'
+    #    )
+    #    plotter.set_experiment_label(year='Run 2')
 
-        for period in periods[1:]:
-            period_key = f"{period}_{channel}"
-            pt_dict[period_key].add_isr_plot(
-                plotter,
-                mass_dict[period_key],
-                pt_dict[period_key],
-                do_fit=False,
-                label=period,
-                color=color_map.get(period, 'black'),
-                marker=marker_map.get(period, 'o'),
-                linestyle='none',
-                mfc='none'
-            )
+    #    for period in periods[1:]:
+    #        period_key = f"{period}_{channel}"
+    #        pt_dict[period_key].add_isr_plot(
+    #            plotter,
+    #            mass_dict[period_key],
+    #            pt_dict[period_key],
+    #            do_fit=False,
+    #            label=period,
+    #            color=color_map.get(period, 'black'),
+    #            marker=marker_map.get(period, 'o'),
+    #            linestyle='none',
+    #            mfc='none'
+    #        )
 
-        # --- Add Combined if provided ---
-        if mass_combined is not None and pt_combined is not None:
-            pt_dict[reference_period].add_isr_plot(
-                plotter,
-                mass_combined,
-                pt_combined,
-                sys_mean_mass=mass_sys_combined,
-                sys_mean_pt=pt_sys_combined,
-                do_fit=True,
-                label='Combined',
-                color='black',
-                marker='*',
-                linestyle='none',
-                mfc='none',
-                linewidth=0.7
-            )
+    #    # --- Add Combined if provided ---
+    #    if mass_combined is not None and pt_combined is not None:
+    #        pt_dict[reference_period].add_isr_plot(
+    #            plotter,
+    #            mass_combined,
+    #            pt_combined,
+    #            sys_mean_mass=mass_sys_combined,
+    #            sys_mean_pt=pt_sys_combined,
+    #            do_fit=True,
+    #            label='Combined',
+    #            color='black',
+    #            marker='*',
+    #            linestyle='none',
+    #            mfc='none',
+    #            linewidth=0.7
+    #        )
 
-        plotter.draw_errorbar()
-        plotter.show_legend(location=(0, 0))
-        plotter.save_and_reset_plotter(f"{save_prefix}_{channel}")
+    #    plotter.draw_errorbar()
+    #    plotter.show_legend(location=(0, 0))
+    #    plotter.save_and_reset_plotter(f"{save_prefix}_{channel}")
 
-    draw_isr_combination_plot(mass_dict, pt_dict,
-                              mass_combined=mass_combined_ee, pt_combined=pt_combined_ee,
-                              mass_sys_combined=sys_mass_ee_combined_df, pt_sys_combined=sys_pt_ee_combined_df,
-                              channel="ee", periods=periods,
-                              color_map=color_map, marker_map=marker_map)
+    #draw_isr_combination_plot(mass_dict, pt_dict,
+    #                          mass_combined=mass_combined_ee, pt_combined=pt_combined_ee,
+    #                          mass_sys_combined=sys_mass_ee_combined_df, pt_sys_combined=sys_pt_ee_combined_df,
+    #                          channel="ee", periods=periods,
+    #                          color_map=color_map, marker_map=marker_map)
 
-    draw_isr_combination_plot(mass_dict, pt_dict,
-                              mass_combined=mass_combined_mm, pt_combined=pt_combined_mm,
-                              mass_sys_combined=sys_mass_mm_combined_df, pt_sys_combined=sys_pt_mm_combined_df,
-                              channel="mm", periods=periods,
-                              color_map=color_map, marker_map=marker_map)
+    #draw_isr_combination_plot(mass_dict, pt_dict,
+    #                          mass_combined=mass_combined_mm, pt_combined=pt_combined_mm,
+    #                          mass_sys_combined=sys_mass_mm_combined_df, pt_sys_combined=sys_pt_mm_combined_df,
+    #                          channel="mm", periods=periods,
+    #                          color_map=color_map, marker_map=marker_map)
 
-    draw_isr_plot_from_df(mass_combined_final, pt_combined_final, sys_mass_combined_df, sys_pt_combined_df,  
-                          label=r'$ee$ and $\mu\mu$ combined',
-                          color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
+    #draw_isr_plot_from_df(mass_combined_final, pt_combined_final, sys_mass_combined_df, sys_pt_combined_df,  
+    #                      label=r'$ee$ and $\mu\mu$ combined',
+    #                      color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
 
-    draw_isr_plot_from_df(mass_combined_ee, pt_combined_ee, sys_mass_ee_combined_df, sys_pt_ee_combined_df, postfix='ee', channel_label='ee', 
-                          label=r'$ee$ combined',
-                          color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
+    #draw_isr_plot_from_df(mass_combined_ee, pt_combined_ee, sys_mass_ee_combined_df, sys_pt_ee_combined_df, postfix='ee', channel_label='ee', 
+    #                      label=r'$ee$ combined',
+    #                      color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
 
-    draw_isr_plot_from_df(mass_combined_mm, pt_combined_mm, sys_mass_mm_combined_df, sys_pt_mm_combined_df, postfix='mm', channel_label='\mu\mu',
-                          label=r'$\mu\mu$ combined',
-                          color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
+    #draw_isr_plot_from_df(mass_combined_mm, pt_combined_mm, sys_mass_mm_combined_df, sys_pt_mm_combined_df, postfix='mm', channel_label='\mu\mu',
+    #                      label=r'$\mu\mu$ combined',
+    #                      color='black', marker='o', markersize=4.0, linestyle='none', linewidth=0.7,)
 
 
 if __name__ == "__main__":
