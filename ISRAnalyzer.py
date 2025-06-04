@@ -475,8 +475,7 @@ class ISRAnalyzer(Analyzer):
                 mass_bin_postfix = '_' + str(self.mass_bins[index][0]) + 'to' + str(self.mass_bins[index][1])
                 matrix_name = self.pt_matrix_name_prefix+mass_bin_postfix
 
-            # FIXME get matrix from ROOT file
-            mc_acceptance_hist = self.isr_pt.isr_hists[index].tunfolder.get_mc_truth_from_response_matrix(sys_on=True)
+            mc_acceptance_hist = self.get_acceptance_hist(matrix_name, is_matrix=True)
             unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist
 
             acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
@@ -510,7 +509,8 @@ class ISRAnalyzer(Analyzer):
         mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
 
         unfolded_hist = self.isr_mass.isr_hists[0].unfolded_measurement_hist
-        mc_acceptance_hist = self.isr_mass.isr_hists[0].tunfolder.get_mc_truth_from_response_matrix(sys_on=True)
+        _, matrix_name, _, _ = self.get_hist_names_for_1d_dimass(postfix)
+        mc_acceptance_hist = self.get_acceptance_hist(matrix_name, is_matrix=True)
 
         acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
         acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
@@ -579,6 +579,21 @@ class ISRAnalyzer(Analyzer):
             pt_data.append(temp_result.get_mean())
         return pt_data
 
-    def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False):
-        return self.get_mc_hist(self.acceptance_name, hist_name, bin_width_norm=bin_width_norm,
-                                force_sys_off=False, sys_names_to_skip=['matrix_model'])
+    def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False,
+                            is_matrix=False):
+        if is_matrix:
+            matrix = self.get_mc_hist(self.acceptance_name, hist_name, sys_names_to_skip=['matrix_model'])
+            # get projected hists
+            truth_hist = Hist(matrix.get_raw_hist().ProjectionX("projected_truth",  0, -1, "e"),
+                              hist_name=hist_name + "_projected_truth",
+                              year=self.year, channel=self.channel, label='Truth DY')
+
+            for sys_name, variations in matrix.systematic_raw_root_hists.items():
+                for var_name, hist in variations.items():
+                    temp_hist = hist.ProjectionX("projected_truth"+sys_name+var_name,  0, -1, "e")
+                    truth_hist.set_systematic_hist(sys_name, var_name, temp_hist)
+            truth_hist.compute_systematic_rss_per_sysname()
+            return truth_hist
+        else:
+            return self.get_mc_hist(self.acceptance_name, hist_name, bin_width_norm=bin_width_norm,
+                                        force_sys_off=False, sys_names_to_skip=['matrix_model'])
