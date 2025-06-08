@@ -4,9 +4,10 @@ import numpy as np
 
 
 def make_combiner_input(df, i):
-    index_name = df.iloc[i].index[:-1]  # drop total error
-    values = df.iloc[i].values[:-1]
+    index_name = df.iloc[i].index[:-2]  # drop total error
+    values = df.iloc[i].values[:-2]
 
+    print(index_name)
     combiner_input = [(index_name[index], values[index]) for index in range(len(index_name))]
     combiner_input = (combiner_input[0], combiner_input[1:])
     return combiner_input
@@ -59,6 +60,8 @@ class ISRCombiner:
                                    use_rho_same_channel=self.is_same_channel, solve=True)
 
             # update dataframe
+            print(mass_combiner.get_result_list())
+            print(combined_mass_df)
             combined_mass_df.loc[i, "mean":] = mass_combiner.get_result_list()
             combined_pt_df.loc[i, "mean":] = pt_combiner.get_result_list()
 

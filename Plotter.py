@@ -313,7 +313,7 @@ class Plotter:
             if p_hist.drawn:
                 continue
             # TODO allow case without TH1
-            values, bins, errors = p_hist.to_numpy()
+            values, bins, errors = p_hist.to_numpy(stat=True)
             if p_hist.not_to_draw:  # FIXME
                 continue
 
@@ -373,7 +373,8 @@ class Plotter:
         return sum((self.plot_items[i] for i in index[1:]),
                    self.plot_items[index[0]])
 
-    def draw_ratio_hists(self, location=(0, 0), show_normalized_error_band=True):
+    def draw_ratio_hists(self, location=(0, 0), show_y_error=True, show_error_band=True,
+                         show_normalized_error_band=True):
         nominator_index, denominator_index = self.set_ratio_hist()
 
         def is_stackable(indices):
@@ -384,14 +385,14 @@ class Plotter:
             nom_hist = self.plot_items[nominator_index]
             denom_hist = self.plot_items[denominator_index]
             ratio_hist = nom_hist.divide(denom_hist)  # TODO define divide for PlotItem!
-            self.add_ratio_hist(ratio_hist, location)
+            self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
 
         # Case 2: Only nominator is index (denominator is list)
         elif isinstance(nominator_index, int):
             nom_hist = self.plot_items[nominator_index]
             denom_hist = self.get_hist(denominator_index)
             ratio_hist = nom_hist.divide(denom_hist)
-            self.add_ratio_hist(ratio_hist, location)
+            self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
 
         # Case 3: Only denominator is index (nominator is list)
         elif isinstance(denominator_index, int):
@@ -400,11 +401,11 @@ class Plotter:
             if is_stackable(nominator_index):
                 nom_hist = self.get_hist(nominator_index)
                 ratio_hist = nom_hist.divide(denom_hist)
-                self.add_ratio_hist(ratio_hist, location)
+                self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
             else:
                 for idx in nominator_index:
                     ratio_hist = self.plot_items[idx].divide(denom_hist)
-                    self.add_ratio_hist(ratio_hist, location)
+                    self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
                     #print(ratio_hist.plot_kwargs)
                     self.draw_hist()
                 if show_normalized_error_band:
@@ -440,11 +441,13 @@ class Plotter:
                               **{"facecolor": plot_item.plot_kwargs['color'],
                                  "alpha": 0.2, "fill": True, 'hatch': None})
 
-    def add_ratio_hist(self, ratio_hist, location=(0, 0)):
+    def add_ratio_hist(self, ratio_hist, location=(0, 0), show_y_err=True,
+                       show_err_band=True):
         ratio_hist.use_for_ratio = False
-        ratio_hist.show_y_err = False
+        ratio_hist.show_y_err = show_y_err
         ratio_hist.location = location
         ratio_hist.not_to_draw = False
+        ratio_hist.show_err_band = show_err_band
         self.plot_items.append(ratio_hist)
         # return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
 
@@ -575,7 +578,8 @@ class Plotter:
         self.add_hist(denominator_hist, location=location, as_denominator=True, **denominator_args)
         self.draw_ratio_hists(location=ratio_location)
 
-    def draw_matrix(self, rm_np, x_axis_label="", y_axis_label="", **kwargs):
+    def draw_matrix(self, rm_np, x_axis_label="", y_axis_label="", show_number=False,
+                    **kwargs):
         self.set_current_axis((0, 0))
         # hep.hist2dplot(rm_np, norm=mcolors.LogNorm(), ax=self.current_axis, **kwargs)
         hep.hist2dplot(rm_np, ax=self.current_axis, **kwargs)
@@ -588,20 +592,19 @@ class Plotter:
             # self.current_axis.set_xlim(0.2, rm_np[1][-1])
             # self.current_axis.set_ylim(0.2, rm_np[2][-1])
 
-        show_number = False
         if show_number:
             for x in range(len(rm_np[1]) - 1):
                 for y in range(len(rm_np[2]) - 1):
                     c = rm_np[0][x][y]
                     if math.isnan(c):
                         continue
-                    if c < 0.1:
+                    if c < 0.01:
                         continue
                     x_half_width = (rm_np[1][x + 1] - rm_np[1][x]) / 2
                     y_half_width = (rm_np[2][y + 1] - rm_np[2][y]) / 2
                     self.current_axis.text(rm_np[1][x] + x_half_width,
                                            rm_np[2][y] + y_half_width,
-                                           f'{c:.2f}', va='center', ha='center', fontsize=15, color='red')
+                                           f'{c:.2f}', va='center', ha='center', fontsize=3, color='red')
 
         self.current_axis.set_ylabel(y_axis_label, fontsize=30)
         self.current_axis.set_xlabel(x_axis_label, fontsize=30)

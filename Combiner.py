@@ -38,7 +38,8 @@ class Combiner:
             "matrix_stat": 0.0,
             "momentum_scale": 1.0,
             "momentum_resolution": 1.0,
-            "roccor": 1.0,
+            "roccor_scale": 1.0,
+            "roccor_resolution": 1.0,
             "roccor_stat": 1.0,
             "btagSF": 1.0,
             "puWeight": 1.0,
@@ -46,6 +47,7 @@ class Combiner:
             "electronIDSF": 1.0,
             "electronRECOSF": 1.0,
             "muonIDSF": 1.0,
+            "triggerSF": 1.0,
             "Unfolding": 1.0,
             "Roccor": 1.0,
             "momentum_correction": 1.0,
@@ -67,13 +69,15 @@ class Combiner:
             "matrix_stat": 0.0,
             "momentum_scale": 1.0,
             "momentum_resolution": 1.0,
-            "roccor": 1.0,
+            "roccor_scale": 1.0,
+            "roccor_resolution": 1.0,
             "roccor_stat": 1.0,
             "btagSF": 1.0,
             "puWeight": 1.0,
             "prefireweight": 1.0,
             "electronIDSF": 0.0,
             "electronRECOSF": 0.0,
+            "triggerSF": 0.0,
             "muonIDSF": 0.0,
             "Unfolding": 1.0,
             "Roccor": 0.0,
@@ -201,8 +205,12 @@ class Combiner:
         for unc_index in range(1, self.blue.GetActUnc()+1):
             unc_list.append(result_matrix[0][unc_index])
 
+        # calculate total systematic and total uncertainty and attach it
+        total_sys = np.sqrt(np.sum(np.square(unc_list[1:])))
         total_unc = np.sqrt(np.sum(np.square(unc_list)))
+
         result_list.extend(unc_list)
+        result_list.append(total_sys)
         result_list.append(total_unc)
 
         return result_list

@@ -7,6 +7,7 @@ import sys
 from ISRLinearFitter import ISRLinearFitter
 import numpy as np
 ROOT.gROOT.SetBatch(True)
+import matplotlib.colors as mcolors
 
 
 logging.basicConfig(level=logging.INFO)
@@ -187,11 +188,10 @@ def main():
                                   unfolded_space_name='gen_dressedp1', acceptance_space_name='dressedp1',
                                   mass_unfolded_space_name='gen_dressedp1', mass_acceptance_space_name='dressedp1')
         analyzer_1d.setup_isr_detector_hists(period, channel, event_selection, use_2d_pt=True)
-        analyzer_1d.mass_isr_unfold(do_iterative=False,  # use the same regularization strength
+        analyzer_1d.mass_isr_unfold(do_iterative=False,
                                     reg_mode=reg_mode, tau_scan_method='scan_lcurve')
-        analyzer_1d.pt_isr_unfold(do_iterative=False, tau=tau_pt,
-                                  reg_mode=reg_mode, tau_scan_method=None,
-                                  apply_custom_regularization_for_pt=False)
+        analyzer_1d.pt_isr_unfold(do_iterative=False,
+                                  reg_mode=reg_mode, tau_scan_method=tau_scan_method_for_pt)
         analyzer_1d.isr_acceptance_corrections()
 
         pt_1d, mass_1d = analyzer_1d.get_isr_results()
@@ -225,6 +225,12 @@ def main():
         analyzer_fsr_nominal.mass_isr_unfold()
         analyzer_fsr_nominal.isr_acceptance_corrections()
         pt_fsr_nominal, mass_fsr_nominal = analyzer_fsr_nominal.get_isr_results()
+        pt_fsr_nominal.draw_response_matrix(mass_window_index=0, out_name_postfix='nominalFSR', label_postfix='(PHOTOS)', show_number=True, 
+                                            x_axis_label_prefix='pre-FSR', y_axis_label_prefix='post-FSR',
+                                            cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
+        mass_fsr_nominal.draw_response_matrix(mass_window_index=0, out_name_postfix='nominalFSR', label_postfix='(PHOTOS)', show_number=True, 
+                                              x_axis_label_prefix='pre-FSR', y_axis_label_prefix='post-FSR', 
+                                              cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
 
         pt_fsr_nominal.set_ISRHistSet_per_mass_window()
         mass_fsr_nominal.set_ISRHistSet_per_mass_window()
@@ -233,6 +239,12 @@ def main():
         analyzer_fsr_pythia.mass_isr_unfold()
         analyzer_fsr_pythia.isr_acceptance_corrections()
         pt_fsr_pythia, mass_fsr_pythia = analyzer_fsr_pythia.get_isr_results()
+        pt_fsr_pythia.draw_response_matrix(mass_window_index=0, out_name_postfix='pythiaFSR', label_postfix='(Pythia)', show_number=True,
+                                           x_axis_label_prefix='pre-FSR', y_axis_label_prefix='post-FSR',
+                                           cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
+        mass_fsr_pythia.draw_response_matrix(mass_window_index=0, out_name_postfix='pythiaFSR', label_postfix='(Pythia)', show_number=True,
+                                             x_axis_label_prefix='pre-FSR', y_axis_label_prefix='post-FSR',
+                                             cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
 
         pt_fsr_pythia.set_ISRHistSet_per_mass_window()
         mass_fsr_pythia.set_ISRHistSet_per_mass_window()
@@ -271,7 +283,7 @@ def main():
             pt.draw_unfold_closure(index, bin_width_norm=True)
             pt.draw_unfolded_level(index, bin_width_norm=True, mc_denominator=True)
             pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=True)
-            pt.draw_acceptance(mass_window_index=index, bin_width_norm=True)
+            pt.draw_acceptance(mass_window_index=index, bin_width_norm=True, y_max=0.9)
             if sys_on:
                 pt.draw_systematic_summary(mass_window_index=index)
                 pt.draw_systematic_hists(None, hist_type='acceptance_corrected', key='measurement', mass_window_index=index,  bin_width_norm=True)
@@ -284,12 +296,12 @@ def main():
         mass.draw_background_fractions(0)
         mass.draw_detector_level(0, bin_width_norm=True)
         mass.draw_unfolded_level(0, bin_width_norm=True, mc_denominator=True)
-        mass.draw_response_matrix(mass_window_index=0, cbarsize='3%', cbarpad=0)
-        mass.draw_acceptance(mass_window_index=0, bin_width_norm=True)
+        mass.draw_response_matrix(mass_window_index=0, show_number=True, cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
+        mass.draw_acceptance(mass_window_index=0, bin_width_norm=True, y_max=0.9)
         mass.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
         mass.draw_bin_efficiency()
         if use_2d_pt:
-            pt.draw_response_matrix(mass_window_index=0, cbarsize='3%', cbarpad=0)
+            pt.draw_response_matrix(mass_window_index=0, show_number=True, cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
             pt.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
             pt.draw_bin_efficiency()
         mass.draw_acceptance_corrected_level(0, bin_width_norm=True, mc_denominator=True)
@@ -517,10 +529,10 @@ def main():
                 sys_mean_pt=pt_sys_combined,
                 do_fit=True,
                 label='Combined',
+                zorder=10,
                 color='black',
-                marker='*',
+                marker='o',
                 linestyle='none',
-                mfc='none',
                 linewidth=0.7
             )
 

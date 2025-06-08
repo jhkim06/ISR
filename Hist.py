@@ -209,10 +209,13 @@ class Hist(object):
 
     def get_systematics(self, merge_statistics=False,
                         sys_names_to_merge=[(['matrix_stat', 'matrix_model'], 'Unfolding'),
-                                            (['roccor_stat', 'roccor'], 'Muon momentum correction'),
-                                            (['momentum_scale', 'momentum_resolution'], 'Electron momentum correction'),
+                                            (['roccor_stat', 'roccor_resolution'], 'Muon momentum resolution'),
+                                            (['roccor_scale'], 'Muon momentum scale'),
+                                            (['momentum_scale'], 'Electron momentum scale'),
+                                            (['momentum_resolution'], 'Electron momentum resolution'),
                                             (['alpha_s', 'scale', 'pdf', 'accept_stat'], 'Acceptance'),
-                                            (['electronRECOSF', 'electronIDSF'], 'Efficiency'),
+                                            (['electronRECOSF', 'electronIDSF', 'triggerSF'], 'Efficiency'),
+                                            (['muonIDSF', 'triggerSF'], 'Efficiency'),
                                             (['qcd','bg_normalization'],'Background'),
                                             (['btagSF', 'puWeight', 'prefireweight'], 'Others')]
                         ):
@@ -376,16 +379,18 @@ class Hist(object):
 
     def get_sys_mean_dfs(self, sys_name, binned_mean=True, range_min=None, range_max=None):
         sys_means = []
-        # FIXME for FSR
+        # FIXME for FSR?
         for var_name, hist in self.systematic_raw_root_hists[sys_name].items():
             central_mean, err = self.get_mean(binned_mean=binned_mean, range_min=range_min,
-                                                        range_max=range_max, target_hist=hist)
+                                              range_max=range_max, target_hist=hist)
             result = {
                 "mean": central_mean,
                 "stat": err
             }
             result = pd.DataFrame([result])
             error_columns = result.columns.difference(['mean'])
+
+            result['sys'] =         np.sqrt((result[error_columns] ** 2).sum(axis=1))  # just to have consistent format
             result['total_error'] = np.sqrt((result[error_columns] ** 2).sum(axis=1))
             sys_means.append(result)
         return sys_means
@@ -444,6 +449,9 @@ class Hist(object):
 
         result = pd.DataFrame([result])
         error_columns = result.columns.difference(['mean'])
+        sys_error_columns = result.columns.difference(['mean', 'stat'])
+
+        result['sys'] = np.sqrt((result[sys_error_columns] ** 2).sum(axis=1))
         result['total_error'] = np.sqrt((result[error_columns] ** 2).sum(axis=1))
 
         return result

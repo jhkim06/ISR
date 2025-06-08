@@ -765,7 +765,7 @@ class ISRHists:
         # draw unfold input and its comparison to simulation
         plotter = self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
                                              mc_denominator=mc_denominator, signal_as_stack=False, save_and_reset=False)
-
+        # folded level
         input_hist = self.get_hist_in_mass_window("unfold_input", mass_window_index,
                                                   bin_width_norm=bin_width_norm)
         sim_input_hist = self.get_hist_in_mass_window("reco_signal", mass_window_index,
@@ -776,10 +776,12 @@ class ISRHists:
         plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY')
 
         plotter.draw_hist()
-        plotter.draw_ratio_hists(location=(1, 0))
+        plotter.draw_ratio_hists(location=(1, 0), show_error_band=False,
+                                 show_normalized_error_band=False)
 
         plotter.show_legend()
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+
         del measurement_hist
         del signal_hist
         del input_hist
@@ -800,7 +802,7 @@ class ISRHists:
         del unfolded_signal_hist
         del truth_signal_hist
 
-    def draw_acceptance(self, mass_window_index=-1, bin_width_norm=False):
+    def draw_acceptance(self, mass_window_index=-1, bin_width_norm=False, y_min=0.0, y_max=0.55):
         full_phase_hist = self.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
                                                        bin_width_norm=bin_width_norm, key='simulation')
         fiducial_phase_hist = self.get_hist_in_mass_window("truth_signal", mass_window_index,
@@ -811,13 +813,15 @@ class ISRHists:
         plotter.set_experiment_label(label='Simulation', **{'year': full_phase_hist.year})
 
         plotter.add_hist(full_phase_hist, as_denominator=True, not_to_draw=True, yerr=False)
-        plotter.add_hist(fiducial_phase_hist, as_denominator=False, not_to_draw=True, yerr=False)
+        plotter.add_hist(fiducial_phase_hist, as_denominator=False, not_to_draw=True, yerr=False,
+                         histtype='errorbar')
         plotter.draw_ratio_hists(location=(0, 0), show_normalized_error_band=False)
 
         if not self.is_pt:
             plotter.current_axis.set_xscale("log")
         plotter.current_axis.set_xlabel(self.x_axis_label)
         plotter.current_axis.set_ylabel("Acceptance")
+        plotter.get_axis(location=(0, 0)).set_ylim(y_min, y_max)
         text = self.get_additional_text_on_plot(mass_window_index)
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower left"})
 
@@ -931,7 +935,7 @@ class ISRHists:
                 plotter.show_legend(ncol=5, fontsize=7)
             else:
                 plotter.show_legend()
-            plotter.draw_ratio_hists(location=(1, 0))
+            plotter.draw_ratio_hists(location=(1, 0), show_y_error=False, show_error_band=False,)
             plotter.get_axis(location=(0,0)).set_ylabel("Events/bin")
             plotter.get_axis(location=(1,0)).set_ylabel("/Default")
             plotter.get_axis(location=(1,0)).set_xlabel(self.x_axis_label)
@@ -953,7 +957,10 @@ class ISRHists:
                                            self.channel + self.year)
         del measurement_hist
 
-    def draw_response_matrix(self, mass_window_index=-1, **kwargs_hist2dplot):
+    def draw_response_matrix(self, mass_window_index=-1, out_name_postfix='',
+                             x_axis_label_prefix="", y_axis_label_prefix="",
+                             label_postfix="", show_number=False,
+                             **kwargs_hist2dplot):
         # Choose the relevant ISR hist container
         if self.is_pt and not self.is_2d:
             isr_hist_to_draw = self.isr_hists[mass_window_index]
@@ -969,20 +976,36 @@ class ISRHists:
         plotter = raw_2d.plotter
 
         plotter.init_plotter(rows=1, cols=1, left=0.12, right=0.9)
-        plotter.set_experiment_label(label='Simulation', **{'year': tunfolder.year})
+        label='Simulation'
+        if label_postfix:
+            label = 'Simulation ' + label_postfix
+        plotter.set_experiment_label(label=label, **{'year': tunfolder.year})
         if self.is_pt:
-            x_axis_label = "Truth bin index $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
-            y_axis_label = "Reconstructed bin index $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+            # pre-FSR bin index
+            if not x_axis_label_prefix:
+                x_axis_label_prefix = "Truth bin index"
+            if not y_axis_label_prefix:
+                y_axis_label_prefix = "Reconstructed bin index"
+            x_axis_label = x_axis_label_prefix + " $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+            y_axis_label = y_axis_label_prefix + " $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
         else:
-            x_axis_label = "Truth $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
-            y_axis_label = "Reconstructed $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
+            if not x_axis_label_prefix:
+                x_axis_label_prefix = "Truth"
+            if not y_axis_label_prefix:
+                y_axis_label_prefix = "Reconstructed"
+            x_axis_label = x_axis_label_prefix + " $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
+            y_axis_label = y_axis_label_prefix + " $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
             # self.x_axis_label = r"$p_{T}^{" + change_to_greek(self.channel) + "}$ [GeV]"
         plotter.draw_matrix(raw_2d.to_numpy_2d(), x_axis_label=x_axis_label, y_axis_label=y_axis_label,
+                            show_number=show_number,
                             **kwargs_hist2dplot)
         plotter.add_text("condition number: " + str(round(condition_number, 2)),
                          location=(0,0), do_magic=False,
                          **{"loc": "upper left",})
-        plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_RM_" + self.channel + self.year)
+        if out_name_postfix:
+            out_name_postfix = "_" + out_name_postfix
+        plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_RM_" + self.channel + self.year
+                                       + out_name_postfix)
 
     def draw_correlations(self, mass_window_index=-1, **kwargs_hist2dplot):
         # Choose the relevant ISR hist container

@@ -33,6 +33,17 @@ EX_CONSTRAINTS = MappingProxyType(
 )
 
 
+def _force_negative_bin_as_zero(matrix):
+    n_x_bins = matrix.GetXaxis().GetNbins()
+    n_y_bins = matrix.GetYaxis().GetNbins()
+
+    for ix in range(0, n_x_bins + 2):
+        for iy in range(0, n_y_bins + 2):
+            if matrix.GetBinContent(ix, iy) < 0:
+                print("negative bin here:", ix, iy, matrix.GetBinContent(ix, iy))
+                matrix.SetBinContent(ix, iy, 0)
+
+
 class TUnFolder:
     def __init__(self, response_matrix, input_hist,
                  input_fake_hist=None, bg_hists=None,
@@ -149,9 +160,11 @@ class TUnFolder:
         tunfolder = None
         if self.use_tunfoldbinning:  # Use bin map
             if self.iterative:
+                _force_negative_bin_as_zero(matrix) # TODO check effect of setting negative bin as zero
                 tunfolder = ROOT.TUnfoldIterativeEM(matrix, ROOT.TUnfold.kHistMapOutputHoriz,
                                                     self.unfolded_bin, self.folded_bin)
             else:
+                _force_negative_bin_as_zero(matrix)
                 tunfolder = ROOT.TUnfoldDensity(matrix,
                                                 ROOT.TUnfold.kHistMapOutputHoriz,
                                                 REG_MODE[self.reg_mode],
@@ -162,6 +175,7 @@ class TUnFolder:
             if self.iterative:
                 pass
             else:
+                _force_negative_bin_as_zero(matrix)
                 tunfolder = ROOT.TUnfoldDensity(matrix,
                                                 ROOT.TUnfold.kHistMapOutputHoriz,
                                                 REG_MODE[self.reg_mode],
@@ -232,7 +246,7 @@ class TUnFolder:
                     tunfolder.DoUnfold(self.reg_strength)
 
         elif self.tau_scan_method == 'scan_sure':
-            if sys_tunfolder is None:
+            if sys_tunfolder is None:  #
                 if self.iterative:
                     self.iter_best = tunfolder.ScanSURE(int(max_scan_iter), self.graphSURE, self.df_deviance)
                 else:
@@ -251,17 +265,17 @@ class TUnFolder:
                 else:
                     tunfolder.DoUnfold(self.reg_strength)
         elif self.tau_scan_method == 'scan_lcurve':
-            if sys_tunfolder is None:
+            if sys_tunfolder is None:  # or force scan_lcurve
                 if self.iterative:
                     pass
                 else:
                     i_best = tunfolder.ScanLcurve(max_scan_iter,
-                                                  # ctypes.c_double(9e-5),
                                                   ctypes.c_double(5e-5),
                                                   ctypes.c_double(5e-3),
                                                   self.lcurve,
                                                   self.logTaux,
                                                   self.logTauy, self.logTaucurvature)
+
                     self.reg_strength = tunfolder.GetTau()
                     print("TAU: ", tunfolder.GetTau())
             else:

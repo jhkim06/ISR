@@ -122,6 +122,9 @@ class Analyzer:
                                       "down": ("momentum_correction", "egammacor_s1m1", 1.0)}
         emomentum_resolution_variations = {"up": ("momentum_correction", "egammacor_s2m-1", 1.0),
                                            "down": ("momentum_correction", "egammacor_s2m1", 1.0)}
+        # for test alternative scale and resolution systematics
+        emomentum_scale_test_variations = {"up": ("momentum_correction_conservative", "egammacor_s3m0", 1.0)}
+        emomentum_res_test_variations = {"up": ("momentum_correction_conservative", "smear_electron_momentum", 1.0)}
 
         mmomentum_zpt_variations = {"zpt": ("momentum_correction", "roccor_s2m0", 1.0),}
         mmomentum_ewk_variations = {"ewk": ("momentum_correction", "roccor_s3m0", 1.0),}
@@ -137,6 +140,14 @@ class Analyzer:
         mmomentum_variations.update(mmomentum_ewk_variations)
         mmomentum_variations.update(mmomentum_deltaM_variations)
         mmomentum_variations.update(mmomentum_ewk2_variations)
+
+        mmomentum_resolution_variations = {}
+        mmomentum_resolution_variations.update(mmomentum_zpt_variations)
+        mmomentum_resolution_variations.update(mmomentum_ewk_variations)
+        mmomentum_resolution_variations.update(mmomentum_deltaM_variations)
+
+        mmomentum_scale_variations = {}
+        mmomentum_scale_variations.update(mmomentum_ewk2_variations)
         #mmomentum_variations.update(mmomentum_stat)
 
         muonIDSF_variations = {"s1": ("sys", "muonIDSF_s1_m0", 1.0),
@@ -209,15 +220,45 @@ class Analyzer:
                                    "s16": ("sys", "electronRECOSF_s16_m0", 1.0),
                                    }
 
+        triggerSF_variations = {"s1": ("sys", "triggerSF_s1_m0", 1.0),
+                                   "s2": ("sys", "triggerSF_s2_m0", 1.0),
+                                   "s3": ("sys", "triggerSF_s3_m0", 1.0),
+                                   "s4": ("sys", "triggerSF_s4_m0", 1.0),
+                                   "s5": ("sys", "triggerSF_s5_m0", 1.0),
+                                   "s6": ("sys", "triggerSF_s6_m0", 1.0),
+                                   "s7_m0": ("sys", "triggerSF_s7_m0", 1.0),
+                                   "s7_m1": ("sys", "triggerSF_s7_m1", 1.0),
+                                   "s8_m0": ("sys", "triggerSF_s8_m0", 1.0),
+                                   "s8_m1": ("sys", "triggerSF_s8_m1", 1.0),
+                                   "s9": ("sys", "triggerSF_s9_m0", 1.0),
+                                   "s10": ("sys", "triggerSF_s10_m0", 1.0),
+                                   "s11_m0": ("sys", "triggerSF_s11_m0", 1.0),
+                                   "s11_m1": ("sys", "triggerSF_s11_m1", 1.0),
+                                   "s12_m0": ("sys", "triggerSF_s12_m0", 1.0),
+                                   "s12_m1": ("sys", "triggerSF_s12_m1", 1.0),
+                                   "s13_m0": ("sys", "triggerSF_s13_m0", 1.0),
+                                   "s13_m1": ("sys", "triggerSF_s13_m1", 1.0),
+                                   "s14": ("sys", "triggerSF_s14_m0", 1.0),
+                                   "s15": ("sys", "triggerSF_s15_m0", 1.0),
+                                   "s16": ("sys", "triggerSF_s16_m0", 1.0),
+                                   }
+        self.systematics.update({"triggerSF:simulation": triggerSF_variations})
+
         if self.channel == 'ee':
             self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
             self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
+            #self.systematics.update({"momentum_scale_test:signal": emomentum_scale_test_variations})
+            #self.systematics.update({"momentum_resolution_test:signal": emomentum_res_test_variations})
             self.systematics.update({"electronIDSF:simulation": electronIDSF_variations})
             self.systematics.update({"electronRECOSF:simulation": electronRECOSF_variations})
 
         if self.channel == 'mm':
-            self.systematics.update({"roccor:all": mmomentum_variations})
+            #self.systematics.update({"roccor:all": mmomentum_variations})
+
+            self.systematics.update({"roccor_scale:all": mmomentum_scale_variations})
+            self.systematics.update({"roccor_resolution:all": mmomentum_resolution_variations})
             self.systematics.update({"roccor_stat:all": mmomentum_stat})
+
             self.systematics.update({"muonIDSF:simulation": muonIDSF_variations})
 
     def reset_data_info(self):
