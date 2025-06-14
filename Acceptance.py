@@ -18,7 +18,8 @@ class Acceptance:
 
     def do_correction(self, input_hist):
         # input_hist from unfolder
-        out_hist = input_hist.multiply(self.acceptance_hist)  #
+        out_hist = input_hist.multiply(self.acceptance_hist,
+                                       out_label_name='Data (unfolded+accept.)')  #
         return out_hist
 
     def create_stat_accept(self, n_toy=100):

@@ -256,21 +256,17 @@ def main():
         pt.update_systematics()
         mass.update_systematics()
 
-        #pt_others = []
-        #test_aMCNLO = ISRAnalyzer(sample_base_dir,
-        #                        mass_bins,
-        #                        pt_bins, signal="DY:aMCNLO", sys_on=False)
-        #test_aMCNLO.setup_isr_acceptance_hists(period, channel, event_selection, is_2d=True)
-        #pt_aMCNLO, mass_aMCNLO = test_aMCNLO.get_isr_results()
-        #pt_others.append(pt_aMCNLO)
 
-        #if period == "2016a":
-        #    test_LO = ISRAnalyzer(sample_base_dir,
-        #                          mass_bins,
-        #                          pt_bins, signal="DY:MG")
-        #    test_LO.setup_isr_acceptance_hists(period, channel, "", is_2d=False)
-        #    pt_LO, mass_LO = test_LO.get_isr_results()
-        #    pt_others.append(pt_LO)
+        # compare aMC@NLO at parton level
+        pt_others = []
+        mass_others = []
+        test_aMCNLO = ISRAnalyzer(sample_base_dir,
+                                  mass_bins,
+                                  pt_bins, signal="DY:aMCNLO", sys_on=False)
+        test_aMCNLO.setup_isr_acceptance_hists(period, channel, event_selection, is_2d=True)
+        pt_aMCNLO, mass_aMCNLO = test_aMCNLO.get_isr_results()
+        pt_others.append(pt_aMCNLO)
+        mass_others.append(mass_aMCNLO)
 
         pt.draw_isr_plot(mass, save_as_csv=True, 
                          linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=3, capsize=3)
@@ -281,8 +277,15 @@ def main():
             pt.draw_unfold_inputs(index, bin_width_norm=True)  # check unfold inputs
             pt.draw_fake_hists(index, bin_width_norm=True)
             pt.draw_unfold_closure(index, bin_width_norm=True)
-            pt.draw_unfolded_level(index, bin_width_norm=True, mc_denominator=True)
-            pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=True)
+            pt.draw_unfolded_level(index, bin_width_norm=True, mc_denominator=True, **{"histtype":"errorbar", "marker": ".",
+                                      "markersize": 0})
+            pt.draw_acceptance_corrected_level(index, bin_width_norm=True, mc_denominator=True,
+                                               **{"histtype":"errorbar", "marker": ".", "markersize": 0})
+            other_kwargs = {'histtype': 'errorbar', 'marker': 'o', 'markersize': 6, 'mfc':'none', "color":"skyblue", "mec":"blue",}
+            pt.draw_acceptance_corrected_level(mass_window_index=index, bin_width_norm=True, others=pt_others, add_more_hist=True,
+                                               mc_denominator=False, other_kwargs=other_kwargs,
+                                               **{"histtype":"errorbar", "marker": "o", "mfc": "none", "mec":"red",
+                                                  "markersize": 5})
             pt.draw_acceptance(mass_window_index=index, bin_width_norm=True, y_max=0.9)
             if sys_on:
                 pt.draw_systematic_summary(mass_window_index=index)
@@ -294,8 +297,9 @@ def main():
         pt.draw_unfold_closure(-1, bin_width_norm=False)
 
         mass.draw_background_fractions(0)
-        mass.draw_detector_level(0, bin_width_norm=True)
-        mass.draw_unfolded_level(0, bin_width_norm=True, mc_denominator=True)
+        mass.draw_detector_level(0, bin_width_norm=True, y_min_scale=0.1)
+        mass.draw_unfolded_level(0, bin_width_norm=True, mc_denominator=True, **{"histtype":"errorbar", "marker": ".",
+                                      "markersize": 0})
         mass.draw_response_matrix(mass_window_index=0, show_number=True, cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
         mass.draw_acceptance(mass_window_index=0, bin_width_norm=True, y_max=0.9)
         mass.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
@@ -304,7 +308,13 @@ def main():
             pt.draw_response_matrix(mass_window_index=0, show_number=True, cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
             pt.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
             pt.draw_bin_efficiency()
-        mass.draw_acceptance_corrected_level(0, bin_width_norm=True, mc_denominator=True)
+        mass.draw_acceptance_corrected_level(0, bin_width_norm=True, mc_denominator=True, **{"histtype":"errorbar", "marker": ".", 
+                                                                                             "markersize": 0})
+        other_kwargs = {'histtype': 'errorbar', 'marker': 'o', 'markersize': 6, 'mfc':'none', "color":"skyblue", "mec":"blue",}
+        mass.draw_acceptance_corrected_level(mass_window_index=0, bin_width_norm=True, others=mass_others, add_more_hist=True,
+                                             mc_denominator=False, other_kwargs=other_kwargs,
+                                             **{"histtype":"errorbar", "marker": "o", "mfc": "none", "mec":"red",
+                                              "markersize": 5})
         if sys_on:
             mass.draw_systematic_summary(mass_window_index=0)
             mass.draw_systematic_hists(None, hist_type='acceptance_corrected', key='measurement', mass_window_index=0,  bin_width_norm=True)
@@ -336,8 +346,8 @@ def main():
 
     for i_mass_index in range(len(mass_bins)):
         pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
-                                key='unfold_input',
-                                index=i_mass_index, scale=-1, bin_width_norm=True)
+                                                key='unfold_input',
+                                                index=i_mass_index, scale=-1, bin_width_norm=True)
 
         pt_dict["2016a_ee"].draw_pt_comparisons(pt_dict['2016b_ee'], pt_dict['2017_ee'], pt_dict['2018_ee'],
                                 key='unfolded_measurement',

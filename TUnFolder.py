@@ -774,7 +774,7 @@ class TUnFolder:
             # extract all systematic hist
             truth_hist = Hist(self.projection_matrix(self.response_matrix.get_raw_hist()),
                               hist_name=self.response_matrix.hist_name+"_projected_truth",
-                              year=self.year, channel=self.channel, label='Truth DY')
+                              year=self.year, channel=self.channel, label=self.response_matrix.label,)
 
             for sys_name, variations in self.response_matrix.systematic_raw_root_hists.items():
                 if sys_name == 'matrix_model':

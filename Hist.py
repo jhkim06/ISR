@@ -155,7 +155,12 @@ class Hist(object):
             if sys_name in self.systematics:
                 return self.make_symmetric_error_array(self.systematics[sys_name])
             else:
-                return self.total_sym_err_array
+                if sys_name == 'stat':
+                    stat = to_numpy(self.raw_root_hist)[2] ** 2
+                    stat = np.sqrt(stat)
+                    return self.make_symmetric_error_array(stat)
+                else:
+                    return self.total_sym_err_array
 
     def update_symmetric_error_array(self):
         if self.is_TH2: return
@@ -326,13 +331,13 @@ class Hist(object):
         result.compute_systematic_rss_per_sysname()
         return result
 
-    def multiply(self, other=None):
+    def multiply(self, other=None, out_label_name=''):
         multiplied_hist = self.raw_root_hist.Clone("multiplied")
 
         if other is not None:
             multiplied_hist.Multiply(other.raw_root_hist)
 
-        result = self.create(hist=multiplied_hist)
+        result = self.create(hist=multiplied_hist, label=out_label_name)
         result.systematic_raw_root_hists = self._apply_systematics_operation(other, "Multiply", "multiplied")
         result.compute_systematic_rss_per_sysname()
         return result

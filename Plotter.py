@@ -73,8 +73,9 @@ def find_non_negative_min(arr):
 
 class PlotItem(Hist):
     def __init__(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
-                 drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True, sym_err_name='Total',
-                 show_err_band=True,
+                 drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True, show_x_err=False,
+                 sym_err_name='Total',
+                 show_err_band=True, err_band_alpha=0.8, err_band_fill=True, err_band_hatch=None,
                  **kwargs):
 
         if isinstance(hist, tuple) and len(hist) == 3:
@@ -108,23 +109,31 @@ class PlotItem(Hist):
         self.use_for_ratio = use_for_ratio
         self.plot_kwargs = kwargs
         self.show_y_err = yerr
+        self.show_x_err = show_x_err
         self.sym_err_name = sym_err_name
         self.show_err_band = show_err_band
+        self.err_band_alpha = err_band_alpha
+        self.err_band_fill = err_band_fill
+        self.err_band_hatch = err_band_hatch
 
     def divide(self, other=None):
         divided_hist = super().divide(other, use_default_denominator=True)
         return PlotItem(divided_hist, location=self.location, as_stack=self.as_stack, as_denominator=self.as_denominator,
                         use_for_ratio=self.use_for_ratio, not_to_draw=self.not_to_draw,
-                        yerr=self.show_y_err,
+                        yerr=self.show_y_err, show_x_err=self.show_x_err,
                         sym_err_name=self.sym_err_name, show_err_band=self.show_err_band,
+                        err_band_alpha=self.err_band_alpha, err_band_fill=self.err_band_fill,
+                        err_band_hatch=self.err_band_hatch,
                         **self.plot_kwargs)
 
     def __add__(self, other=None, c1=1):
         added_hist = super().__add__(other, c1)
         return PlotItem(added_hist, location=self.location, as_stack=self.as_stack, as_denominator=self.as_denominator,
                         use_for_ratio=self.use_for_ratio, not_to_draw=self.not_to_draw,
-                        yerr=self.show_y_err,
+                        yerr=self.show_y_err, show_x_err=self.show_x_err,
                         sym_err_name=self.sym_err_name, show_err_band=self.show_err_band,
+                        err_band_alpha=self.err_band_alpha, err_band_fill=self.err_band_fill,
+                        err_band_hatch=self.err_band_hatch,
                         **self.plot_kwargs)
 
 
@@ -183,7 +192,10 @@ class Plotter:
 
     def init_plotter(self, figsize=(8,8), rows=1, cols=1,
                      left=0.15, right=0.95, bottom=0.15, top=0.95,):
-        if rows == 2 and cols == 1:
+        if rows == 3 and cols == 1:
+            self.create_subplots(rows, cols, figsize=figsize,
+                                 left=left, right=right, hspace=0.0, bottom=bottom, height_ratios=[1, 0.3, 0.25])
+        elif rows == 2 and cols == 1:
             self.create_subplots(rows, cols, figsize=figsize,
                                  left=left, right=right, hspace=0.0, bottom=bottom, height_ratios=[1, 0.3])
         elif rows == 1 and cols == 1:
@@ -275,15 +287,21 @@ class Plotter:
     # hist can be Hist or (values, bin, error)
     def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  not_to_draw=False,
-                 use_for_ratio=True, yerr=True, sym_err_name='Total', show_err_band=True,
+                 use_for_ratio=True, yerr=True, show_x_err=False, sym_err_name='Total', show_err_band=True,
+                 err_band_alpha=1.0, err_band_fill=True, err_band_hatch=None,
                  **kwargs):
+
         p_hist = PlotItem(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
                           use_for_ratio=use_for_ratio, not_to_draw=not_to_draw,
-                          yerr=yerr,
+                          yerr=yerr, show_x_err=show_x_err,
                           sym_err_name=sym_err_name, show_err_band=show_err_band,
+                          err_band_alpha=err_band_alpha, err_band_fill=err_band_fill,
+                          err_band_hatch=err_band_hatch,
                           **kwargs)
+
         self.plot_items.append(p_hist)
-        return len(self.plot_items) - 1
+
+        return len(self.plot_items)-1
 
     def set_ratio_hist(self):
         nominator_index = []
@@ -357,7 +375,7 @@ class Plotter:
         else:
             yerr = False
 
-        artist = hep.histplot((values, bins), ax=self.current_axis, yerr=yerr, xerr=False,
+        artist = hep.histplot((values, bins), ax=self.current_axis, yerr=yerr, xerr=item.show_x_err,
                               **plot_kwargs)[0]
         # belows are required to show legend properly
         if isinstance(artist, ErrorBarArtists) or artist.legend_artist:
@@ -369,12 +387,12 @@ class Plotter:
     def get_hist(self, index):
         if isinstance(index, int):
             return self.plot_items[index].hist
-        # FIXME type is Hist not PlotItem
-        return sum((self.plot_items[i] for i in index[1:]),
-                   self.plot_items[index[0]])
+
+        return sum((self.plot_items[i] for i in index[-2::-1]),  # FIXME check length of items
+                   self.plot_items[index[-1]])
 
     def draw_ratio_hists(self, location=(0, 0), show_y_error=True, show_error_band=True,
-                         show_normalized_error_band=True):
+                         show_normalized_error_band=True, sym_err_name='Total'):
         nominator_index, denominator_index = self.set_ratio_hist()
 
         def is_stackable(indices):
@@ -384,15 +402,15 @@ class Plotter:
         if isinstance(nominator_index, int) and isinstance(denominator_index, int):
             nom_hist = self.plot_items[nominator_index]
             denom_hist = self.plot_items[denominator_index]
-            ratio_hist = nom_hist.divide(denom_hist)  # TODO define divide for PlotItem!
-            self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
+            ratio_hist = nom_hist.divide(denom_hist)
+            self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band, sym_err_name)
 
         # Case 2: Only nominator is index (denominator is list)
         elif isinstance(nominator_index, int):
             nom_hist = self.plot_items[nominator_index]
             denom_hist = self.get_hist(denominator_index)
             ratio_hist = nom_hist.divide(denom_hist)
-            self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
+            self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band, sym_err_name)
 
         # Case 3: Only denominator is index (nominator is list)
         elif isinstance(denominator_index, int):
@@ -401,15 +419,16 @@ class Plotter:
             if is_stackable(nominator_index):
                 nom_hist = self.get_hist(nominator_index)
                 ratio_hist = nom_hist.divide(denom_hist)
-                self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
+                self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band, sym_err_name)
             else:
                 for idx in nominator_index:
                     ratio_hist = self.plot_items[idx].divide(denom_hist)
-                    self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band)
+                    self.add_ratio_hist(ratio_hist, location, show_y_error, show_error_band, sym_err_name)
                     #print(ratio_hist.plot_kwargs)
                     self.draw_hist()
                 if show_normalized_error_band:
                     self.draw_normalized_error_band(denom_hist, location=location)
+                self.draw_hist()
                 return
         else:
             print("Invalid nominator/denominator config")
@@ -418,56 +437,121 @@ class Plotter:
         if show_normalized_error_band:
             self.draw_normalized_error_band(denom_hist, location=location)
         self.draw_hist()
-        # TODO add on/off option
 
     def draw_normalized_error_band(self, hist, location=(0, 0)):
         error_band = hist.create_normalized_error_band()
-        if 'histtype' in hist.plot_kwargs and hist.plot_kwargs['histtype'] == 'errorbar':
-            self.add_hist(error_band, location=location, use_for_ratio=False, yerr=False, show_err_band=False,
-                      **hist.plot_kwargs)
+        if ('histtype' in hist.plot_kwargs and hist.plot_kwargs['histtype'] == 'errorbar' and
+                hist.err_band_hatch is not None):
+            kwargs=dict()
+            if hist.plot_kwargs:
+                kwargs = kwargs | hist.plot_kwargs
+            kwargs["markersize"] = 3
+            self.add_hist(error_band, location=location,
+                          use_for_ratio=False, yerr=True, show_err_band=False,
+                          **kwargs)
         self.draw_error_boxes(error_band.to_numpy()[0],
                               error_band.to_numpy()[1],
                               error_band.total_sym_err_array,
                               location=location,
-                              **{"facecolor": 'none', "alpha": 0.5, "fill": True, 'hatch': '///'})
+                              zorder=0,
+                              **{"facecolor": hist.plot_kwargs['color'],
+                                 "alpha": 0.8,
+                                 "fill": hist.err_band_fill,
+                                 'hatch': hist.err_band_hatch})
+
+        # stat
+        self.draw_error_boxes(error_band.to_numpy()[0],
+                              error_band.to_numpy()[1],
+                              error_band.get_sym_sys_err_array('stat'),
+                              location=location,
+                              zorder=1,
+                              **{"facecolor": 'mistyrose',  # TODO
+                                 "alpha": 0.8,
+                                 "fill": hist.err_band_fill,
+                                 'hatch': hist.err_band_hatch})
 
     def draw_error_box_for_plot_item(self, index, location=(0, 0),):
         plot_item = self.plot_items[index]
+        if plot_item.err_band_alpha != 0.0:
+            self.draw_error_boxes(plot_item.to_numpy()[0],
+                                  plot_item.to_numpy()[1],
+                                  plot_item.get_sym_sys_err_array(plot_item.sym_err_name),
+                                  location=location,
+                                  zorder=0,
+                                  **{"facecolor": plot_item.plot_kwargs['color'],
+                                     "alpha": plot_item.err_band_alpha,
+                                     "fill": plot_item.err_band_fill,
+                                     'hatch': plot_item.err_band_hatch})
 
-        self.draw_error_boxes(plot_item.to_numpy()[0],
-                              plot_item.to_numpy()[1],
-                              plot_item.get_sym_sys_err_array(plot_item.sym_err_name),
-                              location=location,
-                              **{"facecolor": plot_item.plot_kwargs['color'],
-                                 "alpha": 0.2, "fill": True, 'hatch': None})
+            if plot_item.err_band_hatch is None:
+                self.draw_error_boxes(plot_item.to_numpy()[0],
+                                      plot_item.to_numpy()[1],
+                                      plot_item.get_sym_sys_err_array('stat'),
+                                      location=location,
+                                      zorder=1,
+                                      **{"facecolor": 'mistyrose',  # TODO
+                                         "alpha": 0.8,
+                                         "fill": plot_item.err_band_fill,
+                                         'hatch': plot_item.err_band_hatch})
 
     def add_ratio_hist(self, ratio_hist, location=(0, 0), show_y_err=True,
-                       show_err_band=True):
+                       show_err_band=True, sys_err_name='Total'):
         ratio_hist.use_for_ratio = False
-        ratio_hist.show_y_err = show_y_err
+        if ratio_hist.err_band_hatch is not None:
+            ratio_hist.show_y_err = True
+        else:
+            ratio_hist.show_y_err = False
+            ratio_hist.show_x_err = False
+        #ratio_hist.show_y_err = show_y_err
         ratio_hist.location = location
         ratio_hist.not_to_draw = False
         ratio_hist.show_err_band = show_err_band
+        ratio_hist.sym_err_name = sys_err_name
+        if ratio_hist.err_band_fill == True and ratio_hist.err_band_alpha==0.0:  # assume it is suppressed temporarily
+            ratio_hist.err_band_alpha = 0.8
         self.plot_items.append(ratio_hist)
         # return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
 
-    def show_legend(self, location=(0, 0), **kwargs_):
+    def show_legend(self, location=(0, 0), reverse=True, data_label_first=False,
+                    **kwargs_):
         self.set_current_axis(location=location)
         kwargs = {"loc": 'best', 'fontsize': 17} | kwargs_
-        self.current_axis.legend(self.legend_handles[location],
-                                 self.legend_labels[location], **kwargs)
+        if reverse:
+            self.current_axis.legend(self.legend_handles[location][::-1],
+                                     self.legend_labels[location][::-1], **kwargs)
+        else:
+            if data_label_first:
+                data_index = -1
+                for index, label in enumerate(self.legend_labels[location]):
+                    if "Data" in label:
+                        data_index = index
+                        break
+                if data_index != -1:
+                    labels = copy.deepcopy(self.legend_labels[location])
+                    handles = copy.deepcopy(self.legend_handles[location])
+
+                    item_to_move = labels.pop(data_index)
+                    labels.insert(0, item_to_move)
+
+                    item_to_move = handles.pop(data_index)
+                    handles.insert(0, item_to_move)
+
+                    self.current_axis.legend(handles, labels, **kwargs)
+            else:
+                self.current_axis.legend(self.legend_handles[location],
+                                         self.legend_labels[location], **kwargs)
         try:
             hep.plot.yscale_legend(self.current_axis)
         except RuntimeError:
             pass
 
     def draw_error_boxes(self, default_value, bins, errors,
-                         location=(0,0), sys_name='', **kwargs):
+                         location=(0,0), sys_name='', zorder=10, **kwargs):
         fill = kwargs.get('fill', False)
         edgecolor = kwargs.get('edgecolor', None)
         facecolor = kwargs.get('facecolor', None)
         hatch = kwargs.get('hatch', '///')
-        alpha = kwargs.get('alpha', 0.5)
+        alpha = kwargs.get('alpha', 0.8)
 
         center = bins[:-1] + np.diff(bins) / 2.
         x_width = np.expand_dims(np.diff(bins) / 2., axis=0)
@@ -476,7 +560,7 @@ class Plotter:
         error_boxes = [Rectangle((x - xe[0], y - ye[0]), xe.sum(), ye.sum(),
                                  fill=fill, edgecolor=edgecolor, facecolor=facecolor,alpha=alpha,)
                        for x, y, xe, ye in zip(center, default_value, x_width.T, errors.T)]
-        pc = PatchCollection(error_boxes, match_original=True, hatch=hatch, linewidth=0.0, zorder=100)
+        pc = PatchCollection(error_boxes, match_original=True, hatch=hatch, linewidth=0.0, zorder=zorder)
 
         legend_ = Rectangle((0, 0), 0.0, 0.0,
                             fill=fill, edgecolor=edgecolor, facecolor=facecolor, label=sys_name, hatch=hatch,
@@ -522,7 +606,9 @@ class Plotter:
                                              x_log_scale=False,
                                              bin_width_norm=False,
                                              ratio_name='Data/MC',
-                                             ratio_min = 0.4, ratio_max= 1.6):
+                                             y_min_scale=1.0,
+                                             ratio_min = 0.6, ratio_max= 1.4,
+                                             rows=2):
         # usual comparison plot cosmetic (2 rows and 1 colum)
         if y_log_scale:
             self.get_axis(location=(0, 0)).set_yscale("log")
@@ -540,16 +626,28 @@ class Plotter:
             self.get_axis(location=(0, 0)).set_ylabel("Events/bin")
 
         self.show_legend(location=(0, 0))
-        self.adjust_y_scale()
+        if y_min_scale != 1.0:
+            self.adjust_y_scale(scale=y_min_scale)
 
         self.get_axis(location=(1, 0)).set_ylim(ratio_min, ratio_max)
-        self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black')
+        self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black', zorder=1000)
         self.get_axis(location=(1, 0)).set_ylabel(ratio_name)
-        self.get_axis(location=(1, 0)).set_xlabel(x_variable_name)
+        self.get_axis(location=(1, 0)).set_yticks([0.8, 1.0, 1.2])
+        self.get_axis(location=(1, 0)).grid(True, which='major', axis='y', linestyle='-', linewidth=0.7)
 
-    def adjust_y_scale(self, location=(0, 0)):
+        if rows > 2:
+            self.get_axis(location=(1, 0)).set_xticklabels([])
+            self.get_axis(location=(2, 0)).set_ylim(ratio_min, ratio_max)
+            self.get_axis(location=(2, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black', zorder=1000)
+            self.get_axis(location=(2, 0)).set_yticks([0.8, 1.0, 1.2])
+            self.get_axis(location=(2, 0)).set_xlabel(x_variable_name)
+            self.get_axis(location=(2, 0)).grid(True, which='major', axis='y', linestyle='-', linewidth=0.7)
+        else:
+            self.get_axis(location=(1, 0)).set_xlabel(x_variable_name)
+
+    def adjust_y_scale(self, location=(0, 0), scale=0.1):
         self.set_current_axis(location)
-        self.current_axis.set_ylim(ymin=self.y_minimum * 1e-1)
+        self.current_axis.set_ylim(ymin=self.y_minimum * scale)
 
     def add_text(self, text, location=(0, 0), do_magic=True, **kwargs):
         self.set_current_axis(location=location)

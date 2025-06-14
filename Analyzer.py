@@ -8,8 +8,8 @@ labels = {
     # group_name of ROOTFileGroup: "legend"
     "Data": "Data",
     "Data(unfolded)": "Data (unfolded)",
-    "DYJetsToEE_MiNNLO": r"Drell-Yan",
-    "DYJetsToMuMu_MiNNLO": r"Drell-Yan",
+    "DYJetsToEE_MiNNLO": r"Drell-Yan (MiNNLO)",
+    "DYJetsToMuMu_MiNNLO": r"Drell-Yan (MiNNLO)",
     "DYJets": r"Drell-Yan (aMC@NLO)",
     "GGLL": r"$\gamma\gamma$",
     "DYJetsToTauTau_MiNNLO": r'$\tau\tau$',
@@ -24,10 +24,11 @@ labels = {
 
 
 colors = {
-    "DYJetsToEE_MiNNLO": "red",
-    "DYJetsToMuMu_MiNNLO": "red",
+    "DYJetsToEE_MiNNLO": "tomato",
+    "DYJetsToMuMu_MiNNLO": "tomato",
     "Data": "black",
     "Data(unfolded)": "black",
+    "Data (unfolded+accept.)": "black",
     "QCD":         (0.3411764705882353, 0.5647058823529412, 0.9882352941176471, 1.0),
     "top+antitop": (0.9725490196078431, 0.611764705882353, 0.12549019607843137, 1.0),
     "TTLL":        (0.8941176470588236, 0.1450980392156863, 0.21176470588235294, 1.0),
@@ -91,7 +92,7 @@ class Analyzer:
 
         self.systematics.clear()
         self.systematics = {
-            "bg_normalization:background": {"up": ("default", "", 1.05), "down": ("default", "", 0.95)},
+            "bg_normalization:background": {"up": ("default", "", 1.06), "down": ("default", "", 0.94)},
             "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
             "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},  # unfolding
             "btagSF:simulation": {"hup": ("sys", "btagSF_hup", 1.0),

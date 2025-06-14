@@ -43,8 +43,9 @@ class ISRHistSet:
                                           "simulation": acceptance_corrected_signal_hist}
 
     def get_extracted_1d_hist_set(self, index):
-        measurement_hist_extracted = self.measurement_hist.extract_1d_hist(index)
-        signal_hist_extracted = self.signal_hist.extract_1d_hist(index)
+        measurement_hist_extracted = self.measurement_hist.extract_1d_hist(index) if self.measurement_hist is not None else None
+        signal_hist_extracted = self.signal_hist.extract_1d_hist(index) if self.signal_hist is not None else None
+
         if self.signal_fake_hist is not None:
             signal_fake_hist_extracted = self.signal_fake_hist.extract_1d_hist(index)
         else:
@@ -86,8 +87,8 @@ class ISRHistSet:
 
 
     def get_extracted_hist_set(self,):
-        measurement_hist_extracted = self.measurement_hist.extract_hist()
-        signal_hist_extracted = self.signal_hist.extract_hist()
+        measurement_hist_extracted = self.measurement_hist.extract_hist() if self.measurement_hist is not None else None
+        signal_hist_extracted = self.signal_hist.extract_hist() if self.signal_hist is not None else None
         if self.signal_fake_hist is not None:
             signal_fake_hist_extracted = self.signal_fake_hist.extract_hist()
         else:
@@ -222,8 +223,8 @@ class ISRHists:
 
             # update mean value
             # set_acceptance_corrected_mean_values
-            self.set_acceptance_corrected_mean_values_(mass_window_index=index, key='measurement')
-            self.set_acceptance_corrected_mean_values_(mass_window_index=index, key='simulation')
+        self.set_acceptance_corrected_mean_values_(key='measurement')
+        self.set_acceptance_corrected_mean_values_(key='simulation')
 
     # TODO update hist also
     # add systematic from other ISRHist object
@@ -268,7 +269,7 @@ class ISRHists:
                         signal_fake_hist=HistTUnfoldBin(signal_fake_hist, self.folded_tunfold_bin) if signal_fake_hist else None,
                         background_hists=new_background_hists,
                         response_matrix=matrix if matrix else None,
-                        acceptance_corrected_signal_hist=acceptance_corrected_signal_hist if acceptance_corrected_signal_hist else None,
+                        acceptance_corrected_signal_hist=HistTUnfoldBin(acceptance_corrected_signal_hist, self.unfolded_tunfold_bin) if acceptance_corrected_signal_hist else None,
                     )
                 )
             else:
@@ -286,7 +287,7 @@ class ISRHists:
         self.set_acceptance_corrected_mean_values(mass_window_index, key)
 
     # TODO set detector/unfolded mean values also
-    def set_acceptance_corrected_mean_values_(self, mass_window_index, key='measurement',
+    def set_acceptance_corrected_mean_values_(self, key='measurement',
                                               binned_mean=True, range_min=None, range_max=None,):
         self.acceptance_corrected_mean_values[key].clear()
         if self.is_pt:
@@ -653,6 +654,7 @@ class ISRHists:
         for bg_name, bg_hist in background_hists.items():
             background_hists[bg_name] = bg_hist.divide(total_mc_hist)
             plotter.add_hist(background_hists[bg_name], as_stack=False, as_denominator=True,
+                             yerr=False, show_err_band=False,
                              **{'label': labels.get(bg_hist.get_label(), bg_name)})
 
         suffix = '_bg_fraction_detector'
@@ -669,10 +671,18 @@ class ISRHists:
         del signal_hist
         del background_hists
 
-    def _draw_comparison_plot(self, measurement_hist, signal_hist, background_hists=None, text=None, suffix='',
-                              draw_as_2d=False, mc_denominator=True, save_and_reset=True, signal_as_stack=True):
+    def _draw_comparison_plot(self,
+                              measurement_hist, signal_hist, background_hists=None,
+                              text=None, suffix='',
+                              draw_as_2d=False, mc_denominator=True, save_and_reset=True, signal_as_stack=True,
+                              y_min_scale=1.0, rows=2,
+                              **signal_kwargs):
+
         plotter = measurement_hist.plotter
-        plotter.init_plotter(rows=2, cols=1)
+        figsize=(8,8)
+        if rows > 2:
+            figsize=(8,10)
+        plotter.init_plotter(rows=rows, cols=1, figsize=figsize)
         plotter.set_experiment_label(**{'year': measurement_hist.year})
 
         # Add backgrounds if any
@@ -687,11 +697,17 @@ class ISRHists:
         #if not signal_as_stack:
         #    kwargs['histtype'] = 'errorbar'
         #    kwargs['mfc'] = 'none'
-        plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator,
-                         **kwargs)
-        plotter.add_hist(measurement_hist, as_denominator=not mc_denominator,
-                         **get_hist_kwargs(measurement_hist.get_label()))
+        if signal_kwargs:
+            kwargs = kwargs | signal_kwargs
 
+        plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator, show_x_err=True,
+                         err_band_hatch=None, err_band_fill=True, err_band_alpha=0.0,
+                         **kwargs)
+        data_kwargs = get_hist_kwargs(measurement_hist.get_label())
+        data_kwargs = data_kwargs | {"zorder": 1001}
+        plotter.add_hist(measurement_hist, as_denominator=not mc_denominator,
+                         err_band_hatch='///', err_band_fill=False,
+                         **data_kwargs)
 
         plotter.draw_hist()
         plotter.draw_ratio_hists(location=(1, 0))
@@ -709,7 +725,11 @@ class ISRHists:
         if not mc_denominator:
             ratio_name = "MC/Data"
         plotter.set_common_comparison_plot_cosmetics(x_axis_label, x_log_scale=x_log_scale,
-                                                     y_log_scale=y_log_scale, ratio_name=ratio_name)
+                                                     y_log_scale=y_log_scale, ratio_name=ratio_name,
+                                                     y_min_scale=y_min_scale, rows=rows,)
+        if rows > 2:
+            if x_log_scale:
+                plotter.get_axis(location=(2, 0)).set_xscale("log")
 
         if text:
             plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper left"})
@@ -728,7 +748,8 @@ class ISRHists:
         plotter.init_plotter(rows=1, cols=1)
         plotter.save_and_reset_plotter(measurement_hist.hist_name + "memory_" + self.channel + self.year)
 
-    def draw_detector_level(self, mass_window_index=-1, bin_width_norm=False):
+    def draw_detector_level(self, mass_window_index=-1, y_min_scale=1.0,
+                            bin_width_norm=False):
         measurement_hist = self.get_hist_in_mass_window("measurement", mass_window_index,
                                                         bin_width_norm=bin_width_norm)
         signal_hist = self.get_hist_in_mass_window("signal", mass_window_index,
@@ -746,12 +767,13 @@ class ISRHists:
             else:
                 suffix = '_detector_'+str(mass_window_index)
         self._draw_comparison_plot(measurement_hist, signal_hist, background_hists, text, suffix=suffix,
-                                   draw_as_2d=draw_as_2d)
+                                   draw_as_2d=draw_as_2d, y_min_scale=y_min_scale,)
         del measurement_hist
         del signal_hist
         del background_hists
 
-    def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False, mc_denominator=True):
+    def draw_unfolded_level(self, mass_window_index=-1, bin_width_norm=False, mc_denominator=True,
+                            show_folded_hist=False, **signal_kwargs):
         measurement_hist = self.get_hist_in_mass_window("unfolded_measurement", mass_window_index,
                                                         bin_width_norm=bin_width_norm)
         signal_hist = self.get_hist_in_mass_window("truth_signal", mass_window_index,
@@ -764,28 +786,32 @@ class ISRHists:
             suffix = '_unfolded_'+str(mass_window_index)
         # draw unfold input and its comparison to simulation
         plotter = self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
-                                             mc_denominator=mc_denominator, signal_as_stack=False, save_and_reset=False)
-        # folded level
-        input_hist = self.get_hist_in_mass_window("unfold_input", mass_window_index,
-                                                  bin_width_norm=bin_width_norm)
-        sim_input_hist = self.get_hist_in_mass_window("reco_signal", mass_window_index,
+                                             mc_denominator=mc_denominator, signal_as_stack=False, **signal_kwargs,
+                                             save_and_reset=False)
+
+        if show_folded_hist:
+            # folded level
+            input_hist = self.get_hist_in_mass_window("unfold_input", mass_window_index,
                                                       bin_width_norm=bin_width_norm)
+            sim_input_hist = self.get_hist_in_mass_window("reco_signal", mass_window_index,
+                                                          bin_width_norm=bin_width_norm)
 
-        plotter.add_hist(input_hist, as_denominator=not mc_denominator, label='Data (reco)',
-                         histtype='errorbar', color='gray', mfc='none',)
-        plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY')
+            plotter.add_hist(sim_input_hist, as_denominator=mc_denominator, label='Reco DY', show_err_band=False)
+            plotter.add_hist(input_hist, as_denominator=not mc_denominator, label='Data (reco)',
+                             histtype='errorbar', color='gray', mfc='none',
+                             show_err_band=False,)
 
-        plotter.draw_hist()
-        plotter.draw_ratio_hists(location=(1, 0), show_error_band=False,
-                                 show_normalized_error_band=False)
+            plotter.draw_hist()
+            plotter.draw_ratio_hists(location=(1, 0), show_error_band=False,
+                                     show_normalized_error_band=False)
+            del input_hist
+            del sim_input_hist
 
         plotter.show_legend()
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
 
         del measurement_hist
         del signal_hist
-        del input_hist
-        del sim_input_hist
 
     def draw_unfold_closure(self, mass_window_index=-1, bin_width_norm=False):
         unfolded_signal_hist = self.get_hist_in_mass_window("unfolded_signal", mass_window_index,
@@ -831,7 +857,9 @@ class ISRHists:
         del fiducial_phase_hist
 
     def draw_acceptance_corrected_level(self, mass_window_index=-1, bin_width_norm=False,
-                                        mc_denominator=True, others=None):
+                                        mc_denominator=True, others=None, other_kwargs=None, add_more_hist=False,
+                                        **signal_kwargs):
+
         measurement_hist = self.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
                                                         bin_width_norm=bin_width_norm)
         signal_hist = self.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
@@ -842,23 +870,35 @@ class ISRHists:
         if self.is_2d:
             suffix = '_acceptance_corrected_'+str(mass_window_index)
         save_and_reset = True
-        if others:
+        rows =2
+        if add_more_hist:  # for example, alternative mc
             save_and_reset = False
+            rows = 3
+        # TODO add systematic band
         plotter = self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
-                                             mc_denominator=mc_denominator, save_and_reset=save_and_reset,
-                                             signal_as_stack=False)
-        if others:
-            for index, other in enumerate(others):
-                other_hist = other.get('acceptance_corrected', mass_window_index, bin_width_norm=bin_width_norm,
-                                       key='simulation')
-                plotter.add_hist(other_hist, as_denominator=False, **get_hist_kwargs(other_hist.get_label()))
-                plotter.add_hist(measurement_hist, as_denominator=True, not_to_draw=True,
-                                 **get_hist_kwargs(measurement_hist.get_label()))
-                plotter.draw_hist()
-                plotter.draw_ratio_hists(location=(1, 0))
+                                             mc_denominator=mc_denominator, save_and_reset=save_and_reset, rows=rows,
+                                             signal_as_stack=False, **signal_kwargs)
+        if add_more_hist:
+            for other in others:
+                other_signal_hist = other.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
+                                                                  bin_width_norm=bin_width_norm, key='simulation')
+                kwargs = get_hist_kwargs(other_signal_hist.get_label())
+                kwargs = kwargs | other_kwargs
 
-            plotter.show_legend()
-            plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
+                plotter.add_hist(other_signal_hist, as_stack=False, as_denominator=mc_denominator,
+                                 show_x_err=True, err_band_hatch=None, err_band_fill=True, err_band_alpha=0.0,
+                                 **(kwargs))
+                data_kwargs = get_hist_kwargs(measurement_hist.get_label())
+                data_kwargs = data_kwargs | {"zorder": 1001}
+                plotter.add_hist(measurement_hist, as_denominator=not mc_denominator,
+                                 err_band_hatch='///', err_band_fill=False, not_to_draw=True,
+                                 **data_kwargs)
+                plotter.draw_hist()
+                plotter.draw_ratio_hists(location=(2, 0))
+
+            plotter.show_legend(reverse=False, data_label_first=True)
+            plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_additional_mc_" + self.channel + self.year)
+
         del measurement_hist
         del signal_hist
 
@@ -913,29 +953,44 @@ class ISRHists:
             sys_names = [sys_name]
 
         for sys_name in sys_names:
+
             systematic_hists = measurement_hist.systematic_raw_root_hists[sys_name]
 
             plotter = measurement_hist.plotter
             plotter.init_plotter(rows=2, cols=1)
             plotter.set_experiment_label(**{'year': measurement_hist.year})
 
-            plotter.add_hist(measurement_hist, as_denominator=True,
-                             label='Default', histtype='errorbar', color='black', yerr=False)
-
             colors = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 'pink']
             index = 0
             for sys_name_, sys_hist in systematic_hists.items():
                 # suppress y error for systematic hists
-                plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False, show_err_band=False,
-                                 color=colors[index%7], label=sys_name_)
+                if sys_name == 'FSR':
+                    photos = Hist(systematic_hists['nominal'])
+                    pythia = Hist(systematic_hists['pythia'])
+                    delta = pythia - photos
+                    fsr_variation = measurement_hist + delta
+
+                    plotter.add_hist(fsr_variation, as_stack=False, as_denominator=False, yerr=False,
+                                     show_err_band=False, color=colors[index%7], label='pythia')
+                    break
+                else:
+                    plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False,
+                                     show_err_band=False, color=colors[index%7], label=sys_name_)
                 index += 1
 
+            plotter.add_hist(measurement_hist, as_denominator=True,
+                             label='Default', histtype='errorbar', color='black', yerr=False,
+                             err_band_hatch='///', err_band_fill=False,)
             plotter.draw_hist()
             if index > 10:
                 plotter.show_legend(ncol=5, fontsize=7)
             else:
                 plotter.show_legend()
+
             plotter.draw_ratio_hists(location=(1, 0), show_y_error=False, show_error_band=False,)
+            text = self.get_additional_text_on_plot(mass_window_index)
+            plotter.add_text(text=text + "\n" + sys_name, location=(0, 0), do_magic=False,
+                             **{"frameon": False, "loc": "lower left"})
             plotter.get_axis(location=(0,0)).set_ylabel("Events/bin")
             plotter.get_axis(location=(1,0)).set_ylabel("/Default")
             plotter.get_axis(location=(1,0)).set_xlabel(self.x_axis_label)
@@ -1064,7 +1119,9 @@ class ISRHists:
         plotter.init_plotter(rows=1, cols=1)
         plotter.set_experiment_label(**{'year': reference_hist.year})
 
-        plotter.add_hist(reference_hist, as_denominator=True, not_to_draw=True,)
+        plotter.add_hist(reference_hist, as_denominator=True, not_to_draw=True, color='black',
+                         err_band_fill=False,
+                         err_band_hatch="///")
         colors = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 'pink']
         for i, other in enumerate(others):
             hist = other.get_hist_in_mass_window(key, index,

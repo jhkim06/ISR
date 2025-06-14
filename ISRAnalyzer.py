@@ -232,13 +232,24 @@ class ISRAnalyzer(Analyzer):
     def setup_isr_acceptance_hists(self, year, channel, event_selection, is_2d=True, mass_bins=None,
                                    binned_mean=True, range_min=None, range_max=None,):
         self.set_data_info(year, channel, event_selection)
+        unfolded_bin, folded_bin = self.get_unfold_bin_maps(
+            self.pt_mass_truth_bin_name,
+            self.pt_mass_detector_bin_name
+        )
 
         if mass_bins is None:
             mass_bins = self.mass_bins
 
         # pt
         if is_2d:
-            pass
+            self.isr_pt = ISRHists(mass_bins, self.pt_bins, is_2d=True, is_pt=True,
+                                   year=year, channel=channel,
+                                   folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
+            mc_hist_full_phase = self.get_acceptance_hist(self.pt_mass_hist_full_phase_name)
+            # HistTUnfoldBin(truth_signal_hist, unfolded_bin)
+            self.isr_pt.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
+            self.isr_pt.set_ISRHistSet_per_mass_window()
+            self.isr_pt.set_acceptance_corrected_mean_values_(key='simulation')
         else:
             self.isr_pt = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=True,
                                    year=year, channel=channel, )
@@ -261,10 +272,16 @@ class ISRAnalyzer(Analyzer):
         hist_full_phase_name = self.mass_hist_full_phase_name_prefix + postfix
         mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
 
+        unfolded_bin, folded_bin = self.get_unfold_bin_maps(
+            self.mass_truth_bin_name,
+            self.mass_detector_bin_name
+        )
         self.isr_mass = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=False,
-                                 year=year, channel=channel)
+                                 year=year, channel=channel,
+                                 folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
         self.isr_mass.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
-        self.isr_mass.set_acceptance_corrected_mean_values(key='simulation')
+        self.isr_mass.set_ISRHistSet_per_mass_window()
+        self.isr_mass.set_acceptance_corrected_mean_values_(key='simulation')
 
     def get_isr_hist(self, is_pt=True, is_2d=True, mass_window_index=0,
                      hist_prefix=''):
@@ -362,7 +379,7 @@ class ISRAnalyzer(Analyzer):
             reco_signal_hist = signal_hist.create(
                 hist=raw_hist,
                 hist_name='_',
-                label='DY'
+                label=signal_hist.label,
             )
             unfolded_signal_hist = input_hist.create(
                 hist=closure.get_unfolded_hist(),
@@ -450,7 +467,7 @@ class ISRAnalyzer(Analyzer):
         reco_signal_hist = signal_hist.create(
             hist=raw_hist,
             hist_name='_',
-            label='DY'
+            label=signal_hist.label,
         )
         self.isr_mass.isr_hists[0].unfold_input_hist =  HistTUnfoldBin(unfold_input_hist, folded_bin)
         self.isr_mass.isr_hists[0].unfolded_measurement_hist = HistTUnfoldBin(unfolded_hist, unfolded_bin)
@@ -586,7 +603,7 @@ class ISRAnalyzer(Analyzer):
             # get projected hists
             truth_hist = Hist(matrix.get_raw_hist().ProjectionX("projected_truth",  0, -1, "e"),
                               hist_name=hist_name + "_projected_truth",
-                              year=self.year, channel=self.channel, label='Truth DY')
+                              year=self.year, channel=self.channel, label=matrix.label)
 
             for sys_name, variations in matrix.systematic_raw_root_hists.items():
                 for var_name, hist in variations.items():
