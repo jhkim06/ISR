@@ -250,6 +250,8 @@ class ISRAnalyzer(Analyzer):
             self.isr_pt.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
             self.isr_pt.set_ISRHistSet_per_mass_window()
             self.isr_pt.set_acceptance_corrected_mean_values_(key='simulation')
+
+            self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name)
         else:
             self.isr_pt = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=True,
                                    year=year, channel=channel, )
@@ -282,6 +284,7 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
         self.isr_mass.set_ISRHistSet_per_mass_window()
         self.isr_mass.set_acceptance_corrected_mean_values_(key='simulation')
+        self.isr_mass.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name, is_pt=False)
 
     def get_isr_hist(self, is_pt=True, is_2d=True, mass_window_index=0,
                      hist_prefix=''):
@@ -515,10 +518,7 @@ class ISRAnalyzer(Analyzer):
                 run_acceptance_correction(index=i, is2d=False)
 
         # This is common in both 1D and 2D cases
-        self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(
-            #self.unfolded_space_name, self.pt_unfolded_bin_name
-            self.acceptance_space_name, self.pt_unfolded_bin_name
-        )
+        self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name)
 
     def mass_isr_acceptance_correction(self):
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
@@ -540,15 +540,24 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin),
                                                     key='simulation')
 
-    def get_correction_factors(self, space_name, bin_name):
-        pt_hist_full_phase_name_prefix = ('dipt_gen_' + space_name +
-                                          '_acceptance_dipt_0.0to100.0_dimass')
+        self.isr_mass.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name,
+                                                                                   is_pt=False)
+
+    def get_correction_factors(self, space_name, is_pt=True):
+        # dipt
+        if is_pt:
+            unbinned_full_phase_name_prefix = ('dipt_gen_' + space_name +
+                                              '_acceptance_dipt_0.0to100.0_dimass')
+        else:
+            unbinned_full_phase_name_prefix = ('dimass_gen_' + space_name +
+                                               '_acceptance_dipt_0.0to100.0_dimass')
         correction_factors = []
         for index, mass_bin in enumerate(self.mass_bins):
             mass_bin_postfix = '_' + str(mass_bin[0]) + 'to' + str(mass_bin[1])
             # FIXME
             mc_hist_full_phase = self.get_mc_hist(self.acceptance_name,
-                                                  pt_hist_full_phase_name_prefix + mass_bin_postfix, force_sys_off=False)
+                                                  unbinned_full_phase_name_prefix + mass_bin_postfix,
+                                                  force_sys_off=True)
             correction_factor = mc_hist_full_phase.get_mean(binned_mean=False)[0]
             correction_factors.append(correction_factor)
         return correction_factors

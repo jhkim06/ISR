@@ -427,12 +427,12 @@ class ISRHists:
         # Build the base dataframe
         df = pd.concat(source.acceptance_corrected_mean_values[key], ignore_index=True)
         # If PT case, compute and apply correction
-        if source.is_pt:
+        if binned_mean_correction:
             bmc = source.binned_mean_correction_factors  # unbinned mean values
             df_sim = pd.concat(source.acceptance_corrected_mean_values['simulation'], ignore_index=True)
             bmc = bmc / df_sim['mean']
-            if binned_mean_correction:
-                df['mean'] *= bmc
+            df['mean'] *= bmc
+
         return df
 
     def get_sys_mean_dfs(self, pt, mass, sys_name=None, key='measurement', other=None, binned_mean_correction=True,):
