@@ -76,6 +76,7 @@ class PlotItem(Hist):
                  drawn=False, not_to_draw=False, use_for_ratio=True, yerr=True, show_x_err=False,
                  sym_err_name='Total',
                  show_err_band=True, err_band_alpha=0.8, err_band_fill=True, err_band_hatch=None,
+                 err_band_sys_name='',
                  **kwargs):
 
         if isinstance(hist, tuple) and len(hist) == 3:
@@ -115,6 +116,7 @@ class PlotItem(Hist):
         self.err_band_alpha = err_band_alpha
         self.err_band_fill = err_band_fill
         self.err_band_hatch = err_band_hatch
+        self.err_band_sys_name = err_band_sys_name
 
     def divide(self, other=None):
         divided_hist = super().divide(other, use_default_denominator=True)
@@ -123,7 +125,7 @@ class PlotItem(Hist):
                         yerr=self.show_y_err, show_x_err=self.show_x_err,
                         sym_err_name=self.sym_err_name, show_err_band=self.show_err_band,
                         err_band_alpha=self.err_band_alpha, err_band_fill=self.err_band_fill,
-                        err_band_hatch=self.err_band_hatch,
+                        err_band_hatch=self.err_band_hatch, err_band_sys_name=self.err_band_sys_name,
                         **self.plot_kwargs)
 
     def __add__(self, other=None, c1=1):
@@ -133,7 +135,7 @@ class PlotItem(Hist):
                         yerr=self.show_y_err, show_x_err=self.show_x_err,
                         sym_err_name=self.sym_err_name, show_err_band=self.show_err_band,
                         err_band_alpha=self.err_band_alpha, err_band_fill=self.err_band_fill,
-                        err_band_hatch=self.err_band_hatch,
+                        err_band_hatch=self.err_band_hatch, err_band_sys_name=self.err_band_sys_name,
                         **self.plot_kwargs)
 
 
@@ -194,7 +196,7 @@ class Plotter:
                      left=0.15, right=0.95, bottom=0.15, top=0.95,):
         if rows == 3 and cols == 1:
             self.create_subplots(rows, cols, figsize=figsize,
-                                 left=left, right=right, hspace=0.0, bottom=bottom, height_ratios=[1, 0.3, 0.25])
+                                 left=left, right=right, hspace=0.0, bottom=bottom, height_ratios=[1, 0.32, 0.27])
         elif rows == 2 and cols == 1:
             self.create_subplots(rows, cols, figsize=figsize,
                                  left=left, right=right, hspace=0.0, bottom=bottom, height_ratios=[1, 0.3])
@@ -288,7 +290,7 @@ class Plotter:
     def add_hist(self, hist, location=(0, 0), as_denominator=False, as_stack=False,
                  not_to_draw=False,
                  use_for_ratio=True, yerr=True, show_x_err=False, sym_err_name='Total', show_err_band=True,
-                 err_band_alpha=1.0, err_band_fill=True, err_band_hatch=None,
+                 err_band_alpha=1.0, err_band_fill=True, err_band_hatch=None, err_band_sys_name="",
                  **kwargs):
 
         p_hist = PlotItem(hist, location=location, as_stack=as_stack, as_denominator=as_denominator,
@@ -296,7 +298,7 @@ class Plotter:
                           yerr=yerr, show_x_err=show_x_err,
                           sym_err_name=sym_err_name, show_err_band=show_err_band,
                           err_band_alpha=err_band_alpha, err_band_fill=err_band_fill,
-                          err_band_hatch=err_band_hatch,
+                          err_band_hatch=err_band_hatch, err_band_sys_name=err_band_sys_name,
                           **kwargs)
 
         self.plot_items.append(p_hist)
@@ -478,6 +480,7 @@ class Plotter:
                                   plot_item.get_sym_sys_err_array(plot_item.sym_err_name),
                                   location=location,
                                   zorder=0,
+                                  sys_name=plot_item.err_band_sys_name,
                                   **{"facecolor": plot_item.plot_kwargs['color'],
                                      "alpha": plot_item.err_band_alpha,
                                      "fill": plot_item.err_band_fill,
@@ -489,6 +492,7 @@ class Plotter:
                                       plot_item.get_sym_sys_err_array('stat'),
                                       location=location,
                                       zorder=1,
+                                      sys_name='Stat.',
                                       **{"facecolor": 'mistyrose',  # TODO
                                          "alpha": 0.8,
                                          "fill": plot_item.err_band_fill,
@@ -497,9 +501,12 @@ class Plotter:
     def add_ratio_hist(self, ratio_hist, location=(0, 0), show_y_err=True,
                        show_err_band=True, sys_err_name='Total'):
         ratio_hist.use_for_ratio = False
+
         if ratio_hist.err_band_hatch is not None:
-            ratio_hist.show_y_err = True
+            if show_y_err:
+                ratio_hist.show_y_err = True
         else:
+            # if hatch is not used
             ratio_hist.show_y_err = False
             ratio_hist.show_x_err = False
         #ratio_hist.show_y_err = show_y_err
@@ -513,6 +520,7 @@ class Plotter:
         # return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
 
     def show_legend(self, location=(0, 0), reverse=True, data_label_first=False,
+                    show_only_sys_legends=False,
                     **kwargs_):
         self.set_current_axis(location=location)
         kwargs = {"loc": 'best', 'fontsize': 17} | kwargs_
@@ -538,8 +546,21 @@ class Plotter:
 
                     self.current_axis.legend(handles, labels, **kwargs)
             else:
-                self.current_axis.legend(self.legend_handles[location],
-                                         self.legend_labels[location], **kwargs)
+                if show_only_sys_legends:
+                    handles = []
+                    labels = []
+                    for index, label in enumerate(self.legend_labels[location]):
+                        if ("Stat." in label or "Total uncertainty" in label or
+                                r"Scale $\oplus$ PDF $\oplus$ $\alpha_s$" in label):
+                            handles.append(self.legend_handles[location][index])
+                            labels.append(label)
+                    if len(handles) > 0:
+                        n_col = len(handles)
+                        kwargs = kwargs | {"ncol": n_col}
+                        self.current_axis.legend(handles, labels, **kwargs)
+                else:
+                    self.current_axis.legend(self.legend_handles[location],
+                                             self.legend_labels[location], **kwargs)
         try:
             hep.plot.yscale_legend(self.current_axis)
         except RuntimeError:
@@ -568,6 +589,11 @@ class Plotter:
                             linewidth=0.5)
 
         self.set_current_axis(location=location)
+        # FIXME
+        if sys_name:
+            self.legend_handles[location].append(legend_)
+            self.legend_labels[location].append(sys_name)
+
         self.current_axis.add_collection(pc)
         self.current_axis.add_patch(legend_)
 
@@ -677,6 +703,7 @@ class Plotter:
         self.draw_ratio_hists(location=ratio_location)
 
     def draw_matrix(self, rm_np, x_axis_label="", y_axis_label="", show_number=False,
+                    number_fontsize=3,
                     **kwargs):
         self.set_current_axis((0, 0))
         # hep.hist2dplot(rm_np, norm=mcolors.LogNorm(), ax=self.current_axis, **kwargs)
@@ -702,7 +729,8 @@ class Plotter:
                     y_half_width = (rm_np[2][y + 1] - rm_np[2][y]) / 2
                     self.current_axis.text(rm_np[1][x] + x_half_width,
                                            rm_np[2][y] + y_half_width,
-                                           f'{c:.2f}', va='center', ha='center', fontsize=3, color='red')
+                                           f'{c:.2f}', va='center', ha='center',
+                                           fontsize=number_fontsize, color='red')
 
         self.current_axis.set_ylabel(y_axis_label, fontsize=30)
         self.current_axis.set_xlabel(x_axis_label, fontsize=30)

@@ -82,6 +82,8 @@ class ISRAnalyzer(Analyzer):
                                            + '_fake__' + self.mass_folded_bin_name + ']_dipt')
         self.mass_hist_full_phase_name_prefix = ('dimass_[gen_' + self.mass_acceptance_space_name +
                                                  '_acceptance__' + self.mass_unfolded_bin_name + ']_dipt')
+        self.mass_hist_efficiency_name_prefix = ('dimass_[gen_' + self.mass_acceptance_space_name +
+                                                 '_efficiency__' + self.mass_unfolded_bin_name + ']_dipt')
         self.mass_matrix_name_prefix = ('dimass_['+self.mass_folded_space_name+'__' + self.mass_folded_bin_name + ']_[' +
                                         self.mass_unfolded_space_name + '__' + self.mass_unfolded_bin_name + ']_dipt')
 
@@ -109,6 +111,8 @@ class ISRAnalyzer(Analyzer):
                                        + "_fake__" + self.pt_folded_bin_name + bin_definition + "]")
         self.pt_mass_hist_full_phase_name = (tunfold_prefix + "_[gen_" + self.acceptance_space_name
                                              + "_acceptance__" + self.pt_unfolded_bin_name + bin_definition + "]")
+        self.pt_mass_hist_efficiency_name = (tunfold_prefix + "_[gen_" + self.acceptance_space_name
+                                             + "_efficiency__" + self.pt_unfolded_bin_name + bin_definition + "]")
 
         type_name = 'matrix'
         tunfold_prefix = f"[tunfold-{type_name}]_[{var_name}]"
@@ -231,7 +235,7 @@ class ISRAnalyzer(Analyzer):
 
     def setup_isr_acceptance_hists(self, year, channel, event_selection, is_2d=True, mass_bins=None,
                                    binned_mean=True, range_min=None, range_max=None,):
-        self.set_data_info(year, channel, event_selection)
+        self.set_data_info(year, channel, event_selection, only_theory_sys=True)
         unfolded_bin, folded_bin = self.get_unfold_bin_maps(
             self.pt_mass_truth_bin_name,
             self.pt_mass_detector_bin_name
@@ -246,8 +250,10 @@ class ISRAnalyzer(Analyzer):
                                    year=year, channel=channel,
                                    folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
             mc_hist_full_phase = self.get_acceptance_hist(self.pt_mass_hist_full_phase_name)
-            # HistTUnfoldBin(truth_signal_hist, unfolded_bin)
-            self.isr_pt.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
+            mc_hist_efficiency = self.get_acceptance_hist(self.pt_mass_hist_efficiency_name)
+            # add efficiency hist
+            self.isr_pt.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase,
+                                      efficiency_signal_hist=mc_hist_efficiency,)
             self.isr_pt.set_ISRHistSet_per_mass_window()
             self.isr_pt.set_acceptance_corrected_mean_values_(key='simulation')
 
@@ -272,7 +278,9 @@ class ISRAnalyzer(Analyzer):
         # mass
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
         hist_full_phase_name = self.mass_hist_full_phase_name_prefix + postfix
+        hist_efficiency_name = self.mass_hist_efficiency_name_prefix + postfix
         mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
+        mc_efficiency_phase = self.get_acceptance_hist(hist_efficiency_name)
 
         unfolded_bin, folded_bin = self.get_unfold_bin_maps(
             self.mass_truth_bin_name,
@@ -281,10 +289,12 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass = ISRHists(mass_bins, self.pt_bins, is_2d=False, is_pt=False,
                                  year=year, channel=channel,
                                  folded_tunfold_bin=folded_bin, unfolded_tunfold_bin=unfolded_bin)
-        self.isr_mass.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase)
+        self.isr_mass.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase,
+                                    efficiency_signal_hist=mc_efficiency_phase,)
         self.isr_mass.set_ISRHistSet_per_mass_window()
         self.isr_mass.set_acceptance_corrected_mean_values_(key='simulation')
-        self.isr_mass.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name, is_pt=False)
+        self.isr_mass.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name,
+                                                                                   is_pt=False, force_sys_off=True)
 
     def get_isr_hist(self, is_pt=True, is_2d=True, mass_window_index=0,
                      hist_prefix=''):
@@ -487,6 +497,7 @@ class ISRAnalyzer(Analyzer):
         def run_acceptance_correction(index=0, is2d=False):
             if is2d:
                 mc_hist_full_phase = self.get_acceptance_hist(self.pt_mass_hist_full_phase_name)
+                mc_hist_efficiency = self.get_acceptance_hist(self.pt_mass_hist_efficiency_name)
                 matrix_name = self.pt_mass_matrix_name
             else:
                 mass_bin_postfix = f'_{self.mass_bins[index][0]}to{self.mass_bins[index][1]}'
@@ -510,6 +521,8 @@ class ISRAnalyzer(Analyzer):
                 hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin), mass_window_index=index)
             self.isr_pt.set_acceptance_corrected_hist(
                 hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin), mass_window_index=index, key='simulation')
+            # add efficiency hist
+            self.isr_pt.isr_hists[index].efficiency_signal_hist = HistTUnfoldBin(mc_hist_efficiency, unfolded_bin)
 
         if self.isr_pt.is_2d:
             run_acceptance_correction(index=0, is2d=True)
@@ -523,7 +536,9 @@ class ISRAnalyzer(Analyzer):
     def mass_isr_acceptance_correction(self):
         postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
         hist_full_phase_name = self.mass_hist_full_phase_name_prefix + postfix
-        mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)
+        hist_efficiency_name = self.mass_hist_efficiency_name_prefix + postfix
+        mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)  # binned histogram
+        mc_hist_efficiency = self.get_acceptance_hist(hist_efficiency_name)  # binned histogram
 
         unfolded_hist = self.isr_mass.isr_hists[0].unfolded_measurement_hist
         _, matrix_name, _, _ = self.get_hist_names_for_1d_dimass(postfix)
@@ -539,11 +554,41 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin))
         self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin),
                                                     key='simulation')
+        self.isr_mass.isr_hists[0].efficiency_signal_hist = HistTUnfoldBin(mc_hist_efficiency, unfolded_bin)
 
+        # FIXME need to reproduce systematic hist for mass
         self.isr_mass.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name,
-                                                                                   is_pt=False)
+                                                                                   is_pt=False, force_sys_off=True)
 
-    def get_correction_factors(self, space_name, is_pt=True):
+    # get binned from isr_pt.per_mass_ or isr_mass
+    # check variations of correction values according to systematics
+    def get_binned_mean_correction_values(self, sys_name='default', mass_index=0):
+        unbinned_full_phase_name_prefix = ('dipt_gen_' + self.acceptance_space_name +
+                                           '_acceptance_dipt_0.0to100.0_dimass')
+        mass_bin_postfix = '_' + str(self.mass_bins[mass_index][0]) + 'to' + str(self.mass_bins[mass_index][1])
+        if sys_name == 'default':
+            mc_hist_full_phase = self.get_mc_hist(self.acceptance_name,
+                                                  unbinned_full_phase_name_prefix + mass_bin_postfix,
+                                                  force_sys_off=True)  # TODO test systematics at generator level
+            unbinned_mean = mc_hist_full_phase.get_mean(binned_mean=False)[0]
+
+            binned_mean = self.isr_pt.isr_hists_per_mass_window[mass_index].acceptance_corrected_hist['simulation'].get_mean(binned_mean=False)[0]
+            # print('correction factor', binned_mean/unbinned_mean)
+            return unbinned_mean, binned_mean
+        else:
+            mc_hist_full_phase = self.get_mc_hist(self.acceptance_name,
+                                                  unbinned_full_phase_name_prefix + mass_bin_postfix,
+                                                  force_sys_off=False)  # TODO test systematics at generator level
+            unbinned_mean = mc_hist_full_phase.get_sys_mean_dfs(sys_name, binned_mean=False)
+
+            binned_mean = \
+            self.isr_pt.isr_hists_per_mass_window[mass_index].acceptance_corrected_hist['simulation'].get_sys_mean_dfs(sys_name,
+                                                                                                                       binned_mean=False)
+            #print('binned_mean', binned_mean)
+            #print('unbinned_mean', unbinned_mean)
+            return unbinned_mean, binned_mean
+
+    def get_correction_factors(self, space_name, is_pt=True, force_sys_off=False):
         # dipt
         if is_pt:
             unbinned_full_phase_name_prefix = ('dipt_gen_' + space_name +
@@ -557,9 +602,10 @@ class ISRAnalyzer(Analyzer):
             # FIXME
             mc_hist_full_phase = self.get_mc_hist(self.acceptance_name,
                                                   unbinned_full_phase_name_prefix + mass_bin_postfix,
-                                                  force_sys_off=True)
+                                                  force_sys_off=force_sys_off)
             correction_factor = mc_hist_full_phase.get_mean(binned_mean=False)[0]
             correction_factors.append(correction_factor)
+        # correction_factor["nominal"]["nominal"]
         return correction_factors
 
     def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name='', mass_bins=None):
@@ -622,4 +668,4 @@ class ISRAnalyzer(Analyzer):
             return truth_hist
         else:
             return self.get_mc_hist(self.acceptance_name, hist_name, bin_width_norm=bin_width_norm,
-                                        force_sys_off=False, sys_names_to_skip=['matrix_model'])
+                                    force_sys_off=False, sys_names_to_skip=['matrix_model'])

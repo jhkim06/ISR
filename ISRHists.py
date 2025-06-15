@@ -6,10 +6,30 @@ from HistTUnfoldBin import HistTUnfoldBin
 import pandas as pd
 import numpy as np
 from ISRLinearFitter import ISRLinearFitter
+import re
 
 
 def normalize(hist, bin_width_norm=True, scale=1.0):
     return hist.bin_width_norm(scale) if bin_width_norm else hist
+
+
+sys_names_map = {
+    "alpha_s": r"QCD coupling const. $\alpha_s$",
+    "pdf": "PDF error set",
+    "scale": r"Renormalization \& Factorization scale variations",
+    "bg_normalization": r"Background normalization (6\%)",
+    "qcd": "QCD",
+    "matrix_model": "Unfolding model",
+    "btagSF": "B tagging SF",
+    "puWeight": "PU reweight",
+    "prefireweight": "L1 pre-firing weight",
+    "triggerSF": "Trigger SF",
+     "momentum_scale": "Momentum scale",
+     "momentum_resolution": "Momentum resolution",
+     "electronIDSF": "electron ID SF",
+     "electronRECOSF": "electron RECO SF",
+     "muonIDSF": "muon ID SF",
+}
 
 
 # group of hists for ISR
@@ -21,7 +41,8 @@ class ISRHistSet:
                  background_hists=None,
                  response_matrix=None,
                  truth_signal_hist=None,
-                 acceptance_corrected_signal_hist=None):
+                 acceptance_corrected_signal_hist=None,
+                 efficiency_signal_hist=None,):
         # detector hist
         self.measurement_hist = measurement_hist
         self.signal_hist = signal_hist
@@ -41,6 +62,7 @@ class ISRHistSet:
         # acceptance corrected hist
         self.acceptance_corrected_hist = {"measurement": None,
                                           "simulation": acceptance_corrected_signal_hist}
+        self.efficiency_signal_hist = efficiency_signal_hist
 
     def get_extracted_1d_hist_set(self, index):
         measurement_hist_extracted = self.measurement_hist.extract_1d_hist(index) if self.measurement_hist is not None else None
@@ -69,6 +91,7 @@ class ISRHistSet:
             "simulation": self.acceptance_corrected_hist["simulation"].extract_1d_hist(index)
             if self.acceptance_corrected_hist["simulation"] else None,
         }
+        efficiency_signal_hist_extracted = self.efficiency_signal_hist.extract_1d_hist(index) if self.efficiency_signal_hist else None
 
         extracted_set = ISRHistSet()
         extracted_set.measurement_hist = measurement_hist_extracted
@@ -82,6 +105,7 @@ class ISRHistSet:
         extracted_set.response_matrix = None
         extracted_set.truth_signal_hist = truth_signal_hist_extracted
         extracted_set.acceptance_corrected_hist = acceptance_corrected_hist_extracted
+        extracted_set.efficiency_signal_hist = efficiency_signal_hist_extracted
 
         return extracted_set
 
@@ -110,6 +134,7 @@ class ISRHistSet:
             "measurement": self.acceptance_corrected_hist["measurement"].extract_hist() if self.acceptance_corrected_hist["measurement"] else None,
             "simulation": self.acceptance_corrected_hist["simulation"].extract_hist() if self.acceptance_corrected_hist["simulation"] else None,
         }
+        efficiency_signal_hist_extracted = self.efficiency_signal_hist.extract_hist() if self.efficiency_signal_hist else None
 
         extracted_set = ISRHistSet()
         extracted_set.measurement_hist = measurement_hist_extracted
@@ -123,6 +148,7 @@ class ISRHistSet:
         extracted_set.response_matrix = None
         extracted_set.truth_signal_hist = truth_signal_hist_extracted
         extracted_set.acceptance_corrected_hist = acceptance_corrected_hist_extracted
+        extracted_set.efficiency_signal_hist = efficiency_signal_hist_extracted
 
         return extracted_set
 
@@ -248,7 +274,8 @@ class ISRHists:
     def set_isr_hists(self, measurement_hist=None,
                       signal_hist=None, signal_fake_hist=None,
                       background_hists=None, matrix=None,
-                      acceptance_corrected_signal_hist=None):
+                      acceptance_corrected_signal_hist=None,
+                      efficiency_signal_hist=None):
         if self.is_pt and len(self.mass_bins) == len(self.isr_hists):
             print('Check the number of mass bins and the number of ISR hists...')
             return
@@ -270,6 +297,8 @@ class ISRHists:
                         background_hists=new_background_hists,
                         response_matrix=matrix if matrix else None,
                         acceptance_corrected_signal_hist=HistTUnfoldBin(acceptance_corrected_signal_hist, self.unfolded_tunfold_bin) if acceptance_corrected_signal_hist else None,
+                        efficiency_signal_hist=HistTUnfoldBin(efficiency_signal_hist,
+                                                              self.unfolded_tunfold_bin) if efficiency_signal_hist else None,
                     )
                 )
             else:
@@ -278,7 +307,8 @@ class ISRHists:
                                signal_hist=signal_hist,
                                signal_fake_hist=signal_fake_hist, background_hists=background_hists,
                                response_matrix=matrix,
-                               acceptance_corrected_signal_hist=acceptance_corrected_signal_hist,)
+                               acceptance_corrected_signal_hist=acceptance_corrected_signal_hist,
+                               efficiency_signal_hist=efficiency_signal_hist)
                 )
 
     def set_acceptance_corrected_hist(self, hist,
@@ -432,7 +462,6 @@ class ISRHists:
             df_sim = pd.concat(source.acceptance_corrected_mean_values['simulation'], ignore_index=True)
             bmc = bmc / df_sim['mean']
             df['mean'] *= bmc
-
         return df
 
     def get_sys_mean_dfs(self, pt, mass, sys_name=None, key='measurement', other=None, binned_mean_correction=True,):
@@ -468,6 +497,9 @@ class ISRHists:
                 pt_df = pd.concat(sys_list_pt, ignore_index=True)
 
                 bmc = pt.binned_mean_correction_factors  # unbinned mean values
+                # TODO
+                # pt.binned_mean_correction_factors[sys_name][var]
+                # df_sim = isr_hists_per_mass_window[mass_index].acceptance_corrected_hist['simulation'].get_sys_mean_dfs
                 df_sim = pd.concat(pt.acceptance_corrected_mean_values['simulation'], ignore_index=True)
                 bmc = bmc / df_sim['mean']
                 pt_df['mean'] *= bmc
@@ -547,7 +579,8 @@ class ISRHists:
         pt_mean, mass_mean = self.add_isr_plot(plotter, isr_mass, isr_pt, key=key, do_fit=do_fit, **kwargs,)
         # show simulation
         self.add_isr_plot(plotter, isr_mass, isr_pt, key='simulation', do_fit=False,
-                          color='red', linestyle='--', linewidth=0.7, marker='o', markersize=4, capsize=3, label='MiNNLO')
+                          color='red', linestyle='--', linewidth=0.7, marker='o', mfc='none',
+                          markersize=4, capsize=3, label='MiNNLO')
 
         if show_this_sys:
             # loop over variations and plot the means!
@@ -578,15 +611,27 @@ class ISRHists:
         else:
             return plotter
 
-    def draw_unfold_inputs(self, mass_window_index=-1, bin_width_norm=False):
-        unfold_input_hist = self.get_hist_in_mass_window('unfold_input', mass_window_index,
-                                                         bin_width_norm=bin_width_norm)
-        measurement_hist = self.get_hist_in_mass_window('measurement', mass_window_index,
-                                                       bin_width_norm=bin_width_norm)
-        signal_fake_hist = self.get_hist_in_mass_window('signal_fake', mass_window_index,
-                                                        bin_width_norm=bin_width_norm)
-        background_hists = self.get_hist_in_mass_window('background', mass_window_index,
-                                                        bin_width_norm=bin_width_norm)
+    def draw_unfold_inputs(self, mass_window_index=-1, bin_width_norm=False,
+                           without_ratio=False):
+        if mass_window_index == -1:
+            unfold_input_hist = self.get('unfold_input', -1,
+                                                             bin_width_norm=bin_width_norm)
+            measurement_hist = self.get('measurement', -1,
+                                                           bin_width_norm=bin_width_norm)
+            signal_fake_hist = self.get('signal_fake', -1,
+                                                            bin_width_norm=bin_width_norm)
+            background_hists = self.get('background', -1,
+                                                            bin_width_norm=bin_width_norm)
+
+        else:
+            unfold_input_hist = self.get_hist_in_mass_window('unfold_input', mass_window_index,
+                                                             bin_width_norm=bin_width_norm)
+            measurement_hist = self.get_hist_in_mass_window('measurement', mass_window_index,
+                                                           bin_width_norm=bin_width_norm)
+            signal_fake_hist = self.get_hist_in_mass_window('signal_fake', mass_window_index,
+                                                            bin_width_norm=bin_width_norm)
+            background_hists = self.get_hist_in_mass_window('background', mass_window_index,
+                                                            bin_width_norm=bin_width_norm)
 
         dummy_hist = measurement_hist.create(reset_hist=True)
         total_bg = sum(background_hists.values(), dummy_hist)
@@ -601,22 +646,48 @@ class ISRHists:
             else:
                 suffix = '_unfold_input_'+str(mass_window_index)
         plotter = measurement_hist.plotter
-        plotter.init_plotter(rows=2, cols=1)
+        rows=2
+        figsize=(8,8)
+        if without_ratio:
+            rows=1
+            figsize=(8,4)
+        plotter.init_plotter(rows=rows, cols=1, figsize=figsize)
         plotter.set_experiment_label(**{'year': measurement_hist.year})
 
         kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"color": "black"}
         plotter.add_hist(unfold_input_hist, **kwargs)
-        kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"mfc": "none", "color": "gray"}
-        plotter.add_hist(measurement_hist, as_denominator=True, **kwargs)
+        if not without_ratio:
+            kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"mfc": "none", "color": "gray"}
+            plotter.add_hist(measurement_hist, as_denominator=True, **kwargs)
 
         plotter.draw_hist()
-        plotter.draw_ratio_hists(location=(1, 0))
+        if without_ratio:
+            plotter.get_axis(location=(0, 0)).set_yscale("log")
+        if not without_ratio:
+            plotter.draw_ratio_hists(location=(1, 0))
 
         plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_" + self.channel + self.year)
         del measurement_hist
         del background_hists
         del unfold_input_hist
         del signal_fake_hist
+
+    def draw_unfold_outputs(self, mass_window_index=-1,):
+        measurement_hist = self.get("unfolded_measurement", -1,
+                                    bin_width_norm=False)
+        plotter = measurement_hist.plotter
+        rows=1
+        figsize=(8,4)
+        plotter.init_plotter(rows=rows, cols=1, figsize=figsize)
+        plotter.set_experiment_label(**{'year': measurement_hist.year})
+
+        kwargs = get_hist_kwargs(measurement_hist.get_label()) | {"color": "black"}
+        plotter.add_hist(measurement_hist, **kwargs)
+        plotter.draw_hist()
+        plotter.get_axis(location=(0, 0)).set_yscale("log")
+
+        plotter.save_and_reset_plotter(measurement_hist.hist_name + "_unfold_output" + self.channel + self.year)
+        del measurement_hist
 
     def draw_fake_hists(self, mass_window_index=-1, bin_width_norm=False):
         signal_fake_hist = self.get_hist_in_mass_window('signal_fake', mass_window_index,
@@ -675,6 +746,8 @@ class ISRHists:
                               measurement_hist, signal_hist, background_hists=None,
                               text=None, suffix='',
                               draw_as_2d=False, mc_denominator=True, save_and_reset=True, signal_as_stack=True,
+                              bin_width_norm=True,
+                              data_err_band_sys_name='', signal_err_band_sys_name='',
                               y_min_scale=1.0, rows=2,
                               **signal_kwargs):
 
@@ -702,11 +775,12 @@ class ISRHists:
 
         plotter.add_hist(signal_hist, as_stack=signal_as_stack, as_denominator=mc_denominator, show_x_err=True,
                          err_band_hatch=None, err_band_fill=True, err_band_alpha=0.0,
+                         err_band_sys_name=signal_err_band_sys_name,
                          **kwargs)
         data_kwargs = get_hist_kwargs(measurement_hist.get_label())
         data_kwargs = data_kwargs | {"zorder": 1001}
         plotter.add_hist(measurement_hist, as_denominator=not mc_denominator,
-                         err_band_hatch='///', err_band_fill=False,
+                         err_band_hatch='///', err_band_fill=False, err_band_sys_name=data_err_band_sys_name,
                          **data_kwargs)
 
         plotter.draw_hist()
@@ -725,6 +799,7 @@ class ISRHists:
         if not mc_denominator:
             ratio_name = "MC/Data"
         plotter.set_common_comparison_plot_cosmetics(x_axis_label, x_log_scale=x_log_scale,
+                                                     bin_width_norm=bin_width_norm,
                                                      y_log_scale=y_log_scale, ratio_name=ratio_name,
                                                      y_min_scale=y_min_scale, rows=rows,)
         if rows > 2:
@@ -767,6 +842,7 @@ class ISRHists:
             else:
                 suffix = '_detector_'+str(mass_window_index)
         self._draw_comparison_plot(measurement_hist, signal_hist, background_hists, text, suffix=suffix,
+                                   bin_width_norm=bin_width_norm,
                                    draw_as_2d=draw_as_2d, y_min_scale=y_min_scale,)
         del measurement_hist
         del signal_hist
@@ -778,7 +854,6 @@ class ISRHists:
                                                         bin_width_norm=bin_width_norm)
         signal_hist = self.get_hist_in_mass_window("truth_signal", mass_window_index,
                                                    bin_width_norm=bin_width_norm,)
-
         text = self.get_additional_text_on_plot(mass_window_index)
 
         suffix = '_unfolded'
@@ -786,9 +861,9 @@ class ISRHists:
             suffix = '_unfolded_'+str(mass_window_index)
         # draw unfold input and its comparison to simulation
         plotter = self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
+                                             bin_width_norm=bin_width_norm,
                                              mc_denominator=mc_denominator, signal_as_stack=False, **signal_kwargs,
                                              save_and_reset=False)
-
         if show_folded_hist:
             # folded level
             input_hist = self.get_hist_in_mass_window("unfold_input", mass_window_index,
@@ -824,13 +899,17 @@ class ISRHists:
         suffix = '_closure'
         if self.is_2d:
             suffix = '_closure_'+str(mass_window_index)
-        self._draw_comparison_plot(unfolded_signal_hist, truth_signal_hist, text=text, suffix=suffix)
+        self._draw_comparison_plot(unfolded_signal_hist, truth_signal_hist, bin_width_norm=bin_width_norm,
+                                   text=text, suffix=suffix)
         del unfolded_signal_hist
         del truth_signal_hist
 
-    def draw_acceptance(self, mass_window_index=-1, bin_width_norm=False, y_min=0.0, y_max=0.55):
+    def draw_acceptance(self, mass_window_index=-1, bin_width_norm=False, y_min=0.0, y_max=0.55,
+                        show_only_acceptance_times_efficiency=True):
         full_phase_hist = self.get_hist_in_mass_window("acceptance_corrected", mass_window_index,
                                                        bin_width_norm=bin_width_norm, key='simulation')
+        efficiency_hist = self.get_hist_in_mass_window("efficiency_signal", mass_window_index,
+                                                       bin_width_norm=bin_width_norm,)
         fiducial_phase_hist = self.get_hist_in_mass_window("truth_signal", mass_window_index,
                                                           bin_width_norm=bin_width_norm)
 
@@ -840,18 +919,41 @@ class ISRHists:
 
         plotter.add_hist(full_phase_hist, as_denominator=True, not_to_draw=True, yerr=False)
         plotter.add_hist(fiducial_phase_hist, as_denominator=False, not_to_draw=True, yerr=False,
-                         histtype='errorbar')
+                         histtype='errorbar', label=r'Accpt. $\times$ effi.', mfc='Black',
+                         err_band_sys_name=r"Scale $\oplus$ PDF $\oplus$ $\alpha_s$")
         plotter.draw_ratio_hists(location=(0, 0), show_normalized_error_band=False)
+
+        if not show_only_acceptance_times_efficiency:
+            plotter.add_hist(full_phase_hist, as_denominator=True, not_to_draw=True, yerr=False, show_x_err=True,
+                             err_band_hatch='///')
+            plotter.add_hist(efficiency_hist, as_denominator=False, not_to_draw=True, yerr=False, err_band_hatch='///',
+                             show_x_err=True, histtype='errorbar', label='Acceptance')
+            plotter.draw_ratio_hists(location=(0, 0), show_normalized_error_band=False, show_error_band=False,
+                                     show_y_error=False)
+
+            plotter.add_hist(efficiency_hist, as_denominator=True, not_to_draw=True, yerr=False, show_x_err=True,
+                             err_band_hatch='///')
+            plotter.add_hist(fiducial_phase_hist, as_denominator=False, not_to_draw=True, yerr=False, err_band_hatch='///',
+                             show_x_err=True, histtype='errorbar', label='Efficiency')
+            plotter.draw_ratio_hists(location=(0, 0), show_normalized_error_band=False, show_error_band=False,
+                                     show_y_error=False)
 
         if not self.is_pt:
             plotter.current_axis.set_xscale("log")
         plotter.current_axis.set_xlabel(self.x_axis_label)
-        plotter.current_axis.set_ylabel("Acceptance")
+        if show_only_acceptance_times_efficiency:
+            plotter.current_axis.set_ylabel(r"Acceptance $\times$ efficiency")
+        else:
+            plotter.current_axis.set_ylabel("Fractions")
         plotter.get_axis(location=(0, 0)).set_ylim(y_min, y_max)
         text = self.get_additional_text_on_plot(mass_window_index)
-        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower left"})
+        plotter.show_legend()
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower right"})
 
-        plotter.save_and_reset_plotter(full_phase_hist.hist_name + "_acceptance" + "_" +
+        suffix = "acceptance"
+        if not show_only_acceptance_times_efficiency:
+            suffix = "acceptance_efficiency"
+        plotter.save_and_reset_plotter(full_phase_hist.hist_name + "_" + suffix + "_" +
                                        str(mass_window_index) + "_" + self.channel + self.year)
         del full_phase_hist
         del fiducial_phase_hist
@@ -877,6 +979,9 @@ class ISRHists:
         # TODO add systematic band
         plotter = self._draw_comparison_plot(measurement_hist, signal_hist, text=text, suffix=suffix,
                                              mc_denominator=mc_denominator, save_and_reset=save_and_reset, rows=rows,
+                                             bin_width_norm=bin_width_norm,
+                                             data_err_band_sys_name="Total Unc.",
+                                             signal_err_band_sys_name=r"Scale $\oplus$ PDF $\oplus$ $\alpha_s$",
                                              signal_as_stack=False, **signal_kwargs)
         if add_more_hist:
             for other in others:
@@ -887,7 +992,8 @@ class ISRHists:
 
                 plotter.add_hist(other_signal_hist, as_stack=False, as_denominator=mc_denominator,
                                  show_x_err=True, err_band_hatch=None, err_band_fill=True, err_band_alpha=0.0,
-                                 **(kwargs))
+                                 err_band_sys_name=r"Scale $\oplus$ PDF $\oplus$ $\alpha_s$",
+                                 **(kwargs))  # tot_sys_name = 'Total uncertainty' or 'Scale, PDF, $\alpha_s$'
                 data_kwargs = get_hist_kwargs(measurement_hist.get_label())
                 data_kwargs = data_kwargs | {"zorder": 1001}
                 plotter.add_hist(measurement_hist, as_denominator=not mc_denominator,
@@ -897,6 +1003,8 @@ class ISRHists:
                 plotter.draw_ratio_hists(location=(2, 0))
 
             plotter.show_legend(reverse=False, data_label_first=True)
+            plotter.show_legend(location=(1, 0), reverse=False, show_only_sys_legends=True)
+            plotter.show_legend(location=(2, 0), reverse=False, show_only_sys_legends=True)
             plotter.save_and_reset_plotter(measurement_hist.hist_name + suffix + "_additional_mc_" + self.channel + self.year)
 
         del measurement_hist
@@ -914,7 +1022,7 @@ class ISRHists:
         _, _, stat = relative_systematic_hist.to_numpy(stat=True)
         
         plotter.add_hist((errors, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
-                         label='Total', linewidth=2)
+                         label='Total', linewidth=4)
         plotter.add_hist((stat, bins, None), as_denominator=False, yerr=False, show_err_band=False, color='black',
                          linestyle='--', label='Stat')
         # merge systematics
@@ -924,6 +1032,7 @@ class ISRHists:
             sys_error = systematics[sys_name_]
             kwargs = {}
             kwargs['color'] = colors[i]
+            kwargs['linewidth'] = 2
             if sys_name_ == 'matrix_stat':
                 kwargs['linestyle'] = '--'
 
@@ -971,7 +1080,7 @@ class ISRHists:
                     fsr_variation = measurement_hist + delta
 
                     plotter.add_hist(fsr_variation, as_stack=False, as_denominator=False, yerr=False,
-                                     show_err_band=False, color=colors[index%7], label='pythia')
+                                     show_err_band=False, color=colors[index%7], label='Pythia (Parton shower algo.)')
                     break
                 else:
                     plotter.add_hist(Hist(sys_hist), as_stack=False, as_denominator=False, yerr=False,
@@ -989,12 +1098,19 @@ class ISRHists:
 
             plotter.draw_ratio_hists(location=(1, 0), show_y_error=False, show_error_band=False,)
             text = self.get_additional_text_on_plot(mass_window_index)
-            plotter.add_text(text=text + "\n" + sys_name, location=(0, 0), do_magic=False,
+            # change sys_name here
+            plotter.add_text(text=text + "\n" + sys_names_map.get(sys_name, sys_name),
+                             location=(0, 0), do_magic=False,
                              **{"frameon": False, "loc": "lower left"})
-            plotter.get_axis(location=(0,0)).set_ylabel("Events/bin")
+            ylabel = 'Events/bin'
+            if bin_width_norm:
+                ylabel = "Events/GeV"
+            plotter.get_axis(location=(0,0)).set_ylabel(ylabel)
             plotter.get_axis(location=(1,0)).set_ylabel("/Default")
             plotter.get_axis(location=(1,0)).set_xlabel(self.x_axis_label)
             plotter.get_axis(location=(1, 0)).set_ylim(0.90, 1.1)
+            plotter.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black', zorder=1000)
+            plotter.get_axis(location=(0, 0)).set_xticklabels([])
 
             x_log_scale = y_log_scale = True
             if self.is_pt:
@@ -1014,7 +1130,8 @@ class ISRHists:
 
     def draw_response_matrix(self, mass_window_index=-1, out_name_postfix='',
                              x_axis_label_prefix="", y_axis_label_prefix="",
-                             label_postfix="", show_number=False,
+                             label_postfix="", show_number=False, mass_window='',
+                             number_fontsize=3,
                              **kwargs_hist2dplot):
         # Choose the relevant ISR hist container
         if self.is_pt and not self.is_2d:
@@ -1041,8 +1158,12 @@ class ISRHists:
                 x_axis_label_prefix = "Truth bin index"
             if not y_axis_label_prefix:
                 y_axis_label_prefix = "Reconstructed bin index"
-            x_axis_label = x_axis_label_prefix + " $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
-            y_axis_label = y_axis_label_prefix + " $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+            if not mass_window:
+                x_axis_label = x_axis_label_prefix + " $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+                y_axis_label = y_axis_label_prefix + " $(p_{T},m)^{"+change_to_greek(self.channel)+"}$"
+            else:
+                x_axis_label = x_axis_label_prefix + " $p_{T}^{"+change_to_greek(self.channel)+"}$"
+                y_axis_label = y_axis_label_prefix + " $p_{T}^{"+change_to_greek(self.channel)+"}$"
         else:
             if not x_axis_label_prefix:
                 x_axis_label_prefix = "Truth"
@@ -1051,15 +1172,54 @@ class ISRHists:
             x_axis_label = x_axis_label_prefix + " $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
             y_axis_label = y_axis_label_prefix + " $m^{"+ change_to_greek(self.channel) +"}$ [GeV]"
             # self.x_axis_label = r"$p_{T}^{" + change_to_greek(self.channel) + "}$ [GeV]"
-        plotter.draw_matrix(raw_2d.to_numpy_2d(), x_axis_label=x_axis_label, y_axis_label=y_axis_label,
-                            show_number=show_number,
+
+        matrix_content = raw_2d.to_numpy_2d()
+        if mass_window:
+            nx = matrix_content[0].shape[0]
+            ny = matrix_content[0].shape[1]
+
+            extracted_content = []
+            for i_x in range(nx):
+                reco_list = []
+                found = False
+                for i_y in range(ny):
+                    s = str(self.folded_tunfold_bin.GetBinName(i_y + 1))
+                    vals = re.findall(r'(?:dimass|dipt)\[([^\]]+)\]', s)
+                    m = re.search(r'dimass\[(?P<dimass>[^\]]*)\].*?dipt\[(?P<dipt>[^\]]*)\]', s)
+                    folded_mass_window = m.group("dimass")
+                    folded_pt_window = m.group("dipt")
+
+                    s = str(self.unfolded_tunfold_bin.GetBinName(i_x + 1))
+                    vals = re.findall(r'(?:dimass|dipt)\[([^\]]+)\]', s)
+                    m = re.search(r'dimass\[(?P<dimass>[^\]]*)\].*?dipt\[(?P<dipt>[^\]]*)\]', s)
+                    unfolded_mass_window = m.group("dimass")
+                    unfolded_pt_window = m.group("dipt")
+
+                    if folded_mass_window == mass_window and unfolded_mass_window == mass_window:
+                        if unfolded_pt_window == 'ofl' or folded_pt_window == 'ofl':
+                            continue
+                        found = True
+                        reco_list.append(matrix_content[0][i_x][i_y])
+                if found:
+                    extracted_content.append(reco_list)
+            matrix_content = (np.array(extracted_content),
+                              np.array(list(self.unfolded_tunfold_bin.GetDistributionBinning(0))),
+                              np.array(list(self.folded_tunfold_bin.GetDistributionBinning(0))))
+
+        plotter.draw_matrix(matrix_content, x_axis_label=x_axis_label, y_axis_label=y_axis_label,
+                            show_number=show_number, number_fontsize=number_fontsize,
                             **kwargs_hist2dplot)
-        plotter.add_text("condition number: " + str(round(condition_number, 2)),
+        matrix_info = "condition number: " + str(round(condition_number, 2))
+        if mass_window:
+            low = mass_window.split(',')[0]
+            high = mass_window.split(',')[1]
+            matrix_info = text = (low+"$<m^{"+change_to_greek(self.channel)+"}<$"+high + " GeV")
+        plotter.add_text(matrix_info,
                          location=(0,0), do_magic=False,
                          **{"loc": "upper left",})
         if out_name_postfix:
             out_name_postfix = "_" + out_name_postfix
-        plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_RM_" + self.channel + self.year
+        plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_RM_" + mass_window + self.channel + self.year
                                        + out_name_postfix)
 
     def draw_correlations(self, mass_window_index=-1, **kwargs_hist2dplot):

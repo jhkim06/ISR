@@ -262,14 +262,23 @@ def main():
         mass_others = []
         test_aMCNLO = ISRAnalyzer(sample_base_dir,
                                   mass_bins,
-                                  pt_bins, signal="DY:aMCNLO", sys_on=False)
+                                  pt_bins, signal="DY:aMCNLO", sys_on=False)  # TODO include systematic!
         test_aMCNLO.setup_isr_acceptance_hists(period, channel, event_selection, is_2d=True)
         pt_aMCNLO, mass_aMCNLO = test_aMCNLO.get_isr_results()
         pt_others.append(pt_aMCNLO)
         mass_others.append(mass_aMCNLO)
 
-        pt.draw_isr_plot(mass, save_as_csv=True, 
-                         linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=3, capsize=3)
+        plotter = pt.draw_isr_plot(mass, save_as_csv=True, save_and_reset_plotter=False,
+                                   linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=1001, capsize=3)
+        # include aMC@NLO estimation
+        key='simulation'
+        plotter.add_errorbar((mass_aMCNLO.get_mean_df(key=key), pt_aMCNLO.get_mean_df(key=key)), marker='o', ms=4,
+                              mfc='none', capsize=3,
+                              color="blue", label='aMC@NLO', linestyle='dashdot', linewidth=1.)
+        plotter.draw_errorbar()
+        plotter.set_experiment_label(**{'year': period})
+        plotter.show_legend(location=(0, 0), **{"loc": "upper left"})
+        plotter.save_and_reset_plotter("isr_"+channel+period+"test_with_nlo")
 
         for index in range(len(mass_bins)):
             pt.draw_detector_level(index, bin_width_norm=True)
@@ -287,6 +296,7 @@ def main():
                                                **{"histtype":"errorbar", "marker": "o", "mfc": "none", "mec":"red",
                                                   "markersize": 5})
             pt.draw_acceptance(mass_window_index=index, bin_width_norm=True, y_max=0.9)
+            pt.draw_acceptance(mass_window_index=index, bin_width_norm=True, y_max=1.05, show_only_acceptance_times_efficiency=False)
             if sys_on:
                 pt.draw_systematic_summary(mass_window_index=index)
                 pt.draw_systematic_hists(None, hist_type='acceptance_corrected', key='measurement', mass_window_index=index,  bin_width_norm=True)
@@ -302,6 +312,7 @@ def main():
                                       "markersize": 0})
         mass.draw_response_matrix(mass_window_index=0, show_number=True, cbarsize='3%', cbarpad=0, norm=mcolors.LogNorm())
         mass.draw_acceptance(mass_window_index=0, bin_width_norm=True, y_max=0.9)
+        mass.draw_acceptance(mass_window_index=0, bin_width_norm=True, y_max=1.05, show_only_acceptance_times_efficiency=False)
         mass.draw_correlations(mass_window_index=0, cbarsize='3%', cbarpad=0)
         mass.draw_bin_efficiency()
         if use_2d_pt:

@@ -85,39 +85,47 @@ class Analyzer:
         self.systematics = {}
 
 
-    def set_data_info(self, year, channel, event_selection):
+    def set_data_info(self, year, channel, event_selection, only_theory_sys=False):
         self.year = year
         self.channel = channel
         self.event_selection = event_selection
 
         self.systematics.clear()
         self.systematics = {
-            "bg_normalization:background": {"up": ("default", "", 1.06), "down": ("default", "", 0.94)},
-            "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
-            "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},  # unfolding
-            "btagSF:simulation": {"hup": ("sys", "btagSF_hup", 1.0),
-                                  "hdown": ("sys", "btagSF_hdown", 1.0),
-                                  "lup": ("sys", "btagSF_lup", 1.0),
-                                  "ldown": ("sys", "btagSF_ldown", 1.0)},
-            "puWeight:simulation": {"up": ("sys", "PUweight_up", 1.0), "down": ("sys", "PUweight_down", 1.0)},
-            "prefireweight:simulation": {"up": ("sys", "prefireweight_up", 1.0),
-                                         "down": ("sys", "prefireweight_down", 1.0)},
-
-            "alpha_s:signal": {"up": ("pdf", "alphaS_up", 1.0), "down": ("pdf", "alphaS_down", 1.0)},
+            "alpha_s:signal":
+                {"0.118+0.0015": ("pdf", "alphaS_up", 1.0),
+                 "0.118-0.0015": ("pdf", "alphaS_down", 1.0)},
         }
         pdf_signal_variations = {
-            str(i): ("pdf", f"pdf{i}", 1.0)
+            r"no." + str(i): ("pdf", f"pdf{i}", 1.0)
             for i in range(100)
         }
         self.systematics.update({"pdf:signal": pdf_signal_variations})
 
-        # factorisation and renormalisation scale variations
+        scales = ["(1, 1)", "(1, 2)", "(1,0.5)", "(2, 1)", "(2, 2)", "(2,0.5)", "(0.5, 1)", "(0.5, 2)", "(0.5,0.5)"]
         scale_signal_variations = {
-            str(i): ("pdf", f"scalevariation{i}", 1.0)
-            for i in range(9)
+            scales[i]: ("pdf", f"scalevariation{i}", 1.0)
+            for i in range(1, 9)
             if i not in (5, 7)  #
         }
         self.systematics.update({"scale:signal": scale_signal_variations})
+
+        if only_theory_sys:
+            return
+
+        self.systematics.update({
+            "bg_normalization:background": {"up": ("default", "", 1.06), "down": ("default", "", 0.94)},
+            "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
+            "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},  # unfolding
+            "btagSF:simulation": {"hup": ("sys", "btagSF_hup", 1.0),
+                                       "hdown": ("sys", "btagSF_hdown", 1.0),
+                                       "lup": ("sys", "btagSF_lup", 1.0),
+                                       "ldown": ("sys", "btagSF_ldown", 1.0)},
+            "puWeight:simulation": {"up": ("sys", "PUweight_up", 1.0), "down": ("sys", "PUweight_down", 1.0)},
+            "prefireweight:simulation": {"up": ("sys", "prefireweight_up", 1.0),
+                                         "down": ("sys", "prefireweight_down", 1.0)},
+        })
+
 
         emomentum_scale_variations = {"up": ("momentum_correction", "egammacor_s1m-1", 1.0),
                                       "down": ("momentum_correction", "egammacor_s1m1", 1.0)}
@@ -149,7 +157,6 @@ class Analyzer:
 
         mmomentum_scale_variations = {}
         mmomentum_scale_variations.update(mmomentum_ewk2_variations)
-        #mmomentum_variations.update(mmomentum_stat)
 
         muonIDSF_variations = {"s1": ("sys", "muonIDSF_s1_m0", 1.0),
                                "s2": ("sys", "muonIDSF_s2_m0", 1.0),
@@ -248,19 +255,15 @@ class Analyzer:
         if self.channel == 'ee':
             self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
             self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
-            #self.systematics.update({"momentum_scale_test:signal": emomentum_scale_test_variations})
-            #self.systematics.update({"momentum_resolution_test:signal": emomentum_res_test_variations})
             self.systematics.update({"electronIDSF:simulation": electronIDSF_variations})
             self.systematics.update({"electronRECOSF:simulation": electronRECOSF_variations})
 
         if self.channel == 'mm':
-            #self.systematics.update({"roccor:all": mmomentum_variations})
-
             self.systematics.update({"roccor_scale:all": mmomentum_scale_variations})
             self.systematics.update({"roccor_resolution:all": mmomentum_resolution_variations})
             self.systematics.update({"roccor_stat:all": mmomentum_stat})
 
-            self.systematics.update({"muonIDSF:simulation": muonIDSF_variations})
+            self.systematics.update({"muonIDSF:simulation": muonIDSF_variations})  # this include ISO
 
     def reset_data_info(self):
         self.year = ""
@@ -285,7 +288,6 @@ class Analyzer:
 
         for key, value in self.systematics.items():
             sys_name, apply_to = key.split(":")
-            # sys_name, apply_to = key.split(":")
 
             if apply_to == "all":
                 use_sys_config = True
