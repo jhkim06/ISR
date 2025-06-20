@@ -28,8 +28,6 @@ class ISRLinearFitter:
         self.intercept = funct.GetParameter(1)
         self.intercept_err = funct.GetParError(1)
 
-        #print(f"a = {funct.GetParameter(0):.6f} +/- {funct.GetParError(0):.6f}")
-        #print(f"b = {funct.GetParameter(1):.6f} +/- {funct.GetParError(1):.6f}")
         return self.slope, self.slope_err, self.intercept, self.intercept_err
 
     def do_multi_error_fit(self):
@@ -40,7 +38,6 @@ class ISRLinearFitter:
                                   self.pt_mean['stat'].values, self.pt_mean['stat'].values)
 
         # graph.SetSumErrorsMode(1)
-
         for index in range(len(self.pt_mean)):
             graph.SetPointError(index,
                                 len(self.mass_mean.iloc[0][2:-2]),
@@ -58,6 +55,4 @@ class ISRLinearFitter:
         self.intercept = funct.GetParameter(1)
         self.intercept_err = funct.GetParError(1)
 
-        # print(f"a = {funct.GetParameter(0):.6f} +/- {funct.GetParError(0):.6f}")
-        # print(f"b = {funct.GetParameter(1):.6f} +/- {funct.GetParError(1):.6f}")
         return self.slope, self.slope_err, self.intercept, self.intercept_err

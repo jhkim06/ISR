@@ -26,11 +26,11 @@ sys_names_map = {
     "puWeight": "PU reweight",
     "prefireweight": "L1 pre-firing weight",
     "triggerSF": "Trigger SF",
-     "momentum_scale": "Momentum scale",
-     "momentum_resolution": "Momentum resolution",
-     "electronIDSF": "electron ID SF",
-     "electronRECOSF": "electron RECO SF",
-     "muonIDSF": "muon ID SF",
+    "momentum_scale": "Momentum scale",
+    "momentum_resolution": "Momentum resolution",
+    "electronIDSF": "electron ID SF",
+    "electronRECOSF": "electron RECO SF",
+    "muonIDSF": "muon ID SF",
 }
 
 
@@ -42,7 +42,13 @@ class ISRHistSet:
                  signal_fake_hist=None,
                  background_hists=None,
                  response_matrix=None,
+                 tunfolder=None,
+                 unfold_input_hist=None,
+                 reco_signal_hist=None,
+                 unfolded_measurement_hist=None,
+                 unfolded_signal_hist=None,
                  truth_signal_hist=None,
+                 acceptance_corrected_measurement_hist=None,
                  acceptance_corrected_signal_hist=None,
                  efficiency_signal_hist=None,):
         # detector hist
@@ -54,104 +60,109 @@ class ISRHistSet:
         self.response_matrix = response_matrix
 
         # unfolded hist
-        self.tunfolder = None
-        self.unfold_input_hist = None  #
-        self.reco_signal_hist = None
-        self.unfolded_measurement_hist = None
-        self.unfolded_signal_hist = None  # simple closure
+        self.tunfolder = tunfolder
+        self.unfold_input_hist = unfold_input_hist
+        self.reco_signal_hist = reco_signal_hist
+        self.unfolded_measurement_hist = unfolded_measurement_hist
+        self.unfolded_signal_hist = unfolded_signal_hist  # simple closure
         self.truth_signal_hist = truth_signal_hist  # request to tunfolder
 
         # acceptance corrected hist
-        self.acceptance_corrected_hist = {"measurement": None,
+        self.acceptance_corrected_hist = {"measurement": acceptance_corrected_measurement_hist,
                                           "simulation": acceptance_corrected_signal_hist}
         self.efficiency_signal_hist = efficiency_signal_hist
 
-    def get_extracted_1d_hist_set(self, index):
-        measurement_hist_extracted = self.measurement_hist.extract_1d_hist(index) if self.measurement_hist is not None else None
-        signal_hist_extracted = self.signal_hist.extract_1d_hist(index) if self.signal_hist is not None else None
+    def _extract_hist(self, hist, method, index=None):
+        """
+        Utility to extract a histogram (either full or 1D slice) if not None.
+        """
+        if hist is None:
+            return None
+        extract_fn = getattr(hist, method)
+        if index is not None:
+            return extract_fn(index)
+        return extract_fn()
 
-        if self.signal_fake_hist is not None:
-            signal_fake_hist_extracted = self.signal_fake_hist.extract_1d_hist(index)
-        else:
-            signal_fake_hist_extracted = None
-        background_hist_extracted = {}
-        if self.background_hist is not None:
-            for key, value in self.background_hist.items():
-                background_hist_extracted[key] = self.background_hist[key].extract_1d_hist(index)
-        else:
-            background_hist_extracted = None
+    def _extract_background(self, method, index=None):
+        """
+        Utility to extract background histograms, supports both 1D and full.
+        """
+        if not self.background_hist:
+            return None
+        out = {}
+        for key, hist in self.background_hist.items():
+            out[key] = self._extract_hist(hist, method, index)
+        return out
 
-        unfold_input_hist_extracted = self.unfold_input_hist.extract_1d_hist(index) if self.unfold_input_hist else None
-        reco_signal_hist_extracted = self.reco_signal_hist.extract_1d_hist(index) if self.reco_signal_hist else None
-        unfolded_measurement_hist_extracted = self.unfolded_measurement_hist.extract_1d_hist(index) if self.unfolded_measurement_hist else None
-        unfolded_signal_hist_extracted = self.unfolded_signal_hist.extract_1d_hist(index) if self.unfolded_signal_hist else None
-        truth_signal_hist_extracted = self.truth_signal_hist.extract_1d_hist(index) if self.truth_signal_hist else None
-
-        acceptance_corrected_hist_extracted = {
-            "measurement": self.acceptance_corrected_hist["measurement"].extract_1d_hist(index)
-            if self.acceptance_corrected_hist["measurement"] else None,
-            "simulation": self.acceptance_corrected_hist["simulation"].extract_1d_hist(index)
-            if self.acceptance_corrected_hist["simulation"] else None,
+    def _extract_acceptance_corrected(self, method, index=None):
+        """
+        Utility to extract acceptance-corrected histograms as dict.
+        """
+        return {
+            "measurement": self._extract_hist(self.acceptance_corrected_hist.get("measurement"), method, index),
+            "simulation": self._extract_hist(self.acceptance_corrected_hist.get("simulation"), method, index),
         }
-        efficiency_signal_hist_extracted = self.efficiency_signal_hist.extract_1d_hist(index) if self.efficiency_signal_hist else None
 
-        extracted_set = ISRHistSet()
-        extracted_set.measurement_hist = measurement_hist_extracted
-        extracted_set.signal_hist = signal_hist_extracted
-        extracted_set.signal_fake_hist = signal_fake_hist_extracted
-        extracted_set.background_hist = background_hist_extracted
-        extracted_set.unfold_input_hist = unfold_input_hist_extracted
-        extracted_set.reco_signal_hist = reco_signal_hist_extracted
-        extracted_set.unfolded_measurement_hist = unfolded_measurement_hist_extracted
-        extracted_set.unfolded_signal_hist = unfolded_signal_hist_extracted
-        extracted_set.response_matrix = None
-        extracted_set.truth_signal_hist = truth_signal_hist_extracted
-        extracted_set.acceptance_corrected_hist = acceptance_corrected_hist_extracted
-        extracted_set.efficiency_signal_hist = efficiency_signal_hist_extracted
+    def get_extracted_1d_hist_set(self, index):
+        measurement_hist_extracted = self._extract_hist(self.measurement_hist, "extract_1d_hist", index)
+        signal_hist_extracted = self._extract_hist(self.signal_hist, "extract_1d_hist", index)
+        signal_fake_hist_extracted = self._extract_hist(self.signal_fake_hist, "extract_1d_hist", index)
+        background_hist_extracted = self._extract_background("extract_1d_hist", index)
 
+        unfold_input_hist_extracted = self._extract_hist(self.unfold_input_hist, "extract_1d_hist", index)
+        reco_signal_hist_extracted = self._extract_hist(self.reco_signal_hist, "extract_1d_hist", index)
+        unfolded_measurement_hist_extracted = self._extract_hist(self.unfolded_measurement_hist, "extract_1d_hist", index)
+        unfolded_signal_hist_extracted = self._extract_hist(self.unfolded_signal_hist, "extract_1d_hist", index)
+        truth_signal_hist_extracted = self._extract_hist(self.truth_signal_hist, "extract_1d_hist", index)
+
+        acceptance_corrected_hist_extracted = self._extract_acceptance_corrected("extract_1d_hist", index)
+        efficiency_signal_hist_extracted = self._extract_hist(self.efficiency_signal_hist, "extract_1d_hist", index)
+
+        extracted_set = ISRHistSet(
+            measurement_hist = measurement_hist_extracted,
+            signal_hist = signal_hist_extracted,
+            signal_fake_hist = signal_fake_hist_extracted,
+            background_hists = background_hist_extracted,
+            unfold_input_hist = unfold_input_hist_extracted,
+            reco_signal_hist = reco_signal_hist_extracted,
+            unfolded_measurement_hist = unfolded_measurement_hist_extracted,
+            unfolded_signal_hist = unfolded_signal_hist_extracted,
+            truth_signal_hist = truth_signal_hist_extracted,
+            acceptance_corrected_measurement_hist = acceptance_corrected_hist_extracted["measurement"],
+            acceptance_corrected_signal_hist = acceptance_corrected_hist_extracted["simulation"],
+            efficiency_signal_hist = efficiency_signal_hist_extracted
+        )
         return extracted_set
 
-
     def get_extracted_hist_set(self,):
-        measurement_hist_extracted = self.measurement_hist.extract_hist() if self.measurement_hist is not None else None
-        signal_hist_extracted = self.signal_hist.extract_hist() if self.signal_hist is not None else None
-        if self.signal_fake_hist is not None:
-            signal_fake_hist_extracted = self.signal_fake_hist.extract_hist()
-        else:
-            signal_fake_hist_extracted = None
-        background_hist_extracted = {}
-        if self.background_hist is not None:
-            for key, value in self.background_hist.items():
-                background_hist_extracted[key] = self.background_hist[key].extract_hist()
-        else:
-            background_hist_extracted = None
+        measurement_hist_extracted = self._extract_hist(self.measurement_hist, "extract_hist")
+        signal_hist_extracted = self._extract_hist(self.signal_hist, "extract_hist")
+        signal_fake_hist_extracted = self._extract_hist(self.signal_fake_hist, "extract_hist")
+        background_hist_extracted = self._extract_background("extract_hist")
 
-        unfold_input_hist_extracted = self.unfold_input_hist.extract_hist() if self.unfold_input_hist else None
-        reco_signal_hist_extracted = self.reco_signal_hist.extract_hist() if self.reco_signal_hist else None
-        unfolded_measurement_hist_extracted = self.unfolded_measurement_hist.extract_hist() if self.unfolded_measurement_hist else None
-        unfolded_signal_hist_extracted = self.unfolded_signal_hist.extract_hist() if self.unfolded_signal_hist else None
-        truth_signal_hist_extracted = self.truth_signal_hist.extract_hist() if self.truth_signal_hist else None
+        unfold_input_hist_extracted = self._extract_hist(self.unfold_input_hist, "extract_hist")
+        reco_signal_hist_extracted = self._extract_hist(self.reco_signal_hist, "extract_hist")
+        unfolded_measurement_hist_extracted = self._extract_hist(self.unfolded_measurement_hist, "extract_hist")
+        unfolded_signal_hist_extracted = self._extract_hist(self.unfolded_signal_hist, "extract_hist")
+        truth_signal_hist_extracted = self._extract_hist(self.truth_signal_hist, "extract_hist")
 
-        acceptance_corrected_hist_extracted = {
-            "measurement": self.acceptance_corrected_hist["measurement"].extract_hist() if self.acceptance_corrected_hist["measurement"] else None,
-            "simulation": self.acceptance_corrected_hist["simulation"].extract_hist() if self.acceptance_corrected_hist["simulation"] else None,
-        }
-        efficiency_signal_hist_extracted = self.efficiency_signal_hist.extract_hist() if self.efficiency_signal_hist else None
+        acceptance_corrected_hist_extracted = self._extract_acceptance_corrected("extract_hist")
+        efficiency_signal_hist_extracted = self._extract_hist(self.efficiency_signal_hist, "extract_hist")
 
-        extracted_set = ISRHistSet()
-        extracted_set.measurement_hist = measurement_hist_extracted
-        extracted_set.signal_hist = signal_hist_extracted
-        extracted_set.signal_fake_hist = signal_fake_hist_extracted
-        extracted_set.background_hist = background_hist_extracted
-        extracted_set.unfold_input_hist = unfold_input_hist_extracted
-        extracted_set.reco_signal_hist = reco_signal_hist_extracted
-        extracted_set.unfolded_measurement_hist = unfolded_measurement_hist_extracted
-        extracted_set.unfolded_signal_hist = unfolded_signal_hist_extracted
-        extracted_set.response_matrix = None
-        extracted_set.truth_signal_hist = truth_signal_hist_extracted
-        extracted_set.acceptance_corrected_hist = acceptance_corrected_hist_extracted
-        extracted_set.efficiency_signal_hist = efficiency_signal_hist_extracted
-
+        extracted_set = ISRHistSet(
+            measurement_hist = measurement_hist_extracted,
+            signal_hist = signal_hist_extracted,
+            signal_fake_hist = signal_fake_hist_extracted,
+            background_hists = background_hist_extracted,
+            unfold_input_hist = unfold_input_hist_extracted,
+            reco_signal_hist = reco_signal_hist_extracted,
+            unfolded_measurement_hist = unfolded_measurement_hist_extracted,
+            unfolded_signal_hist = unfolded_signal_hist_extracted,
+            truth_signal_hist = truth_signal_hist_extracted,
+            acceptance_corrected_measurement_hist=acceptance_corrected_hist_extracted["measurement"],
+            acceptance_corrected_signal_hist=acceptance_corrected_hist_extracted["simulation"],
+            efficiency_signal_hist = efficiency_signal_hist_extracted,
+        )
         return extracted_set
 
 # ISRPtHists ISRMassHists

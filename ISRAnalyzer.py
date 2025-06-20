@@ -325,240 +325,242 @@ class ISRAnalyzer(Analyzer):
         self.pt_isr_unfold()
         self.mass_isr_unfold()
 
-    def pt_isr_unfold(self, tau=0.0, max_iter=4,
-                      reg_mode='None', tau_scan_method=None,
-                      do_iterative=False, do_iterative_for_last_window=False,
-                      apply_custom_regularization_for_pt=False):
+    def _run_isr_unfold(
+            self,
+            isr_obj,
+            mass_window_index: int = 0,
+            tau: float = 0.0,
+            max_iter: int = 4,
+            reg_mode: str = 'None',
+            tau_scan_method=None,
+            do_iterative: bool = False,
+            apply_custom_regularization: bool = False,
+            custom_regularization_fn=None,
+            do_iterative_for_last_window: bool = False
+    ) -> tuple:
+        """
+        Generic helper for ISR unfolding (used for both pt and mass, 1D or 2D).
+        """
+        # Prepare input
+        input_hist, signal_hist, signal_fake_hist, background_hists, matrix = isr_obj.get_isr_hists(
+            mass_window_index=mass_window_index)
+        unfolded_bin = isr_obj.unfolded_tunfold_bin
+        folded_bin = isr_obj.folded_tunfold_bin
 
-        def run_unfold(mass_window_index, is2d=False, tau=tau, max_iter=max_iter,
-                       do_iterative=do_iterative, tau_scan_method=tau_scan_method,
-                       do_iterative_for_last_window=do_iterative_for_last_window,
-                       apply_custom_regularization_for_pt=apply_custom_regularization_for_pt):
-            # Fetch ISR inputs
-            input_hist, signal_hist, signal_fake_hist, background_hists, matrix = (
-                self.isr_pt.get_isr_hists(mass_window_index=mass_window_index)
-            )
-            unfolded_bin = self.isr_pt.unfolded_tunfold_bin
-            folded_bin = self.isr_pt.folded_tunfold_bin
-
-            if not is2d and mass_window_index == 4 and do_iterative_for_last_window:
+        # Optionally turn on iterative for last window
+        if do_iterative_for_last_window and hasattr(isr_obj, "is_2d") and not isr_obj.is_2d:
+            if mass_window_index == len(self.mass_bins) - 1:
                 do_iterative = True
-            # Perform unfolding
-            unfold = TUnFolder(matrix, input_hist, signal_fake_hist,
-                               bg_hists=background_hists,
-                               unfolded_bin=unfolded_bin,
-                               folded_bin=folded_bin,
-                               variable_name='', iterative=do_iterative,
-                               reg_mode=reg_mode, tau_scan_method=tau_scan_method,)
 
-            if not do_iterative and tau_scan_method is not None:
-                print("apply regularisation for pt")
-                unfold.apply_custom_regularization_for_pt()
-            if apply_custom_regularization_for_pt:
-                unfold.apply_custom_regularization_for_pt()
-
-            #print("initial tau for pt ", tau)
-            tau, max_iter = unfold.unfold(tau=tau, max_iter=max_iter,)
-            # closure (simple)
-            closure = TUnFolder(matrix, signal_hist, signal_fake_hist,
-                                unfolded_bin=unfolded_bin,
-                                folded_bin=folded_bin,
-                                variable_name='', iterative=do_iterative,
-                                reg_mode=reg_mode, tau_scan_method=None,)
-            closure.unfold(tau=tau, max_iter=max_iter,)
-            self.isr_pt.isr_hists[mass_window_index].tunfolder = unfold
-
-            # create unfold input
-            unfold_input_hist = input_hist.create(
-                hist=unfold.get_input_hist(),
-                label=input_hist.label + '(unfold input)'
-            )
-            # Create unfolded measurement
-            unfolded_hist = input_hist.create(
-                hist=unfold.get_unfolded_hist(),
-                label=input_hist.label + '(unfolded)'
-            )
-
-            # FIXME
-            sys_names_to_skip = ['scale', 'alpha_s', 'pdf']
-            unfolded_hist.systematic_raw_root_hists = unfold.sys_unfold(sys_names_to_skip=sys_names_to_skip)
-            unfolded_hist.systematic_raw_root_hists.update({"matrix_stat": unfold.get_matrix_stat()})
-            unfolded_hist.compute_systematic_rss_per_sysname()
-
-            # Create truth signal
-            truth_signal_hist = unfold.get_mc_truth_from_response_matrix(sys_on=True)
-
-            raw_hist = unfold.get_mc_reco_from_response_matrix()
-            reco_signal_hist = signal_hist.create(
-                hist=raw_hist,
-                hist_name='_',
-                label=signal_hist.label,
-            )
-            unfolded_signal_hist = input_hist.create(
-                hist=closure.get_unfolded_hist(),
-                hist_name="_", label='Unfolded DY',
-            )
-
-            self.isr_pt.isr_hists[mass_window_index].unfold_input_hist = (
-                HistTUnfoldBin(unfold_input_hist, folded_bin))
-            self.isr_pt.isr_hists[mass_window_index].unfolded_measurement_hist = (
-                HistTUnfoldBin(unfolded_hist, unfolded_bin))
-            self.isr_pt.isr_hists[mass_window_index].truth_signal_hist = (
-                HistTUnfoldBin(truth_signal_hist, unfolded_bin))
-            self.isr_pt.isr_hists[mass_window_index].reco_signal_hist = (
-                HistTUnfoldBin(reco_signal_hist, folded_bin))
-            self.isr_pt.isr_hists[mass_window_index].unfolded_signal_hist = (
-                HistTUnfoldBin(unfolded_signal_hist, unfolded_bin))
-            return tau, max_iter
-
-        if self.isr_pt.is_2d:
-            return run_unfold(0, is2d=True, tau=tau, max_iter=max_iter,
-                              do_iterative=do_iterative, tau_scan_method=tau_scan_method,
-                              apply_custom_regularization_for_pt=apply_custom_regularization_for_pt)
-        else:
-            for index, _ in enumerate(self.mass_bins):
-                run_unfold(index, is2d=False, tau=tau, max_iter=max_iter,
-                           do_iterative=do_iterative, tau_scan_method=tau_scan_method,
-                           do_iterative_for_last_window=do_iterative_for_last_window,
-                           apply_custom_regularization_for_pt=apply_custom_regularization_for_pt)
-
-    def mass_isr_unfold(self, tau=0.0, max_iter=4,
-                        reg_mode='None', tau_scan_method=None,
-                        do_iterative=False, apply_custom_regularization_for_mass=False):
-        input_hist, signal_hist, signal_fake_hist, background_hists, matrix = self.isr_mass.get_isr_hists()
-
-        unfolded_bin = self.isr_mass.unfolded_tunfold_bin
-        folded_bin = self.isr_mass.folded_tunfold_bin
-
-        unfold = TUnFolder(matrix,
-                           input_hist,
-                           signal_fake_hist,
-                           bg_hists=background_hists, variable_name='',
-                           reg_mode=reg_mode, tau_scan_method=tau_scan_method,
-                           folded_bin=folded_bin, unfolded_bin=unfolded_bin, iterative=do_iterative)
-
-        if not do_iterative and tau_scan_method is not None:
-            unfold.apply_custom_regularization_for_mass()
-        if apply_custom_regularization_for_mass:
-            unfold.apply_custom_regularization_for_mass()
-
-        # Tikhonov regularisation comparable to IterativeEM with 4 iteration
-        # RegularizeCurvature(4, 5, 6) RegularizeCurvature(5, 6, 7) with tau=1e-4
-        tau, max_iter = unfold.unfold(tau=tau, max_iter=max_iter,)
-        self.isr_mass.isr_hists[0].tunfolder = unfold
-
-        # closure (simple)
-        closure = TUnFolder(matrix, signal_hist, signal_fake_hist,
-                            variable_name='',
-                            reg_mode=reg_mode, tau_scan_method=None,
-                            folded_bin=folded_bin, unfolded_bin=unfolded_bin, iterative=do_iterative)
-        closure.unfold(tau=tau, max_iter=max_iter)
-
-        unfold_input_hist = input_hist.create(
-            hist=unfold.get_input_hist(),
-            label=input_hist.label + '(unfold input)'
+        # Setup TUnFolder for measurement
+        unfold = TUnFolder(
+            matrix,
+            input_hist,
+            signal_fake_hist,
+            bg_hists=background_hists,
+            unfolded_bin=unfolded_bin,
+            folded_bin=folded_bin,
+            variable_name='',
+            iterative=do_iterative,
+            reg_mode=reg_mode,
+            tau_scan_method=tau_scan_method,
         )
 
-        # unfolding input should be bin_width_norm=False, since I need binned mean!
-        unfolded_hist = input_hist.create(hist=unfold.get_unfolded_hist(),
-                                          label=input_hist.label + '(unfolded)')
+        # Apply regularization if needed
+        if (not do_iterative and tau_scan_method is not None and custom_regularization_fn is not None):
+            getattr(unfold, custom_regularization_fn)()
+        if apply_custom_regularization and custom_regularization_fn is not None:
+            getattr(unfold, custom_regularization_fn)()
 
-        #unfolded_hist.systematic_raw_root_hists, unfold_input_hist.systematic_raw_root_hists = unfold.sys_unfold(return_input_sys=True)
+        tau, max_iter = unfold.unfold(tau=tau, max_iter=max_iter)
+
+        # Closure test (truth MC input, same tau)
+        closure = TUnFolder(
+            matrix,
+            signal_hist,
+            signal_fake_hist,
+            unfolded_bin=unfolded_bin,
+            folded_bin=folded_bin,
+            variable_name='',
+            iterative=do_iterative,
+            reg_mode=reg_mode,
+            tau_scan_method=None,
+        )
+        closure.unfold(tau=tau, max_iter=max_iter)
+
+        # Create output hists
+        unfold_input_hist = input_hist.create(hist=unfold.get_input_hist(), label=input_hist.label + '(unfold input)')
+        unfolded_hist = input_hist.create(hist=unfold.get_unfolded_hist(), label=input_hist.label + '(unfolded)')
+        # no reason to repeat unfolding for scale alpha_s and pdf since,
+        # modelling uncertainty for unfold done with reweighted DY MC
         sys_names_to_skip = ['scale', 'alpha_s', 'pdf']
         unfolded_hist.systematic_raw_root_hists = unfold.sys_unfold(sys_names_to_skip=sys_names_to_skip)
         unfolded_hist.systematic_raw_root_hists.update({"matrix_stat": unfold.get_matrix_stat()})
         unfolded_hist.compute_systematic_rss_per_sysname()
-        #unfold_input_hist.compute_systematic_rss_per_sysname()
 
-        unfolded_signal_hist = signal_hist.create(
-            hist=closure.get_unfolded_hist(),
-            hist_name="_", label='Unfolded DY',
-        )
         truth_signal_hist = unfold.get_mc_truth_from_response_matrix(sys_on=True)
-
         raw_hist = unfold.get_mc_reco_from_response_matrix()
-        reco_signal_hist = signal_hist.create(
-            hist=raw_hist,
-            hist_name='_',
-            label=signal_hist.label,
-        )
-        self.isr_mass.isr_hists[0].unfold_input_hist =  HistTUnfoldBin(unfold_input_hist, folded_bin)
-        self.isr_mass.isr_hists[0].unfolded_measurement_hist = HistTUnfoldBin(unfolded_hist, unfolded_bin)
-        self.isr_mass.isr_hists[0].truth_signal_hist = HistTUnfoldBin(truth_signal_hist, unfolded_bin)
-        self.isr_mass.isr_hists[0].reco_signal_hist = HistTUnfoldBin(reco_signal_hist, folded_bin)
-        self.isr_mass.isr_hists[0].unfolded_signal_hist = HistTUnfoldBin(unfolded_signal_hist, unfolded_bin)
+        reco_signal_hist = signal_hist.create(hist=raw_hist, hist_name='_', label=signal_hist.label)
+        unfolded_signal_hist = input_hist.create(hist=closure.get_unfolded_hist(), hist_name="_", label='Unfolded DY')
+
+        # Store results in isr_obj
+        isr_obj.isr_hists[mass_window_index].tunfolder = unfold
+        isr_obj.isr_hists[mass_window_index].unfold_input_hist = HistTUnfoldBin(unfold_input_hist, folded_bin)
+        isr_obj.isr_hists[mass_window_index].unfolded_measurement_hist = HistTUnfoldBin(unfolded_hist, unfolded_bin)
+        isr_obj.isr_hists[mass_window_index].truth_signal_hist = HistTUnfoldBin(truth_signal_hist, unfolded_bin)
+        isr_obj.isr_hists[mass_window_index].reco_signal_hist = HistTUnfoldBin(reco_signal_hist, folded_bin)
+        isr_obj.isr_hists[mass_window_index].unfolded_signal_hist = HistTUnfoldBin(unfolded_signal_hist, unfolded_bin)
         return tau, max_iter
+
+    def pt_isr_unfold(
+            self, tau=0.0, max_iter=4, reg_mode='None', tau_scan_method=None,
+            do_iterative=False, do_iterative_for_last_window=False,
+            apply_custom_regularization_for_pt=False
+    ):
+        """
+        Unfold the pt distribution, handling 2D and 1D cases.
+        """
+        custom_reg_fn = "apply_custom_regularization_for_pt"
+        if getattr(self.isr_pt, "is_2d", False):
+            return self._run_isr_unfold(
+                self.isr_pt, 0, tau, max_iter, reg_mode, tau_scan_method,
+                do_iterative, apply_custom_regularization_for_pt,
+                custom_regularization_fn=custom_reg_fn
+            )
+        else:
+            # Unlikely used for this time...
+            for idx, _ in enumerate(self.mass_bins):
+                self._run_isr_unfold(
+                    self.isr_pt, idx, tau, max_iter, reg_mode, tau_scan_method,
+                    do_iterative, apply_custom_regularization_for_pt,
+                    custom_regularization_fn=custom_reg_fn,
+                    do_iterative_for_last_window=do_iterative_for_last_window
+                )
+
+    def mass_isr_unfold(
+            self, tau=0.0, max_iter=4, reg_mode='None', tau_scan_method=None,
+            do_iterative=False, apply_custom_regularization_for_mass=False
+    ):
+        """
+        Unfold the mass distribution (always 1D).
+        """
+        custom_reg_fn = "apply_custom_regularization_for_mass"
+        return self._run_isr_unfold(
+            self.isr_mass, 0, tau, max_iter, reg_mode, tau_scan_method,
+            do_iterative, apply_custom_regularization_for_mass,
+            custom_regularization_fn=custom_reg_fn
+        )
 
     def isr_acceptance_corrections(self):
         self.pt_isr_acceptance_correction()
         self.mass_isr_acceptance_correction()
 
-    def pt_isr_acceptance_correction(self):
-        def run_acceptance_correction(index=0, is2d=False):
-            if is2d:
-                mc_hist_full_phase = self.get_acceptance_hist(self.pt_mass_hist_full_phase_name)
-                mc_hist_efficiency = self.get_acceptance_hist(self.pt_mass_hist_efficiency_name)
-                matrix_name = self.pt_mass_matrix_name
+    def _run_acceptance_correction(
+            self,
+            isr_obj,
+            mass_bins,
+            acceptance_space_name: str,
+            is_pt: bool,
+            is_2d: bool,
+            pt_bins=None,
+            get_acceptance_hist=None,
+            get_correction_factors=None,
+            hist_names=None
+    ):
+        """
+        Generic helper for acceptance correction (handles both pt and mass, 1D and 2D).
+        """
+        # Set default prefix accessors if not provided
+        hist_names = hist_names or {}
+
+        # (is_pt and is_2d) or (not is_pt)
+        #
+        n_windows = 1 if (is_pt and is_2d) or (not is_pt) else len(mass_bins)
+        for index in range(n_windows):
+            if (is_2d and is_pt) or (not is_pt):
+                # 2D pt: all mass windows together
+                mc_hist_full_phase = get_acceptance_hist(hist_names['full_phase'])
+                mc_hist_efficiency = get_acceptance_hist(hist_names['efficiency'])
+                matrix_name = hist_names['matrix']
             else:
-                mass_bin_postfix = f'_{self.mass_bins[index][0]}to{self.mass_bins[index][1]}'
-                mc_hist_full_phase = self.get_acceptance_hist(self.pt_hist_full_phase_name_prefix + mass_bin_postfix)
+                # This is 1D pt case, will not be used for now
+                mass_bin = mass_bins[index]
+                mass_bin_postfix = f'_{mass_bin[0]}to{mass_bin[1]}'
+                mc_hist_full_phase = get_acceptance_hist(hist_names['full_phase'] + mass_bin_postfix)
+                mc_hist_efficiency = None  # Can add if needed for 1D pt
+                matrix_name = hist_names['matrix'] + mass_bin_postfix
 
-                mass_bin_postfix = '_' + str(self.mass_bins[index][0]) + 'to' + str(self.mass_bins[index][1])
-                matrix_name = self.pt_matrix_name_prefix+mass_bin_postfix
-
-            mc_acceptance_hist = self.get_acceptance_hist(matrix_name, is_matrix=True)
-            unfolded_hist = self.isr_pt.isr_hists[index].unfolded_measurement_hist
+            mc_acceptance_hist = get_acceptance_hist(matrix_name, is_matrix=True)
+            unfolded_hist = isr_obj.isr_hists[index].unfolded_measurement_hist
 
             acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
             acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
-            # TODO add statistical uncertainty for acceptance correction
-            acceptance_corrected.systematic_raw_root_hists.update({"accept_stat":
-                                                                   acceptance_corr.get_accept_stat(unfolded_hist)})
+            acceptance_corrected.systematic_raw_root_hists.update(
+                {"accept_stat": acceptance_corr.get_accept_stat(unfolded_hist)}
+            )
             acceptance_corrected.compute_systematic_rss_per_sysname()
 
-            unfolded_bin = self.isr_pt.unfolded_tunfold_bin
-            self.isr_pt.set_acceptance_corrected_hist(
-                hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin), mass_window_index=index)
-            self.isr_pt.set_acceptance_corrected_hist(
-                hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin), mass_window_index=index, key='simulation')
-            # add efficiency hist
-            self.isr_pt.isr_hists[index].efficiency_signal_hist = HistTUnfoldBin(mc_hist_efficiency, unfolded_bin)
+            unfolded_bin = isr_obj.unfolded_tunfold_bin
+            isr_obj.set_acceptance_corrected_hist(
+                hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin), mass_window_index=index
+            )
+            isr_obj.set_acceptance_corrected_hist(
+                hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin), mass_window_index=index, key='simulation'
+            )
+            # Only set efficiency hist if it exists (i.e., for 2D pt or for mass with efficiency available)
+            if mc_hist_efficiency is not None:
+                isr_obj.isr_hists[index].efficiency_signal_hist = HistTUnfoldBin(mc_hist_efficiency, unfolded_bin)
 
-        if self.isr_pt.is_2d:
-            run_acceptance_correction(index=0, is2d=True)
-        else:
-            for i in range(len(self.mass_bins)):
-                run_acceptance_correction(index=i, is2d=False)
+        # Set binned mean correction factors
+        isr_obj.binned_mean_correction_factors = get_correction_factors(
+            acceptance_space_name, is_pt=is_pt
+        )
 
-        # This is common in both 1D and 2D cases
-        self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name)
+    def pt_isr_acceptance_correction(self):
+        """
+        Apply acceptance correction for pt (handles both 1D and 2D).
+        """
+        # Prepare prefixes
+        hist_names = {
+            'full_phase': self.pt_hist_full_phase_name_prefix if not self.isr_pt.is_2d else self.pt_mass_hist_full_phase_name,
+            'efficiency': self.pt_mass_hist_efficiency_name if self.isr_pt.is_2d else None,
+            'matrix': self.pt_matrix_name_prefix if not self.isr_pt.is_2d else self.pt_mass_matrix_name
+        }
+        self._run_acceptance_correction(
+            isr_obj=self.isr_pt,
+            mass_bins=self.mass_bins,
+            acceptance_space_name=self.acceptance_space_name,
+            is_pt=True,
+            is_2d=self.isr_pt.is_2d,
+            pt_bins=self.pt_bins,
+            get_acceptance_hist=self.get_acceptance_hist,
+            get_correction_factors=self.get_correction_factors,
+            hist_names=hist_names
+        )
 
     def mass_isr_acceptance_correction(self):
-        postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])  # FIXME get this info from self.isr_mass
-        hist_full_phase_name = self.mass_hist_full_phase_name_prefix + postfix
-        hist_efficiency_name = self.mass_hist_efficiency_name_prefix + postfix
-        mc_hist_full_phase = self.get_acceptance_hist(hist_full_phase_name)  # binned histogram
-        mc_hist_efficiency = self.get_acceptance_hist(hist_efficiency_name)  # binned histogram
-
-        unfolded_hist = self.isr_mass.isr_hists[0].unfolded_measurement_hist
-        _, matrix_name, _, _ = self.get_hist_names_for_1d_dimass(postfix)
-        mc_acceptance_hist = self.get_acceptance_hist(matrix_name, is_matrix=True)
-
-        acceptance_corr = Acceptance(mc_hist_full_phase, mc_acceptance_hist)
-        acceptance_corrected = acceptance_corr.do_correction(unfolded_hist)
-        acceptance_corrected.systematic_raw_root_hists.update({"accept_stat":
-                                                                   acceptance_corr.get_accept_stat(unfolded_hist)})
-        acceptance_corrected.compute_systematic_rss_per_sysname()
-
-        unfolded_bin = self.isr_mass.unfolded_tunfold_bin
-        self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(acceptance_corrected, unfolded_bin))
-        self.isr_mass.set_acceptance_corrected_hist(hist=HistTUnfoldBin(mc_hist_full_phase, unfolded_bin),
-                                                    key='simulation')
-        self.isr_mass.isr_hists[0].efficiency_signal_hist = HistTUnfoldBin(mc_hist_efficiency, unfolded_bin)
-
-        # FIXME need to reproduce systematic hist for mass
-        self.isr_mass.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name,
-                                                                                   is_pt=False, force_sys_off=True)
+        """
+        Apply acceptance correction for mass (always 1D, single mass window).
+        """
+        postfix = '_' + str(self.pt_bins[0]) + 'to' + str(self.pt_bins[1])
+        hist_names = {
+            'full_phase': self.mass_hist_full_phase_name_prefix + postfix,
+            'efficiency': self.mass_hist_efficiency_name_prefix + postfix,
+            'matrix': self.mass_matrix_name_prefix + postfix
+        }
+        self._run_acceptance_correction(
+            isr_obj=self.isr_mass,
+            mass_bins=[self.mass_bins[0]],  # mass is always a single window in this context
+            acceptance_space_name=self.acceptance_space_name,
+            is_pt=False,
+            is_2d=False,
+            pt_bins=self.pt_bins,
+            get_acceptance_hist=self.get_acceptance_hist,
+            get_correction_factors=lambda *args, **kwargs: self.get_correction_factors(
+                self.acceptance_space_name, is_pt=False, force_sys_off=True
+            ),
+            hist_names=hist_names
+        )
 
     # get binned from isr_pt.per_mass_ or isr_mass
     # check variations of correction values according to systematics
@@ -571,7 +573,6 @@ class ISRAnalyzer(Analyzer):
                                                   unbinned_full_phase_name_prefix + mass_bin_postfix,
                                                   force_sys_off=True)  # TODO test systematics at generator level
             unbinned_mean = mc_hist_full_phase.get_mean(binned_mean=False)[0]
-
             binned_mean = self.isr_pt.isr_hists_per_mass_window[mass_index].acceptance_corrected_hist['simulation'].get_mean(binned_mean=False)[0]
             # print('correction factor', binned_mean/unbinned_mean)
             return unbinned_mean, binned_mean
@@ -580,7 +581,6 @@ class ISRAnalyzer(Analyzer):
                                                   unbinned_full_phase_name_prefix + mass_bin_postfix,
                                                   force_sys_off=False)  # TODO test systematics at generator level
             unbinned_mean = mc_hist_full_phase.get_sys_mean_dfs(sys_name, binned_mean=False)
-
             binned_mean = \
             self.isr_pt.isr_hists_per_mass_window[mass_index].acceptance_corrected_hist['simulation'].get_sys_mean_dfs(sys_name,
                                                                                                                        binned_mean=False)
@@ -607,6 +607,35 @@ class ISRAnalyzer(Analyzer):
             correction_factors.append(correction_factor)
         # correction_factor["nominal"]["nominal"]
         return correction_factors
+
+    def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False,
+                            is_matrix=False):
+        if is_matrix:
+            matrix = self.get_mc_hist(self.acceptance_name, hist_name, sys_names_to_skip=['matrix_model'])
+            # get projected hists
+            truth_hist = Hist(matrix.get_raw_hist().ProjectionX("projected_truth",  0, -1, "e"),
+                              hist_name=hist_name + "_projected_truth",
+                              year=self.year, channel=self.channel, label=matrix.label)
+
+            for sys_name, variations in matrix.systematic_raw_root_hists.items():
+                for var_name, hist in variations.items():
+                    temp_hist = hist.ProjectionX("projected_truth"+sys_name+var_name,  0, -1, "e")
+                    truth_hist.set_systematic_hist(sys_name, var_name, temp_hist)
+            truth_hist.compute_systematic_rss_per_sysname()
+            return truth_hist
+        else:
+            return self.get_mc_hist(self.acceptance_name, hist_name, bin_width_norm=bin_width_norm,
+                                    force_sys_off=False, sys_names_to_skip=['matrix_model'])
+
+    def extract_mean_pt_from_2d_hist(self, pt_2d_hist, unfold_bin):
+        pt_data = []
+        for index, _ in enumerate(self.mass_bins):
+            axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
+            temp_result = Hist(unfold_bin.ExtractHistogram("", pt_2d_hist.get_raw_hist(), 0,
+                                                           True,
+                                                           axis_steering))
+            pt_data.append(temp_result.get_mean())
+        return pt_data
 
     def get_sim_prefsr_mean_pt_1d(self, unfolded_space_name='', unfolded_bin_name='', mass_bins=None):
         if unfolded_space_name == '':
@@ -640,32 +669,3 @@ class ISRAnalyzer(Analyzer):
         if correct_binned_mean:
             self.correction_to_unbinned_prefsr_mean(pt_data, unfolded_space_name, unfolded_bin_name)
         return pt_data
-
-    def extract_mean_pt_from_2d_hist(self, pt_2d_hist, unfold_bin):
-        pt_data = []
-        for index, _ in enumerate(self.mass_bins):
-            axis_steering = 'dipt[O];dimass[UOC' + str(index) + ']'
-            temp_result = Hist(unfold_bin.ExtractHistogram("", pt_2d_hist.get_raw_hist(), 0,
-                                                           True,
-                                                           axis_steering))
-            pt_data.append(temp_result.get_mean())
-        return pt_data
-
-    def get_acceptance_hist(self, hist_name, hist_path='', bin_width_norm=False,
-                            is_matrix=False):
-        if is_matrix:
-            matrix = self.get_mc_hist(self.acceptance_name, hist_name, sys_names_to_skip=['matrix_model'])
-            # get projected hists
-            truth_hist = Hist(matrix.get_raw_hist().ProjectionX("projected_truth",  0, -1, "e"),
-                              hist_name=hist_name + "_projected_truth",
-                              year=self.year, channel=self.channel, label=matrix.label)
-
-            for sys_name, variations in matrix.systematic_raw_root_hists.items():
-                for var_name, hist in variations.items():
-                    temp_hist = hist.ProjectionX("projected_truth"+sys_name+var_name,  0, -1, "e")
-                    truth_hist.set_systematic_hist(sys_name, var_name, temp_hist)
-            truth_hist.compute_systematic_rss_per_sysname()
-            return truth_hist
-        else:
-            return self.get_mc_hist(self.acceptance_name, hist_name, bin_width_norm=bin_width_norm,
-                                    force_sys_off=False, sys_names_to_skip=['matrix_model'])

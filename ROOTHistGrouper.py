@@ -77,10 +77,11 @@ class ROOTHistGrouper:
         # loop over files and open histogram with hist path and add them
         # get file_dict here?
         file_dict = self.get_file_dict(sys_dir_name)
-        # TODO systematic?
+
         for file_label, file_path in file_dict.items():
             file = ROOT.TFile.Open(file_path, 'r')
             hist = file.Get(hist_path + hist_name)
+            #print(hist_path + hist_name)
 
             hist.GetNbinsX()
             file.Close()

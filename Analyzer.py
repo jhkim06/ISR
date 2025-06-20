@@ -122,9 +122,9 @@ class Analyzer:
             "qcd:all": {"up": ("default", "", 1.0), "down": ("default", "", 1.0)},
             "matrix_model:signal": {"matrix_model": ("sys", "zptweight", 1.0)},  # unfolding
             "btagSF:simulation": {"hup": ("sys", "btagSF_hup", 1.0),
-                                       "hdown": ("sys", "btagSF_hdown", 1.0),
-                                       "lup": ("sys", "btagSF_lup", 1.0),
-                                       "ldown": ("sys", "btagSF_ldown", 1.0)},
+                                  "hdown": ("sys", "btagSF_hdown", 1.0),
+                                  "lup": ("sys", "btagSF_lup", 1.0),
+                                  "ldown": ("sys", "btagSF_ldown", 1.0)},
             "puWeight:simulation": {"up": ("sys", "PUweight_up", 1.0), "down": ("sys", "PUweight_down", 1.0)},
             "prefireweight:simulation": {"up": ("sys", "prefireweight_up", 1.0),
                                          "down": ("sys", "prefireweight_down", 1.0)},
@@ -257,15 +257,15 @@ class Analyzer:
         self.systematics.update({"triggerSF:simulation": triggerSF_variations})
 
         if self.channel == 'ee':
-            #self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
-            #self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
+            self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
+            self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
             self.systematics.update({"electronIDSF:simulation": electronIDSF_variations})
             self.systematics.update({"electronRECOSF:simulation": electronRECOSF_variations})
 
         if self.channel == 'mm':
-            #self.systematics.update({"roccor_scale:all": mmomentum_scale_variations})
-            #self.systematics.update({"roccor_resolution:all": mmomentum_resolution_variations})
-            #self.systematics.update({"roccor_stat:all": mmomentum_stat})
+            self.systematics.update({"roccor_scale:all": mmomentum_scale_variations})
+            self.systematics.update({"roccor_resolution:all": mmomentum_resolution_variations})
+            self.systematics.update({"roccor_stat:all": mmomentum_stat})
 
             self.systematics.update({"muonIDSF:simulation": muonIDSF_variations})  # this include ISO
 
