@@ -20,6 +20,9 @@ labels = {
     "WW": "$WW$",
     "top": r"$tW$",
     "antitop": r"$\bar{t}W$",
+    "top+antitop": "top+antitop",
+    "ZZ+WZ+WW":"ZZ+WZ+WW",
+    "QCD": "QCD",
 }
 
 
@@ -85,30 +88,31 @@ class Analyzer:
         self.systematics = {}
 
 
-    def set_data_info(self, year, channel, event_selection, only_theory_sys=False):
+    def set_data_info(self, year, channel, event_selection, only_theory_sys=False, only_detector_sys=False):
         self.year = year
         self.channel = channel
         self.event_selection = event_selection
 
         self.systematics.clear()
-        self.systematics = {
-            "alpha_s:signal":
-                {"0.118+0.0015": ("pdf", "alphaS_up", 1.0),
-                 "0.118-0.0015": ("pdf", "alphaS_down", 1.0)},
-        }
-        pdf_signal_variations = {
-            r"no." + str(i): ("pdf", f"pdf{i}", 1.0)
-            for i in range(100)
-        }
-        self.systematics.update({"pdf:signal": pdf_signal_variations})
+        if not only_detector_sys:
+            self.systematics = {
+                "alpha_s:signal":
+                    {"0.118+0.0015": ("pdf", "alphaS_up", 1.0),
+                     "0.118-0.0015": ("pdf", "alphaS_down", 1.0)},
+            }
+            pdf_signal_variations = {
+                r"no." + str(i): ("pdf", f"pdf{i}", 1.0)
+                for i in range(100)
+            }
+            self.systematics.update({"pdf:signal": pdf_signal_variations})
 
-        scales = ["(1, 1)", "(1, 2)", "(1,0.5)", "(2, 1)", "(2, 2)", "(2,0.5)", "(0.5, 1)", "(0.5, 2)", "(0.5,0.5)"]
-        scale_signal_variations = {
-            scales[i]: ("pdf", f"scalevariation{i}", 1.0)
-            for i in range(1, 9)
-            if i not in (5, 7)  #
-        }
-        self.systematics.update({"scale:signal": scale_signal_variations})
+            scales = ["(1, 1)", "(1, 2)", "(1,0.5)", "(2, 1)", "(2, 2)", "(2,0.5)", "(0.5, 1)", "(0.5, 2)", "(0.5,0.5)"]
+            scale_signal_variations = {
+                scales[i]: ("pdf", f"scalevariation{i}", 1.0)
+                for i in range(1, 9)
+                if i not in (5, 7)  #
+            }
+            self.systematics.update({"scale:signal": scale_signal_variations})
 
         if only_theory_sys:
             return
@@ -253,15 +257,15 @@ class Analyzer:
         self.systematics.update({"triggerSF:simulation": triggerSF_variations})
 
         if self.channel == 'ee':
-            self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
-            self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
+            #self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
+            #self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
             self.systematics.update({"electronIDSF:simulation": electronIDSF_variations})
             self.systematics.update({"electronRECOSF:simulation": electronRECOSF_variations})
 
         if self.channel == 'mm':
-            self.systematics.update({"roccor_scale:all": mmomentum_scale_variations})
-            self.systematics.update({"roccor_resolution:all": mmomentum_resolution_variations})
-            self.systematics.update({"roccor_stat:all": mmomentum_stat})
+            #self.systematics.update({"roccor_scale:all": mmomentum_scale_variations})
+            #self.systematics.update({"roccor_resolution:all": mmomentum_resolution_variations})
+            #self.systematics.update({"roccor_stat:all": mmomentum_stat})
 
             self.systematics.update({"muonIDSF:simulation": muonIDSF_variations})  # this include ISO
 
@@ -366,10 +370,11 @@ class Analyzer:
                                                      bin_width_norm=bin_width_norm, norm=False)
         qcd_hist = data_ss - total_mc_ss
 
+        # 100% uncertainty
         qcd_hist_up = qcd_hist.create()
-        qcd_hist_up.scale(1.5)
+        qcd_hist_up.scale(2.0)
         qcd_hist_down = qcd_hist.create()
-        qcd_hist_down.scale(0.5)
+        qcd_hist_down.scale(0.0)
 
         qcd_hist.set_systematic_hist("qcd", "up", qcd_hist_up.get_raw_hist())
         qcd_hist.set_systematic_hist("qcd", "down", qcd_hist_down.get_raw_hist())
@@ -378,7 +383,8 @@ class Analyzer:
 
         return qcd_hist
 
-    def get_background_hists(self, hist_name, hist_name_prefix='', bin_width_norm=False, bg_scale=1.0, norm=False):
+    def get_background_hists(self, hist_name, hist_name_prefix='', bin_width_norm=False, bg_scale=1.0, norm=False,
+                             sys_dir_name='default', force_sys_off=False,):
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background_names:
@@ -395,7 +401,8 @@ class Analyzer:
                 bg_hist = self.get_mc_hist(bg, hist_name,
                                            hist_name_prefix=hist_name_prefix,
                                            bin_width_norm=bin_width_norm,
-                                           scale=bg_scale, norm=norm)
+                                           scale=bg_scale, norm=norm, sys_dir_name=sys_dir_name,
+                                           force_sys_off=force_sys_off)
             temp_dict[bg_key] = bg_hist
         return temp_dict
 
@@ -500,6 +507,10 @@ class Analyzer:
                                                      hist_name,
                                                      bin_width_norm=False,
                                                      x_axis_label='',
+                                                     y_axis_label='',
+                                                     legend_font_size=17,
+                                                     x_min=0, x_max=0,
+                                                     ratio_y_min=0.6, ratio_y_max=1.4,
                                                      y_log_scale=False,
                                                      x_log_scale=False,
                                                      save_and_reset=True,):
@@ -509,14 +520,37 @@ class Analyzer:
         # add hists
         self.add_measurement_and_expectation_hists_to_plotter(hist_name,
                                                               bin_width_norm=bin_width_norm,)
-        # TODO add option to reverse label order
-        self.plotter.draw_ratio_hists(location=(1, 0))
-
         # draw hists
         self.plotter.draw_hist()
-        self.plotter.set_common_comparison_plot_cosmetics(x_axis_label, y_log_scale, x_log_scale, bin_width_norm)
+        # TODO add option to reverse label order
+        self.plotter.draw_ratio_hists(location=(1, 0),)
+
+
+        if hist_name == 'nPV':
+            self.add_background_hists_to_plotter(hist_name+"_noPUweight", bin_width_norm=bin_width_norm,
+                                                 as_stack=True, as_denominator=True, not_to_draw=True,
+                                                 sys_dir_name='sys', force_sys_off=True)
+            self.add_signal_hist_to_plotter(hist_name+"_noPUweight",
+                                            bin_width_norm=bin_width_norm,
+                                            as_stack=True, as_denominator=True, not_to_draw=True,
+                                            sys_dir_name='sys', force_sys_off=True)
+            self.add_data_hist_to_plotter(hist_name,
+                                          bin_width_norm=bin_width_norm, as_denominator=False,
+                                          err_band_hatch='///', err_band_fill=False, not_to_draw=True,
+                                          color='gray', mfc='none')
+
+            self.plotter.draw_ratio_hists(location=(1, 0),)
+
+        if x_min !=0 and x_max!=0:
+            self.plotter.get_axis(location=(0, 0)).set_xlim(x_min, x_max)
+            self.plotter.get_axis(location=(1, 0)).set_xlim(x_min, x_max)
+
+        self.plotter.set_common_comparison_plot_cosmetics(x_axis_label, y_log_scale, x_log_scale, bin_width_norm,
+                                                          ratio_min=ratio_y_min, ratio_max=ratio_y_max,
+                                                          font_size=legend_font_size)
+        self.plotter.set_experiment_label(**{'year': self.year})
         if save_and_reset:
-            self.plotter.save_and_reset_plotter(hist_name)
+            self.plotter.save_and_reset_plotter(hist_name + self.channel + self.year)
 
     def draw_measurement_comparison_plot(self,
                                          *setups,
@@ -568,17 +602,18 @@ class Analyzer:
 
     # methods for Plotter
     def add_measurement_and_expectation_hists_to_plotter(self, hist_name,
-                                                         bin_width_norm=False):
+                                                         bin_width_norm=False, not_to_draw=False):
         self.add_background_hists_to_plotter(hist_name, bin_width_norm=bin_width_norm,
-                                             as_stack=True, as_denominator=True)
+                                             as_stack=True, as_denominator=True, not_to_draw=not_to_draw)
         self.add_signal_hist_to_plotter(hist_name,
                                         bin_width_norm=bin_width_norm,
-                                        as_stack=True, as_denominator=True)
+                                        as_stack=True, as_denominator=True, not_to_draw=not_to_draw)
         self.add_data_hist_to_plotter(hist_name,
-                                      bin_width_norm=bin_width_norm, as_denominator=False)
+                                      bin_width_norm=bin_width_norm, as_denominator=False,
+                                      err_band_hatch='///', err_band_fill=False, not_to_draw=not_to_draw)
 
     def add_data_hist_to_plotter(self, hist_name, bin_width_norm=False, subtract_bg=False,
-                                 location=(0,0),
+                                 location=(0,0), not_to_draw=False,
                                  as_denominator=False, norm=False, **kwargs):
         if subtract_bg:
             data_hist = self.get_bg_subtracted_measurement_hist(hist_name, bin_width_norm=bin_width_norm, norm=norm)
@@ -588,25 +623,28 @@ class Analyzer:
             kwargs = get_hist_kwargs(data_hist.get_label())
         else:
             kwargs =  get_hist_kwargs(data_hist.get_label()) | kwargs
-        index = self.plotter.add_hist(data_hist, as_denominator=as_denominator, location=location,
+        index = self.plotter.add_hist(data_hist, as_denominator=as_denominator, location=location, not_to_draw=not_to_draw,
                                       **kwargs)
 
         return index
 
     def add_signal_hist_to_plotter(self, hist_name, bin_width_norm=False, as_stack=False, as_denominator=True,
-                                   norm=False):
-        signal_hist = self.get_mc_hist(self.signal_name, hist_name, bin_width_norm=bin_width_norm, norm=norm)
-        index = self.plotter.add_hist(signal_hist, as_stack=as_stack, as_denominator=as_denominator, 
+                                   norm=False, not_to_draw=False, sys_dir_name='default', force_sys_off=False):
+        signal_hist = self.get_mc_hist(self.signal_name, hist_name, bin_width_norm=bin_width_norm, norm=norm,
+                                       sys_dir_name=sys_dir_name, force_sys_off=force_sys_off)
+        index = self.plotter.add_hist(signal_hist, as_stack=as_stack, as_denominator=as_denominator, not_to_draw=not_to_draw,
                                       **get_hist_kwargs(signal_hist.get_label()))
         return index
 
     def add_background_hists_to_plotter(self, hist_name, bin_width_norm=False, as_stack=False, as_denominator=True,
-                                        norm=False):
-        background_hists = self.get_background_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm)
+                                        norm=False, not_to_draw=False, sys_dir_name='default', force_sys_off=False):
+        background_hists = self.get_background_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm,
+                                                     sys_dir_name=sys_dir_name, force_sys_off=force_sys_off)
         index_list = []
         for _, bg in background_hists.items():
-            index = self.plotter.add_hist(bg, as_stack=as_stack, as_denominator=as_denominator,
-                                          **{"label": labels[bg.get_label()]})  # mark as denominator index
+            index = self.plotter.add_hist(bg, as_stack=as_stack, as_denominator=as_denominator, not_to_draw=not_to_draw,
+                                          **{"label": labels[bg.get_label()],
+                                             "color": colors[bg.get_label()]})  # mark as denominator index
             index_list.append(index)
         return index_list
 

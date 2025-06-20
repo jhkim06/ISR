@@ -169,6 +169,8 @@ class Plotter:
         self.legend_handles: Dict[Tuple[int, int], list] = {}
         self.legend_labels: Dict[Tuple[int, int], list] = {}
 
+        self.show_legend_for_normalized_error=False
+
         self.y_minimum = 999.
 
     def reset(self):
@@ -265,14 +267,40 @@ class Plotter:
 
         return extended_colors
 
-    def set_experiment_label(self, label="Preliminary", location=(0, 0), **kwargs):
+    # Recommended to use, after draw all component
+    def set_experiment_label(self, label="Preliminary", location=(0, 0),
+                             **kwargs):
         self.set_current_axis(location=location)
-        self.current_axis.draw(self.current_axis.figure.canvas.get_renderer())
         is_data = label != "Simulation"
         label = "" if not is_data else label
+
         plt.rcParams['text.usetex'] = False
-        hep.cms.label(label, data=is_data, fontsize=20, ax=self.current_axis, loc=0, pad=.0, **kwargs)
+        hep.cms.label(label, data=is_data, fontsize=20, ax=self.current_axis, loc=0, pad=.0,
+                      **kwargs)
         plt.rcParams['text.usetex'] = True
+
+        self.fig.canvas.draw()
+        ax = self.current_axis
+        offset_text = ax.yaxis.get_offset_text()
+        exponent_str = offset_text.get_text()
+
+        if exponent_str and ax.get_yscale() != "log":
+            offset_text.set_fontsize(14)
+            self.fig.canvas.draw()
+            renderer = self.fig.canvas.get_renderer()
+            bbox = offset_text.get_window_extent(renderer)
+            x1_disp, y1_disp = bbox.x1, bbox.y1
+            x1_axes, y1_axes = ax.transAxes.inverted().transform((x1_disp, y1_disp))
+            all_texts = ax.texts
+            x, _ = all_texts[1].get_position()
+            all_texts[1].set_x(x1_axes+x)
+            x, _ = all_texts[2].get_position()
+            all_texts[2].set_x(x1_axes+x)
+        else:
+            print("No offset text present")
+
+        # move the patch
+        self.fig.canvas.draw()
 
     def set_current_axis(self, location=(0, 0)):
         self.current_axis = self.get_axis(location=location)
@@ -394,8 +422,10 @@ class Plotter:
                    self.plot_items[index[-1]])
 
     def draw_ratio_hists(self, location=(0, 0), show_y_error=True, show_error_band=True,
-                         show_normalized_error_band=True, sym_err_name='Total'):
+                         show_normalized_error_band=True, sym_err_name='Total',
+                         show_legend_for_normalized_error=False):
         nominator_index, denominator_index = self.set_ratio_hist()
+        self.show_legend_for_normalized_error=show_legend_for_normalized_error
 
         def is_stackable(indices):
             return all(self.plot_items[i].as_stack for i in indices)
@@ -451,11 +481,17 @@ class Plotter:
             self.add_hist(error_band, location=location,
                           use_for_ratio=False, yerr=True, show_err_band=False,
                           **kwargs)
+        sys_name = hist.err_band_sys_name
+        sys_stat_name = 'Stat.'
+        if not self.show_legend_for_normalized_error:
+            sys_name = ''
+            sys_stat_name = ''
         self.draw_error_boxes(error_band.to_numpy()[0],
                               error_band.to_numpy()[1],
                               error_band.total_sym_err_array,
                               location=location,
                               zorder=0,
+                              sys_name=sys_name,
                               **{"facecolor": hist.plot_kwargs['color'],
                                  "alpha": 0.8,
                                  "fill": hist.err_band_fill,
@@ -467,6 +503,7 @@ class Plotter:
                               error_band.get_sym_sys_err_array('stat'),
                               location=location,
                               zorder=1,
+                              sys_name=sys_stat_name,
                               **{"facecolor": 'mistyrose',  # TODO
                                  "alpha": 0.8,
                                  "fill": hist.err_band_fill,
@@ -474,13 +511,19 @@ class Plotter:
 
     def draw_error_box_for_plot_item(self, index, location=(0, 0),):
         plot_item = self.plot_items[index]
+
+        sys_name = plot_item.err_band_sys_name
+        sys_stat_name = 'Stat.'
+        if self.show_legend_for_normalized_error:
+            sys_name = ''
+            sys_stat_name = ''
         if plot_item.err_band_alpha != 0.0:
             self.draw_error_boxes(plot_item.to_numpy()[0],
                                   plot_item.to_numpy()[1],
                                   plot_item.get_sym_sys_err_array(plot_item.sym_err_name),
                                   location=location,
                                   zorder=0,
-                                  sys_name=plot_item.err_band_sys_name,
+                                  sys_name=sys_name,
                                   **{"facecolor": plot_item.plot_kwargs['color'],
                                      "alpha": plot_item.err_band_alpha,
                                      "fill": plot_item.err_band_fill,
@@ -492,7 +535,7 @@ class Plotter:
                                       plot_item.get_sym_sys_err_array('stat'),
                                       location=location,
                                       zorder=1,
-                                      sys_name='Stat.',
+                                      sys_name=sys_stat_name,
                                       **{"facecolor": 'mistyrose',  # TODO
                                          "alpha": 0.8,
                                          "fill": plot_item.err_band_fill,
@@ -520,10 +563,10 @@ class Plotter:
         # return self.add_hist(ratio_hist, location=location, use_for_ratio=False, yerr=False, **kwargs)
 
     def show_legend(self, location=(0, 0), reverse=True, data_label_first=False,
-                    show_only_sys_legends=False,
+                    show_only_sys_legends=False, font_size=17,
                     **kwargs_):
         self.set_current_axis(location=location)
-        kwargs = {"loc": 'best', 'fontsize': 17} | kwargs_
+        kwargs = {"loc": 'best', 'fontsize': font_size} | kwargs_
         if reverse:
             self.current_axis.legend(self.legend_handles[location][::-1],
                                      self.legend_labels[location][::-1], **kwargs)
@@ -550,7 +593,7 @@ class Plotter:
                     handles = []
                     labels = []
                     for index, label in enumerate(self.legend_labels[location]):
-                        if ("Stat." in label or "Total uncertainty" in label or
+                        if ("Stat." in label or "Total uncertainty" in label or r"Syst.(Theory $\oplus$ measurement)"  in label or
                                 r"Scale $\oplus$ PDF $\oplus$ $\alpha_s$" in label):
                             handles.append(self.legend_handles[location][index])
                             labels.append(label)
@@ -563,7 +606,7 @@ class Plotter:
                                              self.legend_labels[location], **kwargs)
         try:
             hep.plot.yscale_legend(self.current_axis)
-        except RuntimeError:
+        except (RuntimeError, StopIteration):
             pass
 
     def draw_error_boxes(self, default_value, bins, errors,
@@ -632,8 +675,10 @@ class Plotter:
                                              x_log_scale=False,
                                              bin_width_norm=False,
                                              ratio_name='Data/MC',
+                                             font_size=17,
                                              y_min_scale=1.0,
                                              ratio_min = 0.6, ratio_max= 1.4,
+                                             show_sys_legend_for_ratio=False,
                                              rows=2):
         # usual comparison plot cosmetic (2 rows and 1 colum)
         if y_log_scale:
@@ -651,21 +696,32 @@ class Plotter:
         else:
             self.get_axis(location=(0, 0)).set_ylabel("Events/bin")
 
-        self.show_legend(location=(0, 0))
+        self.show_legend(location=(0, 0), font_size=font_size)
+        if show_sys_legend_for_ratio:
+            self.show_legend(location=(1, 0), font_size=10, reverse=False,
+                             show_only_sys_legends=show_sys_legend_for_ratio)
         if y_min_scale != 1.0:
             self.adjust_y_scale(scale=y_min_scale)
 
         self.get_axis(location=(1, 0)).set_ylim(ratio_min, ratio_max)
         self.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black', zorder=1000)
         self.get_axis(location=(1, 0)).set_ylabel(ratio_name)
-        self.get_axis(location=(1, 0)).set_yticks([0.8, 1.0, 1.2])
+        if ratio_min == 0.6 and ratio_max == 1.4:
+            self.get_axis(location=(1, 0)).set_yticks([0.8, 1.0, 1.2])
+        elif ratio_min == 0.8 and ratio_max == 1.2:
+            self.get_axis(location=(1, 0)).set_yticks([0.9, 1.0, 1.1])
+        else:
+            pass
         self.get_axis(location=(1, 0)).grid(True, which='major', axis='y', linestyle='-', linewidth=0.7)
 
         if rows > 2:
             self.get_axis(location=(1, 0)).set_xticklabels([])
             self.get_axis(location=(2, 0)).set_ylim(ratio_min, ratio_max)
             self.get_axis(location=(2, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black', zorder=1000)
-            self.get_axis(location=(2, 0)).set_yticks([0.8, 1.0, 1.2])
+            if ratio_min == 0.6 and ratio_max == 1.4:
+                self.get_axis(location=(2, 0)).set_yticks([0.8, 1.0, 1.2])
+            else:
+                self.get_axis(location=(2, 0)).set_yticks([0.9, 1.0, 1.1])
             self.get_axis(location=(2, 0)).set_xlabel(x_variable_name)
             self.get_axis(location=(2, 0)).grid(True, which='major', axis='y', linestyle='-', linewidth=0.7)
         else:

@@ -410,7 +410,6 @@ class Hist(object):
         }
         # Loop over systematics and calculate RSS of mean shifts
         for sys_name, variations in self.systematic_raw_root_hists.items():
-
             # Temporary
             maximum_pdf_delta = 0
             if sys_name == "pdf" or "_stat" in sys_name:
@@ -420,12 +419,10 @@ class Hist(object):
                     temp_delta = abs(var_mean-central_mean)
                     if temp_delta > maximum_pdf_delta:
                         maximum_pdf_delta = temp_delta
-
             diffs = []
             if sys_name == "FSR":
                 fsr_nominal = variations["nominal"]
                 fsr_pythia = variations["pythia"]
-
                 nominal, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
                                            target_hist=fsr_nominal)
                 sys, _ = self.get_mean(binned_mean=binned_mean, range_min=range_min, range_max=range_max,
@@ -443,10 +440,9 @@ class Hist(object):
                             continue
                     ## otherwise accept it
                     diffs.append(delta)
-
             diffs = np.array(diffs)
 
-            if sys_name == "pdf":
+            if sys_name == "pdf" or "_stat" in sys_name:
                 sys_val = np.sqrt(np.mean(diffs ** 2))
             else:
                 sys_val = np.sqrt(np.sum(diffs ** 2))

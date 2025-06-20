@@ -95,17 +95,59 @@ def draw_isr_plot_from_df(mass, pt, sys_mean_mass, sys_mean_pt,
         #                     color=soft_blue, label='NLO', linestyle='dashdot', linewidth=1.)
         #plotter.add_errorbar((mass_lo_1d.get_df(key=key), pt_lo_1d.get_df(key=key)),
         #                     color=soft_orange, label='LO', linestyle='dashdot', linewidth=1.)
-        fitter = ISRLinearFitter(mass, pt)
-        slope, slope_err, intercept, intercept_err = fitter.do_fit()
+        current_version = True
+        if current_version:
+            fitter = ISRLinearFitter(mass, pt)
+            slope, slope_err, intercept, intercept_err = fitter.do_fit()
 
-        fit_slope = []
-        fit_intercept = []
-        for sys_name in sys_mean_pt.keys():
-            for sys_index in range(len(sys_mean_pt[sys_name])):
-                fitter_sys = ISRLinearFitter(sys_mean_mass[sys_name][sys_index], sys_mean_pt[sys_name][sys_index])
-                slope_sys, _, intercept_sys, _ = fitter_sys.do_fit()
-                fit_slope.append(slope_sys-slope)
-                fit_intercept.append(intercept_sys-intercept)
+            fit_slope = []
+            fit_intercept = []
+            slope_sys_err_new = 0
+            intercept_sys_err_new = 0
+            for sys_name in sys_mean_pt.keys():
+
+                slope_diffs = []
+                intercept_diffs = []
+                if sys_name == "FSR":
+                    fitter_nominal = ISRLinearFitter(sys_mean_mass[sys_name][0], sys_mean_pt[sys_name][0])
+                    slope_nominal, _, intercept_nominal, _ = fitter_nominal.do_fit()
+                    fitter_pythia = ISRLinearFitter(sys_mean_mass[sys_name][1], sys_mean_pt[sys_name][1])
+                    slope_pythia, _, intercept_pythia, _ = fitter_pythia.do_fit()
+
+                    slope_diffs.append(slope_pythia - slope_nominal)
+                    intercept_diffs.append(intercept_pythia - intercept_nominal)
+
+                    # just for old version
+                    fit_slope.append(slope_pythia-slope)
+                    fit_intercept.append(intercept_pythia-intercept)
+
+                else:
+                    for sys_index in range(len(sys_mean_pt[sys_name])):
+                        fitter_sys = ISRLinearFitter(sys_mean_mass[sys_name][sys_index], sys_mean_pt[sys_name][sys_index])
+                        slope_sys, _, intercept_sys, _ = fitter_sys.do_fit()
+                        fit_slope.append(slope_sys-slope)
+                        fit_intercept.append(intercept_sys-intercept)
+
+                        slope_diffs.append(slope_sys-slope)
+                        intercept_diffs.append(intercept_sys-intercept)
+                
+                slope_diffs = np.array(slope_diffs)
+                intercept_diffs = np.array(intercept_diffs)
+                if sys_name == "pdf" or "_stat" in sys_name:
+                    slope_sys_err_new += np.mean(slope_diffs ** 2)
+                    intercept_sys_err_new += np.mean(intercept_diffs ** 2)
+                else:
+                #    slope_sys_err_new += np.sum(slope_diffs ** 2)
+                #    intercept_sys_err_new += np.sum(intercept_diffs ** 2)
+                    slope_sys_err_new += np.sum((slope_diffs/2) ** 2)
+                    intercept_sys_err_new += np.sum((intercept_diffs/2) ** 2)
+        else:
+            fitter = ISRLinearFitter(mass_mean, pt_mean)
+            slope, slope_err, intercept, intercept_err = fitter.do_multi_error_fit()
+                    
+        slope_sys_err_new = np.sqrt(slope_sys_err_new)
+        intercept_sys_err_new = np.sqrt(intercept_sys_err_new)
+
         corr = np.corrcoef(fit_slope, fit_intercept)
         cov_matrix = np.cov(fit_slope, fit_intercept, ddof=0)
         print(corr)
@@ -117,15 +159,20 @@ def draw_isr_plot_from_df(mass, pt, sys_mean_mass, sys_mean_pt,
         # draw fit result
         x = np.linspace(50, 400, 350)
         y = 2.0 * slope * np.log(x) + intercept
-        plotter.current_axis.plot(x, y, label=f'Fit $a={slope:.2f}\pm{slope_sys:.2f}\pm{slope_err:.2f},\ '
-                                                  f'b={intercept:.2f}\mp{intercept_sys:.2f}\mp{intercept_err:.2f}$\n'
+        if current_version:
+            plotter.current_axis.plot(x, y, label=f'Fit $a={slope:.2f}\pm{slope_err:.2f}\pm{slope_sys_err_new:.2f},\ '
+                                                      f'b={intercept:.2f}\pm{intercept_err:.2f}\mp{intercept_sys_err_new:.2f}$\n'
+                                                      r'$y = b + 2 \cdot a  \cdot ln(x)$')
+        else:
+            plotter.current_axis.plot(x, y, label=f'Fit $a={slope:.2f}\pm{slope_err:.2f},\ '
+                                                  f'b={intercept:.2f}\mp{intercept_err:.2f}$\n'
                                                   r'$y = b + 2 \cdot a  \cdot ln(x)$')
 
         plotter.update_legend((0,0))
 
         plotter.set_isr_plot_cosmetics(channel=channel_label,)
         text = r"$p_{T}^{"+ channel_label+"}<$ 100 GeV"
-        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "upper right", })
+        plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower right", })
 
         if save_and_reset_plotter:
             plotter.draw_errorbar()
@@ -147,8 +194,8 @@ def main():
     pt_bins = (0.0, 100.0)
 
     setups = [
-        {"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         {"period": "2018", "channel": "ee", "event_selection": "TightID_b_veto"},
+        {"period": "2018", "channel": "mm", "event_selection": "TightID_TightIso_b_veto"},
         {"period": "2016a", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2016b", "channel": "ee", "event_selection": "TightID_b_veto"},
         {"period": "2017", "channel": "ee", "event_selection": "TightID_b_veto"},
@@ -260,13 +307,19 @@ def main():
         # compare aMC@NLO at parton level
         pt_others = []
         mass_others = []
+        sys_on_for_NLO=False
+        if period == '2016a' or period == '2017' or period == '2016b':
+            sys_on_for_NLO=True
         test_aMCNLO = ISRAnalyzer(sample_base_dir,
                                   mass_bins,
-                                  pt_bins, signal="DY:aMCNLO", sys_on=False)  # TODO include systematic!
+                                  pt_bins, signal="DY:aMCNLO", sys_on=sys_on_for_NLO)  # TODO include systematic!
         test_aMCNLO.setup_isr_acceptance_hists(period, channel, event_selection, is_2d=True)
         pt_aMCNLO, mass_aMCNLO = test_aMCNLO.get_isr_results()
         pt_others.append(pt_aMCNLO)
         mass_others.append(mass_aMCNLO)
+
+        plotter = pt.draw_isr_plot(mass, save_as_csv=True, save_and_reset_plotter=True, do_fit=False,
+                                   linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=1001, capsize=3)
 
         plotter = pt.draw_isr_plot(mass, save_as_csv=True, save_and_reset_plotter=False,
                                    linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=1001, capsize=3)
