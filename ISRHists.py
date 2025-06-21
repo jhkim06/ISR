@@ -43,12 +43,12 @@ class ISRHistSet:
                  background_hists=None,
                  response_matrix=None,
                  tunfolder=None,
-                 unfold_input_hist=None,
-                 reco_signal_hist=None,
-                 unfolded_measurement_hist=None,
+                 unfold_input_hist=None,  # TODO get mean values
+                 reco_signal_hist=None,  # is DY fake subtracted here?
+                 unfolded_measurement_hist=None,  # TODO get mean values
                  unfolded_signal_hist=None,
                  truth_signal_hist=None,
-                 acceptance_corrected_measurement_hist=None,
+                 acceptance_corrected_measurement_hist=None,  # mean value
                  acceptance_corrected_signal_hist=None,
                  efficiency_signal_hist=None,):
         # detector hist
@@ -170,10 +170,8 @@ class ISRHists:
     def __init__(self,
                  mass_bins,  # mass windows
                  pt_bins,
-
                  is_2d,
                  is_pt,
-
                  year='', channel='',
                  folded_tunfold_bin=None, unfolded_tunfold_bin=None):  # pt cut
 
@@ -212,7 +210,6 @@ class ISRHists:
         # N mean values
         self.acceptance_corrected_mean_values = {"measurement": [],
                                                  "simulation": []}
-
         self.binned_mean_correction_factors = None
         # common plot cosmetics
         if is_pt:
@@ -260,8 +257,6 @@ class ISRHists:
             isr_hist.acceptance_corrected_hist["measurement"].compute_systematic_rss_per_sysname()
             isr_hist.acceptance_corrected_hist["simulation"].compute_systematic_rss_per_sysname()
 
-            # update mean value
-            # set_acceptance_corrected_mean_values
         self.set_acceptance_corrected_mean_values_(key='measurement')
         self.set_acceptance_corrected_mean_values_(key='simulation')
 
@@ -463,7 +458,6 @@ class ISRHists:
             text = str(r"$p_{T}^{" + change_to_greek(self.channel) + "}<$" + str(int(self.pt_bins[1])) + " (GeV)")
         return text
 
-    # TODO systematics on binned_mean_correction?
     def get_mean_df(self, key='measurement', other=None, binned_mean_correction=True, ):
         # Choose whether to pull from self or another instance
         source = other if other is not None else self
@@ -522,7 +516,7 @@ class ISRHists:
         return sys_mean_pt_dfs, sys_mean_mass_dfs
 
     def add_isr_plot(self, plotter, mass, pt, key='measurement', do_fit=False,
-                     sys_mean_mass=None, sys_mean_pt=None,
+                     sys_mean_mass=None, sys_mean_pt=None, draw_sys_fit_scatter=False,
                      **kwargs):
         if isinstance(mass, pd.DataFrame):
             mass_mean = mass
@@ -535,21 +529,19 @@ class ISRHists:
             pt_mean = self.get_mean_df(key=key, other=pt,)
 
         print(pt_mean, mass_mean)
-        plotter.add_errorbar((mass_mean, pt_mean), **kwargs)  # show total uncertainty
+        plotter.add_errorbar((mass_mean, pt_mean), **kwargs)  # show total uncertainty by default
 
         current_version = True
         if do_fit:
             if sys_mean_pt is None and sys_mean_mass is None:
+                # extract mean values for each systematic variation
                 sys_mean_pt, sys_mean_mass = self.get_sys_mean_dfs(pt, mass, sys_name=None)
-            # current version
-
+            # current version: repeat fitting for each systematic
             slope_sys_err_new = 0
             intercept_sys_err_new = 0
             if current_version:
                 fitter = ISRLinearFitter(mass_mean, pt_mean)
                 slope, slope_err, intercept, intercept_err = fitter.do_fit()
-
-                # Need to extract mean of systematics
 
                 #isr_plotter = Plotter('CMS',
                 #                           '/Users/junhokim/Work/cms_snu/ISR/Plots')
@@ -602,13 +594,13 @@ class ISRHists:
                         fit_slope.append(slope_pythia-slope)
                         fit_intercept.append(intercept_pythia-intercept)
                     else:
-
                         for sys_index in range(len(sys_mean_pt[sys_name])):
                             fitter_sys = ISRLinearFitter(sys_mean_mass[sys_name][sys_index], sys_mean_pt[sys_name][sys_index])
                             slope_sys, _, intercept_sys, _ = fitter_sys.do_fit()
                             fit_slope.append(slope_sys-slope)
                             fit_intercept.append(intercept_sys-intercept)
 
+                            # this is envelope...
                             slope_diffs.append(slope_sys-slope)
                             intercept_diffs.append(intercept_sys-intercept)
 
@@ -643,8 +635,12 @@ class ISRHists:
                     else:
                     #    slope_sys_err_new += np.sum(slope_diffs ** 2)
                     #    intercept_sys_err_new += np.sum(intercept_diffs ** 2)
-                        slope_sys_err_new += np.sum((slope_diffs/2) ** 2)
-                        intercept_sys_err_new += np.sum((intercept_diffs/2) ** 2)
+                        if sys_name == "scale":
+                            slope_sys_err_new += np.sum((slope_diffs) ** 2)
+                            intercept_sys_err_new += np.sum((intercept_diffs) ** 2)
+                        else:
+                            slope_sys_err_new += np.sum((slope_diffs/2) ** 2)
+                            intercept_sys_err_new += np.sum((intercept_diffs/2) ** 2)
 
                 slope_sys_err_new = np.sqrt(slope_sys_err_new)
                 intercept_sys_err_new = np.sqrt(intercept_sys_err_new)
@@ -658,9 +654,7 @@ class ISRHists:
                 slope_sys = np.sqrt(cov_matrix[0, 0])
                 intercept_sys = np.sqrt(cov_matrix[1, 1])
             else:
-                # use TGraphMultiErrors
-                # first set stat
-                # loop over and set systematics
+                # use TGraphMultiErrors?
                 fitter = ISRLinearFitter(mass_mean, pt_mean)
                 slope, slope_err, intercept, intercept_err = fitter.do_multi_error_fit()
 
@@ -690,6 +684,7 @@ class ISRHists:
             # add fit result
         return pt_mean, mass_mean
 
+    # Methods for plots
     def draw_isr_plot(self, other, save_and_reset_plotter=True, postfix='', key='measurement',
                       do_fit=True, save_as_csv=False, show_this_sys=None, y_min=13, y_max=29,
                       **kwargs):

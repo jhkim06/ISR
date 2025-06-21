@@ -81,7 +81,6 @@ class ROOTHistGrouper:
         for file_label, file_path in file_dict.items():
             file = ROOT.TFile.Open(file_path, 'r')
             hist = file.Get(hist_path + hist_name)
-            #print(hist_path + hist_name)
 
             hist.GetNbinsX()
             file.Close()

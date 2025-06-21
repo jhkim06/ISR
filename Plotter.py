@@ -518,11 +518,14 @@ class Plotter:
             sys_name = ''
             sys_stat_name = ''
         if plot_item.err_band_alpha != 0.0:
+            zorder = 1
+            if plot_item.is_measurement:
+                zorder = 1001
             self.draw_error_boxes(plot_item.to_numpy()[0],
                                   plot_item.to_numpy()[1],
                                   plot_item.get_sym_sys_err_array(plot_item.sym_err_name),
                                   location=location,
-                                  zorder=0,
+                                  zorder=zorder,
                                   sys_name=sys_name,
                                   **{"facecolor": plot_item.plot_kwargs['color'],
                                      "alpha": plot_item.err_band_alpha,
@@ -530,11 +533,14 @@ class Plotter:
                                      'hatch': plot_item.err_band_hatch})
 
             if plot_item.err_band_hatch is None:
+                zorder = 1
+                if plot_item.is_measurement:
+                    zorder = 1002
                 self.draw_error_boxes(plot_item.to_numpy()[0],
                                       plot_item.to_numpy()[1],
                                       plot_item.get_sym_sys_err_array('stat'),
                                       location=location,
-                                      zorder=1,
+                                      zorder=zorder,
                                       sys_name=sys_stat_name,
                                       **{"facecolor": 'mistyrose',  # TODO
                                          "alpha": 0.8,

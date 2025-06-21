@@ -336,7 +336,8 @@ class ISRAnalyzer(Analyzer):
             do_iterative: bool = False,
             apply_custom_regularization: bool = False,
             custom_regularization_fn=None,
-            do_iterative_for_last_window: bool = False
+            do_iterative_for_last_window: bool = False,
+            return_input_sys = False
     ) -> tuple:
         """
         Generic helper for ISR unfolding (used for both pt and mass, 1D or 2D).
@@ -394,7 +395,11 @@ class ISRAnalyzer(Analyzer):
         # no reason to repeat unfolding for scale alpha_s and pdf since,
         # modelling uncertainty for unfold done with reweighted DY MC
         sys_names_to_skip = ['scale', 'alpha_s', 'pdf']
-        unfolded_hist.systematic_raw_root_hists = unfold.sys_unfold(sys_names_to_skip=sys_names_to_skip)
+        unfolded_hist.systematic_raw_root_hists, sys_input_hist = unfold.sys_unfold(sys_names_to_skip=sys_names_to_skip,
+                                                                                    return_input_sys=return_input_sys)
+        if sys_input_hist is not None:
+            unfold_input_hist.systematic_raw_root_hists=sys_input_hist
+            unfold_input_hist.compute_systematic_rss_per_sysname()
         unfolded_hist.systematic_raw_root_hists.update({"matrix_stat": unfold.get_matrix_stat()})
         unfolded_hist.compute_systematic_rss_per_sysname()
 
@@ -415,7 +420,8 @@ class ISRAnalyzer(Analyzer):
     def pt_isr_unfold(
             self, tau=0.0, max_iter=4, reg_mode='None', tau_scan_method=None,
             do_iterative=False, do_iterative_for_last_window=False,
-            apply_custom_regularization_for_pt=False
+            apply_custom_regularization_for_pt=False,
+            return_input_sys=False
     ):
         """
         Unfold the pt distribution, handling 2D and 1D cases.
@@ -425,7 +431,8 @@ class ISRAnalyzer(Analyzer):
             return self._run_isr_unfold(
                 self.isr_pt, 0, tau, max_iter, reg_mode, tau_scan_method,
                 do_iterative, apply_custom_regularization_for_pt,
-                custom_regularization_fn=custom_reg_fn
+                custom_regularization_fn=custom_reg_fn,
+                return_input_sys=return_input_sys,
             )
         else:
             # Unlikely used for this time...
@@ -439,7 +446,8 @@ class ISRAnalyzer(Analyzer):
 
     def mass_isr_unfold(
             self, tau=0.0, max_iter=4, reg_mode='None', tau_scan_method=None,
-            do_iterative=False, apply_custom_regularization_for_mass=False
+            do_iterative=False, apply_custom_regularization_for_mass=False,
+            return_input_sys=False
     ):
         """
         Unfold the mass distribution (always 1D).
@@ -448,7 +456,8 @@ class ISRAnalyzer(Analyzer):
         return self._run_isr_unfold(
             self.isr_mass, 0, tau, max_iter, reg_mode, tau_scan_method,
             do_iterative, apply_custom_regularization_for_mass,
-            custom_regularization_fn=custom_reg_fn
+            custom_regularization_fn=custom_reg_fn,
+            return_input_sys=return_input_sys,
         )
 
     def isr_acceptance_corrections(self):

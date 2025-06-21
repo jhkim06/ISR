@@ -257,7 +257,7 @@ class Analyzer:
         self.systematics.update({"triggerSF:simulation": triggerSF_variations})
 
         if self.channel == 'ee':
-            self.systematics.update({"momentum_scale:all": emomentum_scale_variations})
+            self.systematics.update({"momentum_scale:measurement": emomentum_scale_variations})  # momentum scale variations only for data
             self.systematics.update({"momentum_resolution:all": emomentum_resolution_variations})
             self.systematics.update({"electronIDSF:simulation": electronIDSF_variations})
             self.systematics.update({"electronRECOSF:simulation": electronRECOSF_variations})
@@ -328,13 +328,15 @@ class Analyzer:
                 hist.set_systematic_hist(sys_name, variation_name, sys_hist.get_raw_hist())
 
     # Methods to get Hist
-    def get_measurement_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
+    def get_measurement_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False,
+                             sys_dir_name='default'):
         file_group = self.get_measurement()
 
         hist = file_group.get_combined_root_hists(hist_name,
                                                   event_selection=self.event_selection,
                                                   hist_name_prefix=hist_name_prefix,
-                                                  bin_width_norm=bin_width_norm, norm=norm)
+                                                  bin_width_norm=bin_width_norm, norm=norm,
+                                                  sys_dir_name=sys_dir_name)
         if self.sys_on:
             self.set_systematics_on_hist(file_group, hist, hist_name, hist_name_prefix=hist_name_prefix,
                                          bin_width_norm=bin_width_norm)  # Analyzer knows systematics
@@ -362,12 +364,17 @@ class Analyzer:
             hist.compute_systematic_rss_per_sysname()
         return hist
 
-    def get_qcd_hist(self, hist_name, bin_width_norm=False, bg_scale=1.0, norm=False):
-        data_ss = self.get_measurement_hist(hist_name, hist_name_prefix='ss_',
+    def get_qcd_hist(self, hist_name, bin_width_norm=False, bg_scale=1.0, norm=False,
+                     data_hist_name='', sys_dir_name='default', force_sys_off=False):
+
+        if data_hist_name == '':
+            data_hist_name = hist_name
+        data_ss = self.get_measurement_hist(data_hist_name, hist_name_prefix='ss_',
                                             bin_width_norm=bin_width_norm, norm=False,)
         data_ss.label='QCD'
         total_mc_ss = self.get_total_expectation_hist(hist_name, hist_name_prefix='ss_',
-                                                     bin_width_norm=bin_width_norm, norm=False)
+                                                      sys_dir_name=sys_dir_name, force_sys_off=force_sys_off,
+                                                      bin_width_norm=bin_width_norm, norm=False)
         qcd_hist = data_ss - total_mc_ss
 
         # 100% uncertainty
@@ -384,7 +391,7 @@ class Analyzer:
         return qcd_hist
 
     def get_background_hists(self, hist_name, hist_name_prefix='', bin_width_norm=False, bg_scale=1.0, norm=False,
-                             sys_dir_name='default', force_sys_off=False,):
+                             sys_dir_name='default', force_sys_off=False, data_hist_name_for_qcd=''):
         # return dictionary of root hists
         temp_dict = {}
         for bg in self.background_names:
@@ -392,7 +399,9 @@ class Analyzer:
             if bg == 'qcd':
                 if self.channel == 'ee': continue
                 bg_key = 'qcd'
-                bg_hist = self.get_qcd_hist(hist_name, bin_width_norm=bin_width_norm, bg_scale=bg_scale, norm=norm)
+                bg_hist = self.get_qcd_hist(hist_name, bin_width_norm=bin_width_norm, bg_scale=bg_scale, norm=norm,
+                                            sys_dir_name=sys_dir_name, force_sys_off=force_sys_off,
+                                            data_hist_name=data_hist_name_for_qcd)
             else:
                 if isinstance(bg, tuple):
                     bg_key = '+'.join([k for k in bg])
@@ -406,11 +415,13 @@ class Analyzer:
             temp_dict[bg_key] = bg_hist
         return temp_dict
 
-    def get_total_bg_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
+    def get_total_bg_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False,
+                          sys_dir_name='default', force_sys_off=False):
         total_bg = None
         for name in self.background_names:
             if name == 'qcd' or name == 'GGLL': continue
-            bg = self.get_mc_hist(name, hist_name, hist_name_prefix=hist_name_prefix, bin_width_norm=bin_width_norm)
+            bg = self.get_mc_hist(name, hist_name, hist_name_prefix=hist_name_prefix, bin_width_norm=bin_width_norm,
+                                  sys_dir_name=sys_dir_name, force_sys_off=force_sys_off)
             # FIXME continue if not found?
             total_bg = bg + total_bg
 
@@ -418,13 +429,17 @@ class Analyzer:
             total_bg.normalize()
         return total_bg
 
-    def get_total_expectation_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False):
+    def get_total_expectation_hist(self, hist_name, hist_name_prefix='', bin_width_norm=False, norm=False,
+                                   sys_dir_name='default', force_sys_off=False):
         total_expectation_hist = self.get_mc_hist(self.signal_name, hist_name,
                                                   hist_name_prefix=hist_name_prefix,
-                                                  bin_width_norm=bin_width_norm,)
+                                                  bin_width_norm=bin_width_norm,
+                                                  sys_dir_name=sys_dir_name, force_sys_off=force_sys_off)
         total_expectation_hist = (self.get_total_bg_hist(hist_name,
                                                          hist_name_prefix=hist_name_prefix,
-                                                         bin_width_norm=bin_width_norm,)
+                                                         bin_width_norm=bin_width_norm,
+                                                         sys_dir_name=sys_dir_name,
+                                                         force_sys_off=force_sys_off)
                                   + total_expectation_hist)
 
         if norm:
@@ -481,6 +496,7 @@ class Analyzer:
 
         return unfold
 
+    #
     def draw_measurement_signal_comparison_plot(self, hist_name,
                                                 bin_width_norm=False,
                                                 figsize=(8,8),
@@ -503,6 +519,7 @@ class Analyzer:
             self.plotter.adjust_y_scale()
             self.plotter.save_and_reset_plotter(hist_name, self.plot_name_postfix("bg_subtracted"))
 
+    #
     def draw_measurement_expectation_comparison_plot(self,
                                                      hist_name,
                                                      bin_width_norm=False,
@@ -529,7 +546,8 @@ class Analyzer:
         if hist_name == 'nPV':
             self.add_background_hists_to_plotter(hist_name+"_noPUweight", bin_width_norm=bin_width_norm,
                                                  as_stack=True, as_denominator=True, not_to_draw=True,
-                                                 sys_dir_name='sys', force_sys_off=True)
+                                                 sys_dir_name='sys', force_sys_off=True,
+                                                 data_hist_name_for_qcd=hist_name)
             self.add_signal_hist_to_plotter(hist_name+"_noPUweight",
                                             bin_width_norm=bin_width_norm,
                                             as_stack=True, as_denominator=True, not_to_draw=True,
@@ -637,9 +655,11 @@ class Analyzer:
         return index
 
     def add_background_hists_to_plotter(self, hist_name, bin_width_norm=False, as_stack=False, as_denominator=True,
-                                        norm=False, not_to_draw=False, sys_dir_name='default', force_sys_off=False):
+                                        norm=False, not_to_draw=False, sys_dir_name='default', force_sys_off=False,
+                                        data_hist_name_for_qcd=''):
         background_hists = self.get_background_hists(hist_name, bin_width_norm=bin_width_norm, norm=norm,
-                                                     sys_dir_name=sys_dir_name, force_sys_off=force_sys_off)
+                                                     sys_dir_name=sys_dir_name, force_sys_off=force_sys_off,
+                                                     data_hist_name_for_qcd=data_hist_name_for_qcd)
         index_list = []
         for _, bg in background_hists.items():
             index = self.plotter.add_hist(bg, as_stack=as_stack, as_denominator=as_denominator, not_to_draw=not_to_draw,

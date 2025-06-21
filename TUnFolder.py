@@ -375,17 +375,17 @@ class TUnFolder:
                 self.unfold(sys_tunfolder=tunfolder)
                 sys_unfolded_hist[sys_name][var_name] = self.get_unfolded_hist(use_axis_binning=False,
                                                                                tunfolder=tunfolder)
-                if return_input_sys:
+                if return_input_sys and not self.iterative:
                     # FIXME TUnfoldIterative doesn't have GetInput()
                     sys_unfold_input_hist[sys_name][var_name] = tunfolder.GetInput("unfold_input",  # histogram title
                                                                                    ctypes.c_char_p(0),
                                                                                    ctypes.c_char_p(0),
                                                                                    ctypes.c_char_p(0),
                                                                                    False)
-        if return_input_sys:
+        if return_input_sys and not self.iterative:
             return sys_unfolded_hist, sys_unfold_input_hist
         else:
-            return sys_unfolded_hist
+            return sys_unfolded_hist, None
 
     def get_unfolded_hist(self, projection_mode="*[*]",
                           use_axis_binning=True,
