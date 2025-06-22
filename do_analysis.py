@@ -319,15 +319,15 @@ def main():
         mass_others.append(mass_aMCNLO)
 
         plotter = pt.draw_isr_plot(mass, save_as_csv=True, save_and_reset_plotter=True, do_fit=False,
-                                   linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=1001, capsize=3)
+                                   linestyle='none', marker='o', color='black', label='Data', ms=5, zorder=1001, capsize=3)
 
-        plotter = pt.draw_isr_plot(mass, save_as_csv=True, save_and_reset_plotter=False,
-                                   linestyle='none', marker='o', color='black', label='Data', ms=4, zorder=1001, capsize=3)
+        plotter = pt.draw_isr_plot(mass, save_as_csv=True, save_and_reset_plotter=False, show_chi2=True,
+                                   linestyle='none', marker='o', color='black', label='Data', ms=5, zorder=1001, capsize=3)
         # include aMC@NLO estimation
         key='simulation'
         plotter.add_errorbar((mass_aMCNLO.get_mean_df(key=key), pt_aMCNLO.get_mean_df(key=key)), marker='o', ms=4,
-                              mfc='none', capsize=3,
-                              color="blue", label='aMC@NLO', linestyle='dashdot', linewidth=1.)
+                              mfc='none', fill_between_only=True,
+                              color="blue", label='aMC@NLO', linestyle='--', linewidth=0.7)
         plotter.draw_errorbar()
         plotter.set_experiment_label(**{'year': period})
         plotter.show_legend(location=(0, 0), **{"loc": "upper left"})

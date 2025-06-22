@@ -8,10 +8,14 @@ class ISRLinearFitter:
         self.pt_mean = pt_mean
 
         self.fit_funct = "2.* [0] * TMath::Log(x) + [1]"
+        self.funct = TF1("funct", self.fit_funct, 50, 400)
         self.slope = 0
         self.intercept = 0
         self.slope_err = 0
         self.intercept_err = 0
+
+        self.chi2 = 0
+        self.ndof = 0
 
     def do_fit(self):
 
@@ -20,13 +24,15 @@ class ISRLinearFitter:
             graph.SetPoint(index, self.mass_mean['mean'][index], self.pt_mean['mean'][index])
             graph.SetPointError(index, self.mass_mean['stat'][index], self.pt_mean['stat'][index])
 
-        funct = TF1("funct", self.fit_funct, 50, 400)
+        # funct = TF1("funct", self.fit_funct, 50, 400)
         graph.Fit("funct")
 
-        self.slope = funct.GetParameter(0)
-        self.slope_err = funct.GetParError(0)
-        self.intercept = funct.GetParameter(1)
-        self.intercept_err = funct.GetParError(1)
+        self.slope = self.funct.GetParameter(0)
+        self.slope_err = self.funct.GetParError(0)
+        self.intercept = self.funct.GetParameter(1)
+        self.intercept_err = self.funct.GetParError(1)
+        self.chi2 = self.funct.GetChisquare()
+        self.ndof = self.funct.GetNDF()
 
         return self.slope, self.slope_err, self.intercept, self.intercept_err
 
@@ -47,12 +53,14 @@ class ISRLinearFitter:
                                 array('d', self.pt_mean.iloc[index][2:-2].values),)
 
 
-        funct = TF1("funct", self.fit_funct, 50, 400)
+        # funct = TF1("funct", self.fit_funct, 50, 400)
         graph.Fit("funct")
 
-        self.slope = funct.GetParameter(0)
-        self.slope_err = funct.GetParError(0)
-        self.intercept = funct.GetParameter(1)
-        self.intercept_err = funct.GetParError(1)
+        self.slope = self.funct.GetParameter(0)
+        self.slope_err = self.funct.GetParError(0)
+        self.intercept = self.funct.GetParameter(1)
+        self.intercept_err = self.funct.GetParError(1)
+        self.chi2 = self.funct.GetChisquare()
+        self.ndof = self.funct.GetNDF()
 
         return self.slope, self.slope_err, self.intercept, self.intercept_err

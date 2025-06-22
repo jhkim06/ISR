@@ -247,8 +247,8 @@ class Plotter:
         #plt.tight_layout()
         plt.subplots_adjust(left=left, right=right, bottom=bottom, top=top)
 
-    def save_and_reset_plotter(self, hist_name, postfix=''):
-        self.save_fig(hist_name + postfix)
+    def save_and_reset_plotter(self, hist_name, out_sub_dirs=''):
+        self.save_fig(hist_name, out_sub_dirs)
         self.reset()
 
     def get_n_colors(self, n):
@@ -826,14 +826,28 @@ class Plotter:
 
             self.set_current_axis(location=self.errorbar_loc[index])
             #print(len(x_value), len(y_value))
-            self.current_axis.errorbar(x_value, y_value, xerr=x_error, yerr=y_error,
-                                       **self.errorbar_kwargs[index])
-
-            handles, labels = self.current_axis.get_legend_handles_labels()
             label = self.errorbar_kwargs[index].get("label", None)
+            if "fill_between_only" in self.errorbar_kwargs[index]:
+                del self.errorbar_kwargs[index]['fill_between_only']
+                temp_kwargs = {}
+                if "color" in self.errorbar_kwargs[index]:
+                    temp_kwargs['color'] = self.errorbar_kwargs[index]['color']
+                if "label" in self.errorbar_kwargs[index]:
+                    temp_kwargs['label'] = self.errorbar_kwargs[index]['label']
+                    del self.errorbar_kwargs[index]['label']
+                handle = self.current_axis.fill_between(x=x_value, y1=y_value-y_error, y2=y_value+y_error,
+                                                        alpha=0.1,
+                                                        **temp_kwargs)
+                self.current_axis.errorbar(x_value, y_value, **self.errorbar_kwargs[index])
+            else:
+                self.current_axis.errorbar(x_value, y_value, xerr=x_error, yerr=y_error,
+                                           **self.errorbar_kwargs[index])
+
+                handles, labels = self.current_axis.get_legend_handles_labels()
+                handle = handles[-1]
             if label:
-                self.legend_handles[self.errorbar_loc[index]].append(handles[-1])
-                self.legend_labels[self.errorbar_loc[index]].append(labels[-1])
+                self.legend_handles[self.errorbar_loc[index]].append(handle)
+                self.legend_labels[self.errorbar_loc[index]].append(label)
 
     def update_legend(self, location=(0, 0)):
         handles, labels = self.get_axis(location=location).get_legend_handles_labels()
@@ -845,10 +859,12 @@ class Plotter:
         for line in vlines:
             self.get_axis(location=location).axvline(x=line, **kwargs)
 
-    def save_fig(self, out_name=''):
-        out_file_name = out_name
-
-        # print(f"save plot... {out_file_name}")
-        self.fig.savefig(self.base_output_dir + "/" + out_file_name + ".pdf")
+    def save_fig(self, out_name='', out_sub_dirs=''):
+        if out_sub_dirs:
+            out_file_name = self.base_output_dir + out_sub_dirs + out_name + ".pdf"
+        else:
+            out_file_name = self.base_output_dir + "/" + out_name + ".pdf"
+        #print(f"save plot... {out_file_name}")
+        self.fig.savefig(out_file_name)
 
 
