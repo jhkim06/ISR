@@ -205,12 +205,14 @@ class ISRHists:
         self.signal_mean_values = None
         self.background_mean_values = None
 
-        self.unfolded_measurement_mean_values = None
-        self.unfolded_signal_mean_values = None
-
+        # efficiency == truth of response? then it can be used to correct the binned mean
+        self.unfolded_measurement_mean_values = {"measurement": [],
+                                                 "simulation": []
+                                                 }
         # N mean values
         self.acceptance_corrected_mean_values = {"measurement": [],
-                                                 "simulation": []}
+                                                 "simulation": []
+                                                 }
         self.binned_mean_correction_factors = None
         # common plot cosmetics
         if is_pt:
@@ -258,8 +260,8 @@ class ISRHists:
             isr_hist.acceptance_corrected_hist["measurement"].compute_systematic_rss_per_sysname()
             isr_hist.acceptance_corrected_hist["simulation"].compute_systematic_rss_per_sysname()
 
-        self.set_acceptance_corrected_mean_values_(key='measurement')
-        self.set_acceptance_corrected_mean_values_(key='simulation')
+        self.set_acceptance_corrected_mean_values_from_isr_hists_per_window(key='measurement')
+        self.set_acceptance_corrected_mean_values_from_isr_hists_per_window(key='simulation')
 
     # TODO update hist also
     # add systematic from other ISRHist object
@@ -326,8 +328,8 @@ class ISRHists:
         self.set_acceptance_corrected_mean_values(mass_window_index, key)
 
     # TODO set detector/unfolded mean values also
-    def set_acceptance_corrected_mean_values_(self, key='measurement',
-                                              binned_mean=True, range_min=None, range_max=None,):
+    def set_acceptance_corrected_mean_values_from_isr_hists_per_window(self, key='measurement',
+                                                                       binned_mean=True, range_min=None, range_max=None, ):
         self.acceptance_corrected_mean_values[key].clear()
         if self.is_pt:
             for index in range(len(self.mass_bins)):
@@ -463,6 +465,7 @@ class ISRHists:
         # Choose whether to pull from self or another instance
         source = other if other is not None else self
         # Build the base dataframe
+        # TODO here add option to chose detector(bf/af bg subtraction) or unfolded
         df = pd.concat(source.acceptance_corrected_mean_values[key], ignore_index=True)
         # If PT case, compute and apply correction
         if binned_mean_correction:
@@ -506,8 +509,6 @@ class ISRHists:
 
                 bmc = pt.binned_mean_correction_factors  # unbinned mean values
                 # TODO
-                # pt.binned_mean_correction_factors[sys_name][var]
-                # df_sim = isr_hists_per_mass_window[mass_index].acceptance_corrected_hist['simulation'].get_sys_mean_dfs
                 df_sim = pd.concat(pt.acceptance_corrected_mean_values['simulation'], ignore_index=True)
                 bmc = bmc / df_sim['mean']
                 pt_df['mean'] *= bmc
@@ -517,8 +518,9 @@ class ISRHists:
         return sys_mean_pt_dfs, sys_mean_mass_dfs
 
     def add_isr_plot(self, plotter, mass, pt, key='measurement', do_fit=False,
-                     show_chi2=False, draw_fit_scatter_plot=False,
-                     sys_mean_mass=None, sys_mean_pt=None, draw_sys_fit_scatter=False,
+                     show_chi2=False,
+                     sys_mean_mass=None, sys_mean_pt=None,
+                     draw_sys_fit_scatter=False,
                      **kwargs):
 
         if isinstance(mass, pd.DataFrame):
@@ -547,127 +549,13 @@ class ISRHists:
                 fitter_default = ISRLinearFitter(mass_mean, pt_mean)
                 # nominal fit
                 slope, slope_err, intercept, intercept_err = fitter_default.do_fit()
-                #isr_plotter = Plotter('CMS',
-                #                           '/Users/junhokim/Work/cms_snu/ISR/Plots')
-
-                #isr_plotter.init_plotter()
-                #isr_plotter.set_experiment_label(**{"year": self.year})
-                ##isr_plotter.get_axis(location=(0, 0)).cla()
-                #plotter.get_axis(location=(0, 0)).set_xticklabels([])
-                #plotter.get_axis(location=(0, 0)).set_yticklabels([])
-                #isr_plotter.get_axis(location=(0, 0)).set_ylim(intercept-0.1, intercept+0.1)
-                #isr_plotter.get_axis(location=(0, 0)).set_xlim(slope-0.1, slope+0.1)
-                #isr_plotter.get_axis(location=(0, 0)).set_ylabel("Intercept", fontsize=30)
-                #isr_plotter.get_axis(location=(0, 0)).set_xlabel("Slope", fontsize=30)
-                #isr_plotter.get_axis(location=(0, 0)).scatter(slope, intercept, marker='*', c='black', s=100,
-                #                                              zorder=1001)
-                #
-                fit_slope = []
-                fit_intercept = []
-                slope_min = 9999
-                slope_max = -9999
-                intercept_min = 9999
-                intercept_max = -9999
-
-                sys_names = list(sys_mean_pt.keys())
-
-                # Grab N distinct colors from the “tab10” palette (or any other cmap):
-                #palette = plt.get_cmap("tab20")
-                #colors = [palette(i) for i in range(len(sys_names))]
-
-                # Build a mapping from sys_name → color
-                #color_map = dict(zip(sys_names, colors))
-                slope_sys_err_new = 0
-                intercept_sys_err_new = 0
-                for sys_name in sys_mean_pt.keys():
-
-                    slope_diffs = []
-                    intercept_diffs = []
-                    if sys_name == "FSR":
-                        print(len(sys_mean_pt[sys_name]))
-                        print(sys_mean_pt[sys_name])
-                        fitter_nominal = ISRLinearFitter(sys_mean_mass[sys_name][0], sys_mean_pt[sys_name][0])
-                        slope_nominal, _, intercept_nominal, _ = fitter_nominal.do_fit()
-                        fitter_pythia = ISRLinearFitter(sys_mean_mass[sys_name][1], sys_mean_pt[sys_name][1])
-                        slope_pythia, _, intercept_pythia, _ = fitter_pythia.do_fit()
-
-                        slope_diffs.append(slope_pythia - slope_nominal)
-                        intercept_diffs.append(intercept_pythia - intercept_nominal)
-
-                        # just for old version
-                        fit_slope.append(slope_pythia-slope)
-                        fit_intercept.append(intercept_pythia-intercept)
-                    else:
-                        for sys_index in range(len(sys_mean_pt[sys_name])):
-                            fitter_sys = ISRLinearFitter(sys_mean_mass[sys_name][sys_index], sys_mean_pt[sys_name][sys_index])
-                            slope_sys, _, intercept_sys, _ = fitter_sys.do_fit()
-                            fit_slope.append(slope_sys-slope)
-                            fit_intercept.append(intercept_sys-intercept)
-
-                            # this is envelope...
-                            slope_diffs.append(slope_sys-slope)
-                            intercept_diffs.append(intercept_sys-intercept)
-
-                            # scatter plot
-                            #c = color_map[sys_name]
-                            #sys_name_for_label = ""
-                            #if sys_index==0:
-                            #    sys_name_for_label = sys_name
-                            #isr_plotter.get_axis(location=(0, 0)).scatter(slope_sys, intercept_sys,
-                            #                                              color=c,
-                            #                                              marker='o', alpha=0.8,
-                            #                                              label=sys_names_map.get(sys_name_for_label,sys_name_for_label))
-                            #if sys_index==0:
-                            #    isr_plotter.get_axis(location=(0, 0)).annotate(sys_names_map.get(sys_name_for_label,sys_name_for_label),
-                            #                                                   (slope_sys, intercept_sys), fontsize=5,
-                            #                                                   rotation=45)
-                            #if slope_sys < slope_min:
-                            #    slope_min = slope_sys
-                            #if intercept_sys < intercept_min:
-                            #    intercept_min = intercept_sys
-
-                            #if slope_sys > slope_max:
-                            #    slope_max = slope_sys
-                            #if intercept_sys > intercept_max:
-                            #    intercept_max = intercept_sys
-
-                    slope_diffs = np.array(slope_diffs)
-                    intercept_diffs = np.array(intercept_diffs)
-                    if sys_name == "pdf" or "_stat" in sys_name:
-                        slope_sys_err_new += np.mean(slope_diffs ** 2)
-                        intercept_sys_err_new += np.mean(intercept_diffs ** 2)
-                    else:
-                    #    slope_sys_err_new += np.sum(slope_diffs ** 2)
-                    #    intercept_sys_err_new += np.sum(intercept_diffs ** 2)
-                        if sys_name == "scale":
-                            slope_sys_err_new += np.sum((slope_diffs) ** 2)
-                            intercept_sys_err_new += np.sum((intercept_diffs) ** 2)
-                        else:
-                            slope_sys_err_new += np.sum((slope_diffs/2) ** 2)
-                            intercept_sys_err_new += np.sum((intercept_diffs/2) ** 2)
-
-                slope_sys_err_new = np.sqrt(slope_sys_err_new)
-                intercept_sys_err_new = np.sqrt(intercept_sys_err_new)
-
-                # TODO record as scatter plot?
-                corr = np.corrcoef(fit_slope, fit_intercept)
-                cov_matrix = np.cov(fit_slope, fit_intercept, ddof=0)
-                print(corr)
-                print(cov_matrix)
-                print(slope_sys_err_new, intercept_sys_err_new)
-                slope_sys = np.sqrt(cov_matrix[0, 0])
-                intercept_sys = np.sqrt(cov_matrix[1, 1])
+                fitter_default.sys_mean_mass = sys_mean_mass
+                fitter_default.sys_mean_pt = sys_mean_pt
+                slope_sys_err_new, intercept_sys_err_new = fitter_default.do_sys_fit()  # do sys fit after nominal fit
             else:
-                # use TGraphMultiErrors?
+                # use TGraphMultiErrors
                 fitter = ISRLinearFitter(mass_mean, pt_mean)
                 slope, slope_err, intercept, intercept_err = fitter.do_multi_error_fit()
-
-            #isr_plotter.get_axis(location=(0, 0)).set_ylim(intercept_min*1.02, intercept_max*0.98)  # intercept is minus
-            #isr_plotter.get_axis(location=(0, 0)).set_xlim(slope_min*0.98, slope_max*1.02)
-            #handles, labels = isr_plotter.get_axis(location=(0, 0)).get_legend_handles_labels()
-            #isr_plotter.get_axis(location=(0, 0)).legend(handles, labels, loc="best", fontsize=6, ncol=2)
-            #isr_plotter.save_and_reset_plotter("isr_fit_para_scatter_"+self.channel+self.year)
-            #del isr_plotter
 
             # draw fit result
             # TODO option to show chi2
@@ -1210,7 +1098,7 @@ class ISRHists:
         plotter.draw_hist()
         if not self.is_pt:
             plotter.get_axis(location=(0, 0)).set_xscale("log")
-        plotter.show_legend(**{"loc": "upper left"})
+        plotter.show_legend(reverse=False, **{"loc": "upper left"})
         text = self.get_additional_text_on_plot(mass_window_index)
         plotter.add_text(text=text, location=(0, 0), do_magic=True, **{"frameon": False, "loc": "upper right"})
         plotter.get_axis(location=(0, 0)).set_ylabel("Relative uncertainty")
@@ -1279,6 +1167,10 @@ class ISRHists:
             plotter.get_axis(location=(1,0)).set_ylabel("/Default")
             plotter.get_axis(location=(1,0)).set_xlabel(self.x_axis_label)
             plotter.get_axis(location=(1, 0)).set_ylim(0.90, 1.1)
+            if "_resolution" in sys_name:
+                plotter.get_axis(location=(1, 0)).set_ylim(0.95, 1.05)
+            if "alpha_s" == sys_name:
+                plotter.get_axis(location=(1, 0)).set_ylim(0.99, 1.01)
             plotter.get_axis(location=(1, 0)).axhline(y=1, linestyle='--', linewidth=1, color='black', zorder=1000)
             plotter.get_axis(location=(0, 0)).set_xticklabels([])
 
@@ -1391,6 +1283,24 @@ class ISRHists:
             out_name_postfix = "_" + out_name_postfix
         plotter.save_and_reset_plotter(tunfolder.response_matrix.hist_name + "_RM_" + mass_window + self.channel + self.year
                                        + out_name_postfix, out_sub_dirs=self.out_sub_dirs)
+
+    def draw_scatter_for_mean_systematics(self, pt, mass, sys_name):
+        # select sys_name
+        sys_mean_pt, _ = self.get_sys_mean_dfs(pt, mass, sys_name=None)
+        pt_mean = self.get_mean_df(key='measurement', other=pt,)
+
+        diff_list = []
+        sys_variation = sys_mean_pt[sys_name]
+        for sys_var in sys_variation:
+            for index_i in range(len(sys_variation[sys_var])):
+                for index_j in range(len(sys_variation[sys_var])):
+                    if index_i == index_j:
+                        continue
+                    diff_i = sys_variation[sys_var]['mean'][index_i] - pt_mean['mean'][index_i]
+                    diff_j = sys_variation[sys_var]['mean'][index_j] - pt_mean['mean'][index_j]
+                    diff_list.append((diff_i, diff_j))
+        # draw diff_list
+
 
     def draw_correlations(self, mass_window_index=-1, **kwargs_hist2dplot):
         # Choose the relevant ISR hist container

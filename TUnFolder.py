@@ -777,8 +777,8 @@ class TUnFolder:
                               year=self.year, channel=self.channel, label=self.response_matrix.label,)
 
             for sys_name, variations in self.response_matrix.systematic_raw_root_hists.items():
-                if sys_name == 'matrix_model':
-                    continue
+                #if sys_name == 'matrix_model':
+                #    continue
                 for var_name, hist in variations.items():
                     temp_matrix = self.projection_matrix(hist)
                     truth_hist.set_systematic_hist(sys_name, var_name, temp_matrix)

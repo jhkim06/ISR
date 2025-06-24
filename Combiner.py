@@ -54,6 +54,7 @@ class Combiner:
             "FSR": 1.0,
             "accept_stat": 0.0,
             "scale": 0.7,  # TODO need further study
+            "efficiency": 1.0,
         }
         self.rho_same_period = {
             "stat": 0.0,
@@ -85,6 +86,7 @@ class Combiner:
             "FSR": 1.0,
             "accept_stat": 0.0,
             "scale": 0.7,
+            "efficiency": 0.0,
         }
 
         self.n_est = len(estimation_info)
@@ -186,6 +188,7 @@ class Combiner:
     def solve(self):
         self.blue.FixInp()
         self.blue.Solve()
+        #self.blue.LatexResult("test")
 
     def print(self):
         self.blue.PrintEst()

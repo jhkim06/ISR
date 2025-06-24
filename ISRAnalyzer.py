@@ -255,7 +255,7 @@ class ISRAnalyzer(Analyzer):
             self.isr_pt.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase,
                                       efficiency_signal_hist=mc_hist_efficiency,)
             self.isr_pt.set_ISRHistSet_per_mass_window()
-            self.isr_pt.set_acceptance_corrected_mean_values_(key='simulation')
+            self.isr_pt.set_acceptance_corrected_mean_values_from_isr_hists_per_window(key='simulation')
 
             self.isr_pt.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name)
         else:
@@ -292,7 +292,7 @@ class ISRAnalyzer(Analyzer):
         self.isr_mass.set_isr_hists(acceptance_corrected_signal_hist=mc_hist_full_phase,
                                     efficiency_signal_hist=mc_efficiency_phase,)
         self.isr_mass.set_ISRHistSet_per_mass_window()
-        self.isr_mass.set_acceptance_corrected_mean_values_(key='simulation')
+        self.isr_mass.set_acceptance_corrected_mean_values_from_isr_hists_per_window(key='simulation')
         self.isr_mass.binned_mean_correction_factors = self.get_correction_factors(self.acceptance_space_name,
                                                                                    is_pt=False, force_sys_off=True)
 

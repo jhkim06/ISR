@@ -46,6 +46,7 @@ class ISRCombiner:
             combiner_input_pt = []
 
             # loop over measurements
+            # FIXME how to handle with different systematic list?
             for key, _ in self.results_mass_dfs.items():
                 combiner_input = make_combiner_input(self.results_mass_dfs[key], i)  # i: mass window
                 combiner_input_mass.append(combiner_input)
