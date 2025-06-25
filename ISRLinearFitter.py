@@ -152,8 +152,8 @@ class ISRLinearFitter:
                     self.slope_sys += np.sum((slope_diffs) ** 2)
                     self.intercept_sys += np.sum((intercept_diffs) ** 2)
                 else:
-                    self.slope_sys += np.sum((slope_diffs / 2) ** 2)
-                    self.intercept_sys += np.sum((intercept_diffs / 2) ** 2)
+                    self.slope_sys += np.sum((slope_diffs) ** 2)
+                    self.intercept_sys += np.sum((intercept_diffs) ** 2)
 
         self.slope_sys = np.sqrt(self.slope_sys)
         self.intercept_sys = np.sqrt(self.intercept_sys)

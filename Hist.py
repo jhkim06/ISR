@@ -385,18 +385,23 @@ class Hist(object):
     def get_sys_mean_dfs(self, sys_name, binned_mean=True, range_min=None, range_max=None):
         sys_means = []
         # FIXME for FSR?
+        nominal_df = self.get_mean_df()
         for var_name, hist in self.systematic_raw_root_hists[sys_name].items():
             central_mean, err = self.get_mean(binned_mean=binned_mean, range_min=range_min,
                                               range_max=range_max, target_hist=hist)
-            result = {
-                "mean": central_mean,
-                "stat": err
-            }
-            result = pd.DataFrame([result])
-            error_columns = result.columns.difference(['mean'])
+            #result = {
+            #    "mean": central_mean,
+            #    "stat": err
+            #    #"stat": nominal_df["sys"].values[0]
+            #    #"stat": 0.01
+            #}
+            #result = pd.DataFrame([result])
+            #error_columns = result.columns.difference(['mean'])
 
-            result['sys'] =         np.sqrt((result[error_columns] ** 2).sum(axis=1))  # just to have consistent format
-            result['total_error'] = np.sqrt((result[error_columns] ** 2).sum(axis=1))
+            #result['sys'] =         np.sqrt((result[error_columns] ** 2).sum(axis=1))  # just to have consistent format
+            #result['total_error'] = np.sqrt((result[error_columns] ** 2).sum(axis=1))
+            result = nominal_df.copy(deep=True)
+            result["mean"].values[0] = central_mean
             sys_means.append(result)
         return sys_means
 
@@ -446,6 +451,7 @@ class Hist(object):
                 sys_val = np.sqrt(np.mean(diffs ** 2))
             else:
                 sys_val = np.sqrt(np.sum(diffs ** 2))
+
             result[sys_name] = sys_val
 
         result = pd.DataFrame([result])

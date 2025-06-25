@@ -345,6 +345,41 @@ def main():
                                             index=i_mass_index, scale=-1, bin_width_norm=True)
 
 
+	# save each systematics
+    sys_mass = {}
+    sys_pt = {}
+    sys_pt['2016a'], sys_mass['2016a'] = pt_dict["2016a_ee"].get_sys_mean_dfs(pt_dict["2016a_ee"], mass_dict["2016a_ee"])
+    sys_pt['2016b'], sys_mass['2016b'] = pt_dict["2016b_ee"].get_sys_mean_dfs(pt_dict["2016b_ee"], mass_dict["2016b_ee"])
+    sys_pt['2017'], sys_mass['2017'] =   pt_dict["2017_ee"].get_sys_mean_dfs(pt_dict["2017_ee"], mass_dict["2017_ee"])
+    sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_ee"].get_sys_mean_dfs(pt_dict["2018_ee"], mass_dict["2018_ee"])
+
+    for period in ['2016a', '2016b', '2017', '2018']:	
+        with open(f'ee{period}_mass_sys.pkl', 'wb') as f:
+            pickle.dump(sys_mass[period], f)
+        with open(f'ee{period}_pt_sys.pkl', 'wb') as f:
+            pickle.dump(sys_pt[period], f)
+		
+    del sys_pt
+    del sys_mass
+
+    sys_mass = {}
+    sys_pt = {}
+    sys_pt['2016a'], sys_mass['2016a'] = pt_dict["2016a_mm"].get_sys_mean_dfs(pt_dict["2016a_mm"], mass_dict["2016a_mm"])
+    sys_pt['2016b'], sys_mass['2016b'] = pt_dict["2016b_mm"].get_sys_mean_dfs(pt_dict["2016b_mm"], mass_dict["2016b_mm"])
+    sys_pt['2017'], sys_mass['2017'] =   pt_dict["2017_mm"].get_sys_mean_dfs(pt_dict["2017_mm"], mass_dict["2017_mm"])
+    sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_mm"].get_sys_mean_dfs(pt_dict["2018_mm"], mass_dict["2018_mm"])
+
+    for period in ['2016a', '2016b', '2017', '2018']:	
+        with open(f'mm{period}_mass_sys.pkl', 'wb') as f:
+            pickle.dump(sys_mass[period], f)
+        with open(f'mm{period}_pt_sys.pkl', 'wb') as f:
+            pickle.dump(sys_pt[period], f)
+
+    del sys_pt
+    del sys_mass
+
+
 if __name__ == "__main__":
     main()
+    print("FINISHED")
     sys.exit(0)
