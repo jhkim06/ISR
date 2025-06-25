@@ -354,9 +354,9 @@ def main():
     sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_ee"].get_sys_mean_dfs(pt_dict["2018_ee"], mass_dict["2018_ee"])
 
     for period in ['2016a', '2016b', '2017', '2018']:	
-        with open(f'ee{period}_mass_sys.pkl', 'wb') as f:
+        with open(f'./results/ee{period}_mass_sys.pkl', 'wb') as f:
             pickle.dump(sys_mass[period], f)
-        with open(f'ee{period}_pt_sys.pkl', 'wb') as f:
+        with open(f'./results/ee{period}_pt_sys.pkl', 'wb') as f:
             pickle.dump(sys_pt[period], f)
 		
     del sys_pt
@@ -370,9 +370,9 @@ def main():
     sys_pt['2018'], sys_mass['2018'] =   pt_dict["2018_mm"].get_sys_mean_dfs(pt_dict["2018_mm"], mass_dict["2018_mm"])
 
     for period in ['2016a', '2016b', '2017', '2018']:	
-        with open(f'mm{period}_mass_sys.pkl', 'wb') as f:
+        with open(f'./results/mm{period}_mass_sys.pkl', 'wb') as f:
             pickle.dump(sys_mass[period], f)
-        with open(f'mm{period}_pt_sys.pkl', 'wb') as f:
+        with open(f'./results/mm{period}_pt_sys.pkl', 'wb') as f:
             pickle.dump(sys_pt[period], f)
 
     del sys_pt
