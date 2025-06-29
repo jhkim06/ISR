@@ -3,3 +3,7 @@
 *.pdf
 *.DS_Store
 *.idea
+*.so
+*.pcm
+*.d
+
