@@ -209,8 +209,8 @@ def main():
 
     # Combine all periods for each channel
     mass_combined_ee, pt_combined_ee = combiner_ee.combine()
-    pt_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_ee_combined.csv", float_format='%.4f')
-    mass_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_ee_combined.csv", float_format='%.4f')
+    pt_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_ee_combined.csv")
+    mass_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_ee_combined.csv")
     del combiner_ee
 
     draw_isr_plot_from_df(mass_combined_ee, pt_combined_ee, sys_mass_ee_combined_df, sys_pt_ee_combined_df, postfix='ee', channel_label='ee', 
@@ -218,8 +218,8 @@ def main():
                           linestyle='none', marker='o', color='black', ms=5, zorder=1001, capsize=3)
 
     mass_combined_mm, pt_combined_mm = combiner_mm.combine()
-    pt_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_mm_combined.csv", float_format='%.4f')
-    mass_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_mm_combined.csv", float_format='%.4f')
+    pt_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_mm_combined.csv")
+    mass_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_mm_combined.csv")
     del combiner_mm
 
     draw_isr_plot_from_df(mass_combined_mm, pt_combined_mm, sys_mass_mm_combined_df, sys_pt_mm_combined_df, postfix='mm', channel_label='\mu\mu',
@@ -323,8 +323,8 @@ def main():
     efficiency = mass_combined_ee.pop('efficiency')
     mass_combined_ee.insert(3, 'efficiency', efficiency)
 
-    pt_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_ee_combined_.csv", float_format='%.4f')
-    mass_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_ee_combined_.csv", float_format='%.4f')
+    pt_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_ee_combined_.csv")
+    mass_combined_ee.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_ee_combined_.csv")
 
     # MUON
     # combine 'roccor_scale','roccor_stat'
@@ -356,8 +356,8 @@ def main():
     efficiency = mass_combined_mm.pop('muonIDSF')
     mass_combined_mm.insert(6, 'efficiency', efficiency)
 
-    pt_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_mm_combined_.csv", float_format='%.4f')
-    mass_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_mm_combined_.csv", float_format='%.4f')
+    pt_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_mm_combined_.csv")
+    mass_combined_mm.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_mm_combined_.csv")
     # ============================================================================================= #
 
     pt_combined_ee_ = pd.read_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_ee_combined_.csv", index_col=0)
@@ -371,8 +371,8 @@ def main():
     combiner_all.get_results_dfs("combined_mm", mass_combined_mm_[mass_combined_ee_.keys()], pt_combined_mm_[pt_combined_ee_.keys()]) 
 
     mass_combined_final, pt_combined_final = combiner_all.combine()
-    pt_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_combined.csv", float_format='%.4f')
-    mass_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_combined.csv", float_format='%.4f')
+    pt_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_combined.csv")
+    mass_combined_final.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_combined.csv")
 
     #pt_combined_final = pd.read_csv("/Users/junhokim/Work/cms_snu/ISR/results/pt_combined.csv", index_col=0)
     #mass_combined_final = pd.read_csv("/Users/junhokim/Work/cms_snu/ISR/results/mass_combined.csv", index_col=0)

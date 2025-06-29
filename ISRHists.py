@@ -624,8 +624,8 @@ class ISRHists:
                 plotter.add_errorbar((sys_mean_mass[show_this_sys][sys_index],
                                       sys_mean_pt[show_this_sys][sys_index]), linestyle='--', linewidth=0.5,)
         if save_as_csv:
-            pt_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_{self.channel}{self.year}.csv", float_format='%.4f')
-            mass_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_{self.channel}{self.year}.csv", float_format='%.4f')
+            pt_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/pt_{self.channel}{self.year}.csv")
+            mass_mean.to_csv(f"/Users/junhokim/Work/cms_snu/ISR/results/mass_{self.channel}{self.year}.csv")
         plotter.set_isr_plot_cosmetics(channel=change_to_greek(self.channel), y_min=y_min, y_max=y_max)
         text = isr_mass.get_additional_text_on_plot()
         plotter.add_text(text=text, location=(0, 0), do_magic=False, **{"frameon": False, "loc": "lower right", })

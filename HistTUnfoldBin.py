@@ -44,8 +44,8 @@ class HistTUnfoldBin(Hist):
                                                               projection_mode)
         return extracted_raw_hist
 
-    def extract_hist(self, bin_width_norm=False):
-        projection_mode = 'dimass[UO]'
+    def extract_hist(self, bin_width_norm=False, projection_mode='dimass[UO]'):
+        # projection_mode = 'dimass[UO]'
         extracted_raw_hist = self.extract_raw_hist(self.raw_root_hist, projection_mode, use_axis_binning=True)
 
         extracted_hist = Hist(

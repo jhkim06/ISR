@@ -281,23 +281,23 @@ class Plotter:
 
         self.fig.canvas.draw()
         ax = self.current_axis
-        offset_text = ax.yaxis.get_offset_text()
+        offset_text = ax.yaxis.get_offset_text()  # scientific exponent
         exponent_str = offset_text.get_text()
 
         if exponent_str and ax.get_yscale() != "log":
             offset_text.set_fontsize(14)
             self.fig.canvas.draw()
-            renderer = self.fig.canvas.get_renderer()
-            bbox = offset_text.get_window_extent(renderer)
-            x1_disp, y1_disp = bbox.x1, bbox.y1
-            x1_axes, y1_axes = ax.transAxes.inverted().transform((x1_disp, y1_disp))
-            all_texts = ax.texts
-            x, _ = all_texts[1].get_position()
-            all_texts[1].set_x(x1_axes+x)
-            x, _ = all_texts[2].get_position()
-            all_texts[2].set_x(x1_axes+x)
-        else:
-            print("No offset text present")
+        #    renderer = self.fig.canvas.get_renderer()
+        #    bbox = offset_text.get_window_extent(renderer)
+        #    x1_disp, y1_disp = bbox.x1, bbox.y1
+        #    x1_axes, y1_axes = ax.transAxes.inverted().transform((x1_disp, y1_disp))
+        #    all_texts = ax.texts
+        #    x, _ = all_texts[1].get_position()
+        #    all_texts[1].set_x(x1_axes+x)  # 'CMS'
+        #    x, _ = all_texts[2].get_position()  # 'Preliminary' for example
+        #    all_texts[2].set_x(x1_axes+x)
+        #else:
+        #    print("No offset text present")
 
         # move the patch
         self.fig.canvas.draw()
@@ -599,7 +599,8 @@ class Plotter:
                     handles = []
                     labels = []
                     for index, label in enumerate(self.legend_labels[location]):
-                        if ("Stat." in label or "Total uncertainty" in label or r"Syst.(Theory $\oplus$ measurement)"  in label or
+                        if ("Stat." in label or "Total uncertainty" in label or
+                                r"Syst.(Theory $\oplus$ measurement)"  in label or
                                 r"Scale $\oplus$ PDF $\oplus$ $\alpha_s$" in label):
                             handles.append(self.legend_handles[location][index])
                             labels.append(label)

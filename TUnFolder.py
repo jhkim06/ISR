@@ -128,16 +128,24 @@ class TUnFolder:
             # for 2d pt
             if tunfolder is None:
                 #self.tunfolder.RegularizeCurvature(51, 52, 53)
-                self.tunfolder.RegularizeDerivative(53, 43)
-                self.tunfolder.RegularizeDerivative(51, 41)
-                self.tunfolder.RegularizeDerivative(52, 42, -2)
                 #self.tunfolder.RegularizeCurvature(52, 53, 54)
+                
+                self.tunfolder.RegularizeDerivative(51, 52)
+                self.tunfolder.RegularizeDerivative(52, 53)
+
+                #self.tunfolder.RegularizeDerivative(53, 43)
+                #self.tunfolder.RegularizeDerivative(51, 41)
+                #self.tunfolder.RegularizeDerivative(52, 42, -2)
             else:
                 #tunfolder.RegularizeCurvature(51, 52, 53)
-                tunfolder.RegularizeDerivative(53, 43)
-                tunfolder.RegularizeDerivative(51, 41)
-                tunfolder.RegularizeDerivative(52, 42, -2)
                 #tunfolder.RegularizeCurvature(52, 53, 54)
+
+                tunfolder.RegularizeDerivative(51, 52)
+                tunfolder.RegularizeDerivative(52, 53)
+
+                #tunfolder.RegularizeDerivative(53, 43)
+                #tunfolder.RegularizeDerivative(51, 41)
+                #tunfolder.RegularizeDerivative(52, 42, -2)
         else:
             self.tunfolder.RegularizeCurvature(1, 2, 3)
             self.tunfolder.RegularizeCurvature(2, 3, 4)
